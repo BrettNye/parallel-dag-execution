@@ -1,0 +1,10 @@
+{
+  "name": "parallel-dag-execution",
+  "description": "DAG-aware planning + continuous parallel subagent execution. Companion to superpowers.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Brett Nye"
+  },
+  "license": "MIT",
+  "keywords": ["dag", "parallel", "subagents", "planning", "superpowers"]
+}

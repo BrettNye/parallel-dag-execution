@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "parallel-dag-execution",
+  "description": "Marketplace for the parallel-dag-execution plugin.",
+  "owner": {
+    "name": "Brett Nye"
+  },
+  "plugins": [
+    {
+      "name": "parallel-dag-execution",
+      "source": "./",
+      "description": "DAG-aware planning + continuous parallel subagent execution. Companion to superpowers.",
+      "category": "development",
+      "keywords": ["dag", "parallel", "subagents", "planning", "superpowers"]
+    }
+  ]
+}
