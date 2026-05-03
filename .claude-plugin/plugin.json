@@ -6,5 +6,7 @@
     "name": "Brett Nye"
   },
   "license": "MIT",
+  "homepage": "https://github.com/BrettNye/parallel-dag-execution",
+  "repository": "https://github.com/BrettNye/parallel-dag-execution",
   "keywords": ["dag", "parallel", "subagents", "planning", "superpowers"]
 }

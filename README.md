@@ -29,7 +29,7 @@ Where `superpowers:subagent-driven-development` dispatches one implementer subag
 Once the repo is on GitHub:
 
 ```
-/plugin marketplace add <your-github-handle>/parallel-dag-execution
+/plugin marketplace add BrettNye/parallel-dag-execution
 /plugin install parallel-dag-execution@parallel-dag-execution
 ```
 
