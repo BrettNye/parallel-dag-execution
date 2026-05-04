@@ -74,8 +74,8 @@ If the user genuinely needs to mutate immutable history, the answer is to author
    If structural validation fails, refuse with a specific error pointing to the violation. Do not mutate the file.
 
 6. **Re-run quality validation** per `plan-quality.md` (only on the tasks affected by the operation — existing `pending`/`ready` tasks not touched by this update keep their previous state). Specifically:
-   - On **add task**: run hard rules H1-H9 (was H1-H6) on the new task. Run soft heuristics S1, S5, S8 on the updated DAG.
-   - On **modify body**: run H1, H2, H4, H5, H9 (was H1, H2, H4, H5) on the modified task. Run S2-S4, S6, S8 on it.
+   - On **add task**: run hard rules H1-H9 on the new task. Run soft heuristics S1, S5, S8 on the updated DAG.
+   - On **modify body**: run H1, H2, H4, H5, H9 on the modified task. Run S2-S4, S6, S8 on it.
    - On **modify `files:`**: run H3 on the modified task. Run S2 on it.
    - On **rewire `depends_on:`**: run S1, S5, H9 on the updated DAG.
    - On **remove task**: no quality re-validation needed (removing tasks doesn't introduce new quality issues).
