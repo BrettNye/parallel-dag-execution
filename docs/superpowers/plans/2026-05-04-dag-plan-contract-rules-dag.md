@@ -5,12 +5,12 @@ created: 2026-05-04
 
 ```mermaid
 flowchart TD
-    task-quality-rules["task-quality-rules: add H9 + S8 to plan-quality.md<br/>files: skills/writing-dag-plans/plan-quality.md"]
-    task-writing-skill["task-writing-skill: update writing-dag-plans SKILL<br/>files: skills/writing-dag-plans/SKILL.md"]
-    task-updating-skill["task-updating-skill: update updating-dag-plans SKILL<br/>files: skills/updating-dag-plans/SKILL.md"]
-    task-fixtures-pass["task-fixtures-pass: 6 should-pass fixtures<br/>files: tests/fixtures/contracts/should-pass/clean-explicit-contracts-task.md +5 more"]
-    task-fixtures-refuse["task-fixtures-refuse: 2 should-refuse fixtures<br/>files: tests/fixtures/contracts/should-refuse/h9-missing-edge.md +1 more"]
-    task-fixtures-warn["task-fixtures-warn: 2 should-warn fixtures<br/>files: tests/fixtures/contracts/should-warn/s8-convention-exists-violated.md +1 more"]
+    task-quality-rules["task-quality-rules: add H9 + S8 to plan-quality.md<br/>files: skills/writing-dag-plans/plan-quality.md"]:::done
+    task-writing-skill["task-writing-skill: update writing-dag-plans SKILL<br/>files: skills/writing-dag-plans/SKILL.md"]:::done
+    task-updating-skill["task-updating-skill: update updating-dag-plans SKILL<br/>files: skills/updating-dag-plans/SKILL.md"]:::done
+    task-fixtures-pass["task-fixtures-pass: 6 should-pass fixtures<br/>files: tests/fixtures/contracts/should-pass/clean-explicit-contracts-task.md +5 more"]:::done
+    task-fixtures-refuse["task-fixtures-refuse: 2 should-refuse fixtures<br/>files: tests/fixtures/contracts/should-refuse/h9-missing-edge.md +1 more"]:::done
+    task-fixtures-warn["task-fixtures-warn: 2 should-warn fixtures<br/>files: tests/fixtures/contracts/should-warn/s8-convention-exists-violated.md +1 more"]:::done
 
     task-quality-rules --> task-writing-skill
     task-quality-rules --> task-updating-skill
@@ -53,7 +53,7 @@ id: task-quality-rules
 depends_on: []
 files:
   - skills/writing-dag-plans/plan-quality.md
-status: pending
+status: done
 ```
 
 Add H9 (Contract-sequencing, hard, refuse) and S8 (Contract co-location, soft, warn) to the rule taxonomy in `plan-quality.md`. Bump the detection-algorithm step list to reference H1-H9 and S1-S8. Add the H9 example to the Refusal output format section and the S8 example to the Warning output format section. The rule text and example outputs come directly from spec §H9, §S8, and §"SKILL.md flow changes" → `plan-quality.md` detection-algorithm section.
@@ -134,7 +134,7 @@ id: task-writing-skill
 depends_on: [task-quality-rules]
 files:
   - skills/writing-dag-plans/SKILL.md
-status: pending
+status: done
 ```
 
 Wire H9 and S8 into the `writing-dag-plans` SKILL flow per spec §"SKILL.md flow changes" → `writing-dag-plans/SKILL.md`. Insert a new step 6.5 (planner-side contract surface walk), update step 8's rule-range references, add a "Contract clarity" bullet to step 9's decomposition-principles audit, and add one new anti-pattern entry. Depends on `task-quality-rules` because the new step text references H9 and S8 by name and these must exist in `plan-quality.md` first for cross-references to be coherent.
@@ -197,7 +197,7 @@ id: task-updating-skill
 depends_on: [task-quality-rules]
 files:
   - skills/updating-dag-plans/SKILL.md
-status: pending
+status: done
 ```
 
 Apply the three surgical edits to `updating-dag-plans/SKILL.md` per spec §"SKILL.md flow changes" → `updating-dag-plans/SKILL.md`. (1) Add a new bullet to `## Hard rules` enforcing H9 against new tasks consuming `done`-task contracts. (2) Update step 6's per-operation rule lists to add H9 to "add task" and "modify body" (and S8 to the soft-heuristic batches). (3) Update `## Required reading` to cite H1-H9 / S1-S8 (also fixes pre-existing staleness — the file currently says H1-H6 / S1-S6 even though H7 and H8 already exist). Depends on `task-quality-rules` for the same reason as the writing-skill task: cross-references need to be coherent against the rules table.
@@ -264,7 +264,7 @@ files:
   - tests/fixtures/contracts/should-pass/clean-pre-existing-contracts.md
   - tests/fixtures/contracts/should-pass/h9-transitive-ok.md
   - tests/fixtures/contracts/should-pass/s8-schema-file-exempt.md
-status: pending
+status: done
 ```
 
 Create six DAG plan fixtures that should pass both H9 and S8 validation per spec §Testing → Positive fixtures. Each fixture file is itself a small valid DAG plan demonstrating one positive case. Each fixture begins with an HTML comment block documenting its expected outcome and the case it covers, so the manual checklist can read expectations directly from the file. Depends on `task-quality-rules` because fixture expectations reference H9/S8 rule names that must exist in `plan-quality.md` first.
@@ -382,7 +382,7 @@ depends_on: [task-quality-rules]
 files:
   - tests/fixtures/contracts/should-refuse/h9-missing-edge.md
   - tests/fixtures/contracts/should-refuse/h9-mutual-reference.md
-status: pending
+status: done
 ```
 
 Create two DAG plan fixtures that should be refused with H9 violations per spec §Testing → Refuse fixtures. Each fixture demonstrates a distinct H9 failure mode and documents the exact refusal text expected. Depends on `task-quality-rules` because the expected-refusal text needs to match the Refusal output format established there.
@@ -458,7 +458,7 @@ depends_on: [task-quality-rules]
 files:
   - tests/fixtures/contracts/should-warn/s8-convention-exists-violated.md
   - tests/fixtures/contracts/should-warn/s8-no-convention-mixed-concerns.md
-status: pending
+status: done
 ```
 
 Create two DAG plan fixtures that should produce S8 warnings (not refusals) per spec §Testing → Warn fixtures. Each fixture demonstrates one S8 branch and documents the exact warning text expected. Depends on `task-quality-rules` because the expected-warning text needs to match the Warning output format established there.
