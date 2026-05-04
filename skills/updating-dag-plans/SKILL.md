@@ -22,7 +22,7 @@ Mutate an in-flight or partially-executed DAG plan without breaking resumability
 ## Required reading
 
 - `../writing-dag-plans/plan-format.md` — canonical *structural* contract and validation rules.
-- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H6 and soft heuristics S1-S6.
+- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H9 and soft heuristics S1-S8.
 
 Updates that add new tasks or modify task bodies/scope must pass BOTH validations, same as fresh authoring.
 
@@ -74,10 +74,10 @@ If the user genuinely needs to mutate immutable history, the answer is to author
    If structural validation fails, refuse with a specific error pointing to the violation. Do not mutate the file.
 
 6. **Re-run quality validation** per `plan-quality.md` (only on the tasks affected by the operation — existing `pending`/`ready` tasks not touched by this update keep their previous state). Specifically:
-   - On **add task**: run hard rules H1-H6 on the new task. Run soft heuristics S1, S5 (DRY across siblings, DAG-too-linear) on the updated DAG.
-   - On **modify body**: run H1, H2, H4, H5 on the modified task. Run S2-S4, S6 on it.
+   - On **add task**: run hard rules H1-H9 (was H1-H6) on the new task. Run soft heuristics S1, S5, S8 on the updated DAG.
+   - On **modify body**: run H1, H2, H4, H5, H9 (was H1, H2, H4, H5) on the modified task. Run S2-S4, S6, S8 on it.
    - On **modify `files:`**: run H3 on the modified task. Run S2 on it.
-   - On **rewire `depends_on:`**: run S1, S5 on the updated DAG.
+   - On **rewire `depends_on:`**: run S1, S5, H9 on the updated DAG.
    - On **remove task**: no quality re-validation needed (removing tasks doesn't introduce new quality issues).
 
    Hard rule failure → refuse with rule + task + fix. Soft heuristic warnings → present and ask "save anyway? (y/N)" — default N.
@@ -98,6 +98,7 @@ If the user genuinely needs to mutate immutable history, the answer is to author
 - Persist the new plan only if all validations pass. Partial writes are forbidden — if any rule fails after mutation, refuse and leave the file untouched.
 - Regenerate the mermaid block in place — never duplicate it, never append.
 - Status field on existing tasks is NEVER modified by this skill. Only the executor changes statuses.
+- When adding a new task that consumes a contract defined by an already-`done` task, the new task must `depends_on:` that done task. The done task's status doesn't exempt it from H9 — sequencing rules apply for plan-coherence reasons (so a future re-execution or a reader of the plan can see the dependency). When adding a new contract-defining task, check whether existing `pending`/`ready` consumer tasks should now `depends_on:` it; if yes, mutate their `depends_on:` to include the new definer (allowed because they are `pending`/`ready`, not `done`).
 
 ## Example refusals
 
