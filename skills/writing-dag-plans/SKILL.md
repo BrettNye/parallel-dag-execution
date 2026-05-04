@@ -46,9 +46,11 @@ digraph writing_dag_plans {
     "Decompose into tasks" -> "For each task: elicit files: scope";
     "For each task: elicit files: scope" -> "Build dependency edges";
     "Build dependency edges" -> "Detect file-scope conflicts";
+    "Identify contract surface" [shape=box];
     "Detect file-scope conflicts" -> "Inject serializing depends_on edges" [label="conflicts found"];
-    "Detect file-scope conflicts" -> "Validate DAG (cycles, undefined deps, required fields)" [label="clean"];
+    "Detect file-scope conflicts" -> "Identify contract surface" [label="clean"];
     "Inject serializing depends_on edges" -> "Detect file-scope conflicts" [label="re-check"];
+    "Identify contract surface" -> "Validate DAG (cycles, undefined deps, required fields)";
     "Validate DAG (cycles, undefined deps, required fields)" -> "Run quality validation (plan-quality.md)";
     "Run quality validation (plan-quality.md)" [shape=box];
     "Run quality validation (plan-quality.md)" -> "Render mermaid block";
@@ -90,9 +92,11 @@ digraph writing_dag_plans {
 
    Any failure → refuse, explain, exit. Do NOT write the file.
 
+6.5. **Identify contract surface.** Walk each task's `## Implementation` block and extract defined contract symbols (interfaces, types, exported function signatures, schema definitions) per the H9 detection patterns in `plan-quality.md`. For each consumer task, identify which other tasks define symbols it imports or references. If any consumer task references a contract from a non-dependency, surface as a planner-level decision: either add the `depends_on:` edge or refactor to remove the cross-task reference. Loop until clean. (This is the planner-side mirror of H9 — catch the issue before it becomes a refusal at validation time.)
+
 7. **Run quality validation** per `plan-quality.md`:
-   - Hard rules H1-H8 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence, import resolution). Any failure → refuse, name the rule + task + fix, exit.
-   - Soft heuristics S1-S7 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting). Collect as warnings.
+   - Hard rules H1-H9 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence, import resolution, contract-sequencing). Any failure → refuse, name the rule + task + fix, exit.
+   - Soft heuristics S1-S8 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location). Collect as warnings.
 
 8. **Decomposition-principles audit (LLM-judgment pass).** Re-read the full plan with fresh eyes and check it against the four principles below. This step is judgment-driven — the mechanical rules in step 7 catch structural violations; this step catches *holistic* decomposition smells across the whole plan. Surface concerns as warnings (not refusals); the user confirms or revises.
 
@@ -100,6 +104,7 @@ digraph writing_dag_plans {
    - **Single Responsibility per task** (stricter than H2). Does any task bundle multiple distinct action paths or concerns under one acceptance group? If so, would splitting unlock parallelism, or is the bundling defensible by codebase convention? Flag the trade-off; do not auto-split.
    - **Separation of Concerns across files.** Does any task touch raw I/O (`fs.readFile`, `fs.writeFile`, `db.query`, network calls) when there's a store/repository/client abstraction in the plan that should mediate? Surface as a layering smell with the suggested fix (e.g., "have task X go through ClaimsStore instead of direct fs").
    - **Industry-standard hygiene.** Error handling at boundaries, atomic writes for state mutations, idempotency for tools that may run twice, type-safe input validation, mtime/version OCC where concurrent edits are possible. Surface anything missing.
+   - **Contract clarity.** Beyond H9/S8: are there contracts that *should* exist but don't? E.g., two tasks both define a `User` type independently — they should share one. Surface as a decomposition concern with the suggested fix (add a contracts-defining task that both depend on).
 
    Output format: same as soft heuristics — list with principle, affected task ids, specific concern, suggested fix. After the list (combined with step 7's soft warnings if any): "save anyway? (y/N)" — default N.
 
@@ -125,6 +130,7 @@ digraph writing_dag_plans {
 - ❌ Putting `depends_on:` edges only on "logical" deps and ignoring file overlap — produces silent corruption at execution time.
 - ❌ Hand-editing the mermaid block — it gets regenerated, your edits will be lost.
 - ❌ Letting two tasks share an entry in `files:` without a `depends_on:` path — the executor's tripwire will fire and halt the run.
+- ❌ Burying type definitions inside business-logic files when the codebase has a dedicated `contracts/` or `types/` dir — produces silent drift between two parallel implementers' invented type shapes.
 
 ## Example output
 
