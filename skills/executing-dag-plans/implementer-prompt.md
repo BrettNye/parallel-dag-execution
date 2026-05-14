@@ -51,6 +51,12 @@ depends_on: {task.depends_on or "[] (root task)"}
 
 {contents of repo's CLAUDE.md, if any}
 
+- Use `git add` with EXPLICIT file paths matching the task's `files:` list.
+  NEVER `git add -A` or `git add .`. Other implementers may be running
+  concurrently in the same repo; staging non-task files would bundle their
+  work into your commit. Run `git status` before staging; verify ONLY your
+  files are staged; then commit.
+
 ## Your output
 
 Implement the task per your agent system prompt. Use TDD. Commit when green. Report:
