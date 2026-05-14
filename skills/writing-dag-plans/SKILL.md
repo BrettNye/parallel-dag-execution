@@ -44,7 +44,9 @@ digraph writing_dag_plans {
 
     "Read spec" -> "Decompose into tasks";
     "Decompose into tasks" -> "For each task: elicit files: scope";
-    "For each task: elicit files: scope" -> "Build dependency edges";
+    "For each task: elicit files: scope" -> "Grep for symbol consumers" [label="contract-changing task"];
+    "Grep for symbol consumers" [shape=box];
+    "Grep for symbol consumers" -> "Build dependency edges";
     "Build dependency edges" -> "Detect file-scope conflicts";
     "Identify contract surface" [shape=box];
     "Detect file-scope conflicts" -> "Inject serializing depends_on edges" [label="conflicts found"];
@@ -70,6 +72,24 @@ digraph writing_dag_plans {
    - 1 task ≠ 1 file necessarily — but a task should have a focused, declarable file scope.
 
 3. **For each task, elicit `files:` scope.** This is the load-bearing step. Ask the user (or reason from the spec) which files this task will create or modify. Be specific — paths, not directories. If the user is unsure, that signals the task is too vague and should be decomposed further.
+
+3.5. **Grep for symbol consumers when a task changes a contract.** If a task
+modifies a public symbol (schema_version literal, exported type, parameter
+name, baseline-set constant, etc.), every test or consumer asserting against
+the old contract becomes test cascade fallout. Include each match in either
+this task's `files:` list OR a sibling task with explicit `depends_on:`
+ordering. Concrete pre-check:
+
+   ```bash
+   # For each symbol the task will change:
+   grep -rn <symbol-name> src/ tests/
+   ```
+
+Skipping this produces mid-flight cleanup tasks: implementers correctly
+stop at scope boundaries when they hit out-of-scope failures, the controller
+files a cleanup task, the cleanup itself misses more files (Round 2), and
+the cycle repeats. Three rounds isn't uncommon for symbol bumps that
+permeate test fixtures. Pre-DAG grep kills the entire failure mode.
 
 4. **Build dependency edges.** Two sources:
    - **Logical:** task B requires task A's output (e.g., B uses a function A defined). User-declared.
@@ -131,6 +151,9 @@ digraph writing_dag_plans {
 - ❌ Hand-editing the mermaid block — it gets regenerated, your edits will be lost.
 - ❌ Letting two tasks share an entry in `files:` without a `depends_on:` path — the executor's tripwire will fire and halt the run.
 - ❌ Burying type definitions inside business-logic files when the codebase has a dedicated `contracts/` or `types/` dir — produces silent drift between two parallel implementers' invented type shapes.
+- ❌ Assigning `files:` scope to a task that changes a symbol without
+  first grep'ing for that symbol's consumers — produces N-hop cascade
+  fixup rounds at execution time.
 
 ## Example output
 
