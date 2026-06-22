@@ -30,9 +30,9 @@ The executor is a **synchronous controller-turn loop**, not a background process
 1. Read the plan file (fresh — picks up any `/update` mutations applied between ticks).
 2. Topo-sort. Compute `ready` set: tasks with all `depends_on:` in `done` and current status `pending` or `ready`.
 3. Promote those tasks from `pending` to `ready` in the plan file.
-4. **Dispatch in parallel:** for each ready task, verify file-scope tripwire (no overlap with currently `running` tasks), then dispatch a fresh implementer subagent via the Agent tool. The dispatched `subagent_type` is the task's `implementer:` field, defaulting to `dag-implementer` when absent (see `../writing-dag-plans/plan-format.md` §Per-task frontmatter schema). Mark task `running`. **All ready tasks dispatch in the same tick — that's the parallelism.**
+4. **Dispatch in parallel:** for each ready task, verify file-scope tripwire (no overlap with currently `running` tasks), then dispatch a fresh implementer subagent via the Agent tool. Pass `model: resolve_model(resolve_tier(task, 'model'))` (resolver defined in `../writing-dag-plans/plan-format.md` §Tier resolution). The implementer's per-task field is `model_hint`; absent that, `default_model_hint`; absent that, `standard`. The dispatched `subagent_type` is the task's `implementer:` field, defaulting to `dag-implementer` when absent (see `../writing-dag-plans/plan-format.md` §Per-task frontmatter schema). Mark task `running`. **All ready tasks dispatch in the same tick — that's the parallelism.** The BLOCKED-retry ladder still bumps one tier above the resolved tier (cheap→standard, standard→opus) — the BLOCKED upgrade is one step above the original resolved tier, not a fixed override.
 
-   Pre-flight check: before the first dispatch tick, verify every distinct `implementer:` value referenced by the plan resolves in the current harness's agent registry. If any are missing, halt with a clear error naming the missing subagent_type(s) and instruct the user to deploy them (`vault.sync-agents`) and `/clear` so the harness reloads. Newly-deployed `.claude/agents/*.md` files only register at session start in Claude Code today.
+   Pre-flight check: before the first dispatch tick, verify every distinct `implementer:` value referenced by the plan resolves in the current harness's agent registry. If any are missing, halt with a clear error naming the missing subagent_type(s) and instruct the user to deploy them (`vault.sync-agents`) and `/clear` so the harness reloads. Newly-deployed `.claude/agents/*.md` files only register at session start in Claude Code today. Also validate every `*_hint` value across all tasks and every plan-level `default_*_hint` is in `{cheap, standard, opus}`. Halt with a clear error naming the offending task id (or `plan-level` for a `default_*_hint` field), field name, and bad value if any fails — this catches hand-edits that bypassed the writing-dag-plans validator. No silent fallback to `standard`.
 5. Continue per-task review chains (one per running task — they progress in parallel across the DAG).
 6. As tasks reach terminal states (`done` / `failed`), update plan file frontmatter and re-render visualization.
 7. Tick ends. The controller awaits next user prompt; the user can `/update` or just say "continue."
@@ -50,6 +50,8 @@ implementer DONE
       → ISSUES → re-dispatch implementer with spec feedback → loop
 ```
 
+Dispatch the spec reviewer with `model: resolve_model(resolve_tier(task, 'spec_reviewer'))` and the quality reviewer with `model: resolve_model(resolve_tier(task, 'quality_reviewer'))`. Reviewer tiers fall back per-task → plan-level default → `standard`. Review-issue re-dispatch of the **implementer** uses the original resolved implementer tier (NOT the BLOCKED-upgraded one) — only BLOCKED upgrades.
+
 Spec review precedes quality review — fixing spec compliance often changes the code being quality-reviewed.
 
 ## Implementer status handling
@@ -59,7 +61,7 @@ Spec review precedes quality review — fixing spec compliance often changes the
 | **DONE** | Proceed to spec review. |
 | **DONE_WITH_CONCERNS** | Read concerns. If correctness/scope, address before review. If observations only, log and proceed. |
 | **NEEDS_CONTEXT** | Provide missing context, re-dispatch. |
-| **BLOCKED** | Auto-retry-once with bumped `model:` (cheap→standard, standard→opus). On second BLOCKED, mark task `failed`. |
+| **BLOCKED** | Auto-retry-once with bumped `model:` (cheap→standard, standard→opus; an already-`opus` tier stays at `opus` — there is no tier above it). On second BLOCKED, mark task `failed`. |
 
 ## Failure handling — D + B
 

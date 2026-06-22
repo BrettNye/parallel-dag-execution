@@ -22,8 +22,34 @@ The implementer MUST receive:
 
 ## Prompt template
 
+<!-- Section order (cache-friendly: stable content leads, volatile content trails):
+     (1) stable preamble; (2) project conventions; (3) output format; (4) task spec;
+     (5) body; (6) upstream context; (7) re-dispatch addenda.
+     If the Agent tool later exposes `cache_control`, the breakpoint goes after section 3 — no re-architecture needed. -->
+
 ```
 You are dispatched to implement one task in a DAG-aware execution plan.
+
+## Project conventions
+
+{contents of repo's CLAUDE.md, if any}
+
+- Use `git add` with EXPLICIT file paths matching the task's `files:` list.
+  NEVER `git add -A` or `git add .`. Other implementers may be running
+  concurrently in the same repo; staging non-task files would bundle their
+  work into your commit. Run `git status` before staging; verify ONLY your
+  files are staged; then commit.
+
+## Your output
+
+Implement the task per your agent system prompt. Use TDD. Commit when green. Report:
+
+- DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED
+- Commit SHA (for DONE / DONE_WITH_CONCERNS)
+- One-line summary of what was implemented (for DONE / DONE_WITH_CONCERNS)
+- Concerns / questions / blocker explanation (for the other statuses)
+
+Modify ONLY the files in your task's `files:` list. If you discover you need another file, STOP and report BLOCKED.
 
 ## Task spec
 
@@ -46,32 +72,28 @@ depends_on: {task.depends_on or "[] (root task)"}
 - Summary: {one-paragraph synthesis from upstream task body — what was implemented, what to know about its contracts}
 
 {if no upstream: omit this section entirely}
-
-## Project conventions
-
-{contents of repo's CLAUDE.md, if any}
-
-- Use `git add` with EXPLICIT file paths matching the task's `files:` list.
-  NEVER `git add -A` or `git add .`. Other implementers may be running
-  concurrently in the same repo; staging non-task files would bundle their
-  work into your commit. Run `git status` before staging; verify ONLY your
-  files are staged; then commit.
-
-## Your output
-
-Implement the task per your agent system prompt. Use TDD. Commit when green. Report:
-
-- DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED
-- Commit SHA (for DONE / DONE_WITH_CONCERNS)
-- One-line summary of what was implemented (for DONE / DONE_WITH_CONCERNS)
-- Concerns / questions / blocker explanation (for the other statuses)
-
-Modify ONLY the files in your task's `files:` list. If you discover you need another file, STOP and report BLOCKED.
 ```
+
+## Agent invocation example
+
+The controller LLM dispatches each task using the Agent tool. Include `model:` at dispatch so the resolved tier is honoured:
+
+```javascript
+Agent({
+  description: "Implement task-3",
+  subagent_type: task.implementer ?? "dag-implementer",
+  model: resolve_model(resolve_tier(task, "model")),
+  prompt: <constructed-from-template-above>
+})
+```
+
+Note: This teaches the controller LLM to include `model:` at dispatch — the wiring is in the prompt, since executing-dag-plans is itself executed by an LLM controller.
 
 ## Re-dispatch on review issues
 
 When the spec or quality reviewer reports ISSUES, re-dispatch the implementer with the same task context PLUS the issue list:
+
+Review-issue re-dispatch uses the **original resolved tier**, not the BLOCKED-upgraded one.
 
 ```
 You previously implemented {task.id} but the {spec / quality} reviewer found issues. Address them and re-commit.
@@ -94,10 +116,10 @@ Report DONE / BLOCKED as before.
 
 When the implementer reports BLOCKED, re-dispatch ONCE with a more capable model:
 
-| Original `model_hint` | Retry model |
+| Resolved implementer tier | Retry model |
 |---|---|
 | `cheap` | `standard` (sonnet) |
-| `standard` (default) | `opus` |
+| `standard` | `opus` |
 | `opus` | (no retry — go straight to `failed`) |
 
 The retry prompt includes the original BLOCKED report so the next-tier model can see what stuck the first attempt:
