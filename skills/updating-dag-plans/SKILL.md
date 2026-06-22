@@ -22,7 +22,7 @@ Mutate an in-flight or partially-executed DAG plan without breaking resumability
 ## Required reading
 
 - `../writing-dag-plans/plan-format.md` — canonical *structural* contract and validation rules.
-- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H9 and soft heuristics S1-S9.
+- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H9 and soft heuristics S1-S10.
 
 Updates that add new tasks or modify task bodies/scope must pass BOTH validations, same as fresh authoring.
 
@@ -53,8 +53,12 @@ If the user genuinely needs to mutate immutable history, the answer is to author
 | **Rewire `depends_on:`** | All affected tasks' statuses are `pending`. | Update `depends_on:` for the target. Re-run topo-sort + cycle detection + file-scope conflict detection. |
 | **Modify tier hint** (`model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`) | Target's status is `pending` or `ready` | Update YAML field. Re-validate enum (`cheap | standard | opus`, rule #7). No mermaid re-render (label doesn't show tier). |
 | **Modify plan-level default hint** (`default_*_hint` in frontmatter) | At least one task is `pending` or `ready` | Update frontmatter field. Re-validate enum (rule #8). Affects all tasks lacking a per-task override and not yet `running`/`done`/`failed`/`skipped`. Refuse if every task is already immutable. |
+| **Modify review mode** (`review_mode`) | Target's status is `pending` or `ready` | Update YAML field. Re-validate enum (`merged | split`, rule #9). No mermaid re-render (label doesn't show review mode). |
+| **Modify plan-level default review mode** (`default_review_mode`) | At least one task is `pending`/`ready` | Update frontmatter. Re-validate enum (rule #10). Affects all tasks lacking a per-task override and not yet immutable. Refuse if every task is immutable. |
 
 > **Why `ready` is mutable for tier hints:** Unlike `files:` (mutable only on `pending`, because a `ready` task queues for the next tick and a file-scope change could conflict with a running sibling), tier hints don't interact with the parallelism contract — mutating a `ready` task's tier between ticks is safe; the next tick reads fresh state and dispatches at the new resolved tier.
+
+> **Why `ready` is mutable for `review_mode`:** `ready` is mutable for `review_mode` for the same reason as tier hints — it doesn't interact with the parallelism contract; the next tick reads fresh state and dispatches the resolved review mode. `running`/`done`/`failed`/`skipped` remain immutable.
 
 ## Process
 
@@ -84,6 +88,7 @@ If the user genuinely needs to mutate immutable history, the answer is to author
    - On **rewire `depends_on:`**: run S1, S5, H9 on the updated DAG.
    - On **remove task**: no quality re-validation needed (removing tasks doesn't introduce new quality issues).
    - On **modify tier hint** / **modify plan-level default hint**: re-validate the enum (rules #7/#8). Run S9 on the affected task(s). No structural re-validation needed (tier hints don't affect the DAG).
+   - On **modify review mode** / **modify plan-level default review mode**: re-validate the enum (rules #9/#10). Run S10 on the affected task(s). No structural re-validation needed (review mode doesn't affect the DAG).
 
    Hard rule failure → refuse with rule + task + fix. Soft heuristic warnings → present and ask "save anyway? (y/N)" — default N.
 
