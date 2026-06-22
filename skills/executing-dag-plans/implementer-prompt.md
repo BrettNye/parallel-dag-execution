@@ -22,11 +22,12 @@ The implementer MUST receive:
 
 ## Prompt template
 
-<!-- Section order is cache-friendly: stable content leads, volatile content trails.
+<!-- Section order (cache-friendly: stable content leads, volatile content trails):
+     (1) stable preamble; (2) project conventions; (3) output format; (4) task spec;
+     (5) body; (6) upstream context; (7) re-dispatch addenda.
      If the Agent tool later exposes `cache_control`, the breakpoint goes after section 3 — no re-architecture needed. -->
 
 ```
-<!-- Stable preamble -->
 You are dispatched to implement one task in a DAG-aware execution plan.
 
 ## Project conventions
