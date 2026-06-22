@@ -1,0 +1,48 @@
+#!/usr/bin/env sh
+# git-commit-safe — race-safe commit for parallel DAG implementer subagents.
+# Usage: git-commit-safe "<commit message>" <path> [<path>...]
+# Serializes commits via an atomic mkdir mutex and commits ONLY the named paths.
+set -eu
+
+if [ "$#" -lt 2 ]; then
+  echo "usage: git-commit-safe \"<message>\" <path> [<path>...]" >&2
+  exit 2
+fi
+
+msg="$1"
+shift
+
+git_dir="$(git rev-parse --git-dir)" || { echo "git-commit-safe: not a git repository" >&2; exit 1; }
+lock="$git_dir/dag-commit.lock"
+stale_seconds=60
+timeout_tries=300      # ~30s at 0.1s/try
+sleep_interval="0.1"
+
+now_epoch() { date +%s; }
+lock_mtime() { stat -c %Y "$lock" 2>/dev/null || echo 0; }
+
+tries=0
+while ! mkdir "$lock" 2>/dev/null; do
+  mt="$(lock_mtime)"
+  if [ "$mt" -ne 0 ]; then
+    age=$(( $(now_epoch) - mt ))
+    if [ "$age" -ge "$stale_seconds" ]; then
+      rmdir "$lock" 2>/dev/null || true
+      continue
+    fi
+  fi
+  tries=$((tries + 1))
+  if [ "$tries" -ge "$timeout_tries" ]; then
+    echo "git-commit-safe: could not acquire commit lock after ~30s (held by another implementer?)" >&2
+    exit 1
+  fi
+  sleep "$sleep_interval"
+done
+trap 'rmdir "$lock" 2>/dev/null || true' EXIT INT TERM
+
+# Stage ONLY the named paths explicitly (never -A / .) so new files are tracked.
+git add -- "$@"
+
+# Commit ONLY the named paths. --only takes the working-tree content of exactly
+# these paths, ignoring any other staged content (no bundling). -m precedes --.
+git commit --only -m "$msg" -- "$@"
