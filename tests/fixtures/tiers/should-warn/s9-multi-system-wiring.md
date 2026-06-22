@@ -10,7 +10,7 @@ flowchart TD
     task-api["task-api: api stub<br/>files: src/api/x.ts"]
     task-ui["task-ui: ui stub<br/>files: src/ui/x.ts"]
     task-jobs["task-jobs: jobs stub<br/>files: src/jobs/x.ts"]
-    task-1["task-1: wire api, ui, and jobs<br/>files: src/api/x.ts +2 more"]
+    task-1["task-1: wire three subsystems together<br/>files: src/api/x.ts +2 more"]
 
     task-api --> task-1
     task-ui --> task-1
@@ -119,7 +119,7 @@ it("returns jobs", () => { expect(jobRunner()).toBe("jobs"); });
 
 Test file: `tests/unit/jobs-x.test.ts`.
 
-## Task: wire api, ui, and jobs
+## Task: wire three subsystems together
 
 ```yaml
 id: task-1
