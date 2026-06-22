@@ -144,6 +144,8 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
    - Required fields present per task.
    - File-disjoint parallel branches.
    - Immutable history (only relevant for updates — N/A for fresh authoring).
+   - Per-task hint enum: `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint` must be `cheap | standard | opus` when present.
+   - Plan-level default enum: `default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint` must be `cheap | standard | opus` when present.
 
    Any failure → refuse, explain, exit. Do NOT write the file.
 
