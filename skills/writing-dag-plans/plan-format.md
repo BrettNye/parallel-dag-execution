@@ -76,6 +76,8 @@ The mermaid block is REQUIRED at the top. It is regenerated from scratch on ever
 
 All three `default_model_hint` / `default_spec_reviewer_hint` / `default_quality_reviewer_hint` frontmatter keys are optional; omitting any (or all) keeps `standard` everywhere = today's behavior.
 
+`default_review_mode: split` (OPTIONAL, `merged | split`, default `split`) sets the review mode for tasks lacking a per-task `review_mode`. Omitting it keeps `split` (today's two-call spec→quality chain).
+
 ## Per-task frontmatter schema
 
 Every `## Task: ...` heading is immediately followed by a YAML block:
@@ -90,6 +92,7 @@ implementer: dag-implementer  # OPTIONAL. subagent_type to dispatch for this tas
 model_hint: cheap             # OPTIONAL. cheap | standard | opus. Implementer model selection hint. Falls back to `default_model_hint`, then `standard`.
 spec_reviewer_hint: standard    # OPTIONAL. Spec reviewer tier. cheap | standard | opus. Falls back to default_spec_reviewer_hint, then `standard`.
 quality_reviewer_hint: standard # OPTIONAL. Quality reviewer tier. cheap | standard | opus. Falls back to default_quality_reviewer_hint, then `standard`.
+review_mode: merged    # OPTIONAL. merged | split. Falls back to default_review_mode, then `split`. `merged` runs one combined spec+quality reviewer instead of the two-call chain.
 single_threaded: false # OPTIONAL. If true, task forces dispatch tick to itself. Use for scope-less/exploratory tasks.
 is_wiring_task: false  # OPTIONAL. If true, plan-quality.md H3 (single-subsystem in files:) is bypassed. Use only for tasks whose explicit purpose is to wire two subsystems together; should depend_on the tasks producing each side.
 ```
@@ -123,6 +126,22 @@ The three role values are:
 - `quality_reviewer` — the quality reviewer. Per-task field: `quality_reviewer_hint`. Plan-level default: `default_quality_reviewer_hint`.
 
 A per-task hint inconsistent with the plan-level default is NOT an error — per-task overrides bypass plan-level defaults entirely.
+
+## Review-mode resolution
+
+The executor resolves each task's review mode:
+
+```
+resolve_review_mode(task) =
+    task["review_mode"]                        if present
+    else plan_frontmatter["default_review_mode"] if present
+    else "split"
+```
+
+- `split` (default) → the two-call chain: `dag-spec-reviewer` then `dag-quality-reviewer`.
+- `merged` → ONE `dag-merged-reviewer` call doing both spec compliance and code quality, returning both verdicts.
+
+A **merged** review resolves its model via the `quality_reviewer` tier — `resolve_model(resolve_tier(task, "quality_reviewer"))` — because it does both jobs and quality is the more demanding one. When a task is `merged`, `spec_reviewer_hint` is unused (not an error). A per-task `review_mode` inconsistent with `default_review_mode` is not an error — the per-task value wins.
 
 ## Per-task body structure
 
@@ -212,6 +231,8 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
 6. **Immutable history** — `updating-dag-plans` rejects mutations to any task whose status is `running`, `done`, `failed`, or `skipped`.
 7. **Per-task hint enum** — `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`, when present on any task, MUST be one of `cheap | standard | opus`. Any other value → refuse save with the offending task id, field name, and the bad value.
 8. **Plan-level default enum** — `default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint`, when present in frontmatter, MUST be one of `cheap | standard | opus`. Any other value → refuse with the field name and the bad value.
+9. **Per-task review-mode enum** — `review_mode`, when present on any task, MUST be `merged | split`. Any other value → refuse naming the task id, field, and bad value.
+10. **Plan-level review-mode enum** — `default_review_mode`, when present in frontmatter, MUST be `merged | split`. Any other value → refuse naming the field and bad value.
 
 Rules #7 and #8 use the same refusal-message format as rules 1–6.
 
