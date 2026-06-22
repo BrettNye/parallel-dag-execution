@@ -118,7 +118,7 @@ resolve_model(tier) =
 
 The three role values are:
 
-- `model` — the implementer. Per-task field: the existing `model_hint`. Plan-level default: `default_model_hint`. The naming asymmetry (no `_hint` suffix on the per-task field) is explicit and intentional.
+- `model` — the implementer. Per-task field: `model_hint`. Plan-level default: `default_model_hint`. The resolver evaluates `task["model" + "_hint"]` = `task["model_hint"]` — the asymmetry is that the role name is `model` while the reviewer roles are `spec_reviewer` / `quality_reviewer`, but all three per-task fields end in `_hint` (`model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`). This is explicit and intentional.
 - `spec_reviewer` — the spec reviewer. Per-task field: `spec_reviewer_hint`. Plan-level default: `default_spec_reviewer_hint`.
 - `quality_reviewer` — the quality reviewer. Per-task field: `quality_reviewer_hint`. Plan-level default: `default_quality_reviewer_hint`.
 

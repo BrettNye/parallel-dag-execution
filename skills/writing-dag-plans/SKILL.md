@@ -137,7 +137,7 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
      b. Suggest splitting one task's scope so they no longer share files.
    - Loop until the validation passes.
 
-6. **Run structural validation** per `plan-format.md` rules 1-6:
+6. **Run structural validation** per `plan-format.md` rules 1-8:
    - Unique ids.
    - No cycles (DFS-based check).
    - All `depends_on:` references resolve to existing task ids.
