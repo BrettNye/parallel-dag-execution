@@ -50,8 +50,8 @@ need a charter. But make the call here, instead of defaulting to one plan.
 
 ## Two reference docs you MUST read first
 
-- **`./plan-format.md`** — canonical *structural* contract: top-of-file layout, per-task frontmatter schema (`id`, `depends_on`, `files`, `status`, `model_hint`, `single_threaded`, `is_wiring_task`), status semantics, structural validation rules, mermaid block spec, ASCII tree spec.
-- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H6, refuse on violation) and soft heuristics (S1-S6, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, and best-practice signals.
+- **`./plan-format.md`** — canonical *structural* contract: top-of-file layout, per-task frontmatter schema (`id`, `depends_on`, `files`, `status`, `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`, `single_threaded`, `is_wiring_task`), plan-level defaults (`default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint`), §Tier resolution, status semantics, structural validation rules, mermaid block spec, ASCII tree spec.
+- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H9, refuse on violation) and soft heuristics (S1-S9, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, and best-practice signals.
 
 Every plan you author must pass BOTH structural validation AND quality validation. Structural validation catches "the file is malformed"; quality validation catches "the decomposition is sloppy."
 
@@ -149,9 +149,30 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
 
 6.5. **Identify contract surface.** Walk each task's `## Implementation` block and extract defined contract symbols (interfaces, types, exported function signatures, schema definitions) per the H9 detection patterns in `plan-quality.md`. For each consumer task, identify which other tasks define symbols it imports or references. If any consumer task references a contract from a non-dependency, surface as a planner-level decision: either add the `depends_on:` edge or refactor to remove the cross-task reference. Loop until clean. (This is the planner-side mirror of H9 — catch the issue before it becomes a refusal at validation time.)
 
+6.6. **Optional plan-level tier prompt.** After the plan is structurally valid, scan every task's title, body, and `files:` for complexity signals to decide whether to suggest a plan-level reviewer default.
+
+   **Mechanical signals** (a task is mechanical if ANY of the following apply):
+   - Title or body matches (case-insensitive) `\b(rename|format|move|copy|extract|inline|docs?[-_]only|test[-_]data|fixture[-_]only)\b`
+   - Every entry in `files:` matches at least one of: `**/*.md`, `**/test/fixtures/**`, `**/tests/data/**`, `**/CHANGELOG*`, `**/README*`
+
+   **Novelty signals** (a task is novel if ANY of the following apply):
+   - Body matches (case-insensitive) `\b(algorithm|protocol|state machine|consensus|concurrency|race|lock|transaction|cryptograph|atomicity)\b`
+   - Body contains a `## Why this abstraction` heading
+   - Any entry in `files:` matches one of: `**/auth/**`, `**/security/**`, `**/crypto/**`, `**/payments/**`, `**/session*`
+
+   Compute `mechanical_pct` = (number of mechanical tasks / total tasks) × 100, and `novelty_pct` = (number of novel tasks / total tasks) × 100.
+
+   **Decision rule:**
+   - If `mechanical_pct > 70%` AND `novelty_pct < 10%`: prompt the author — *"Most tasks in this plan look mechanical. Set plan-level reviewer default to `default_spec_reviewer_hint: cheap`? (y/N — default N)"*. Author confirms or skips; do NOT auto-write plan-level defaults silently.
+   - Otherwise: skip the prompt. S9 in `plan-quality.md` handles per-task tier suggestions during quality validation (step 7).
+
+   **Constraints:**
+   - The skill never auto-writes plan-level defaults silently. Author confirms or skips.
+   - Does not prompt per-task during decomposition — tier choice is a low-priority field.
+
 7. **Run quality validation** per `plan-quality.md`:
    - Hard rules H1-H9 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence, import resolution, contract-sequencing). Any failure → refuse, name the rule + task + fix, exit.
-   - Soft heuristics S1-S8 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location). Collect as warnings.
+   - Soft heuristics S1-S9 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch). Collect as warnings.
 
 8. **Decomposition-principles audit (LLM-judgment pass).** Re-read the full plan with fresh eyes and check it against the four principles below. This step is judgment-driven — the mechanical rules in step 7 catch structural violations; this step catches *holistic* decomposition smells across the whole plan. Surface concerns as warnings (not refusals); the user confirms or revises.
 
