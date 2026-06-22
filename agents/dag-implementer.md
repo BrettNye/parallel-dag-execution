@@ -39,3 +39,4 @@ Report exactly one of:
 - Do not skip tests. Do not commit with red tests.
 - Do not modify other tasks' files even if you can see them.
 - Do not read or modify the plan file itself — the controller manages plan state.
+- Commit via the injected `git-commit-safe` helper with EXPLICIT paths from your task's `files:` list — never `git add -A`/`git add .`, never a bare `git commit`. Concurrent implementers share one git index; the helper serializes the commit and scopes it to your files.

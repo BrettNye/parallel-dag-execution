@@ -32,6 +32,8 @@ The executor is a **synchronous controller-turn loop**, not a background process
 3. Promote those tasks from `pending` to `ready` in the plan file.
 4. **Dispatch in parallel:** for each ready task, verify file-scope tripwire (no overlap with currently `running` tasks), then dispatch a fresh implementer subagent via the Agent tool. Pass `model: resolve_model(resolve_tier(task, 'model'))` (resolver defined in `../writing-dag-plans/plan-format.md` §Tier resolution). The implementer's per-task field is `model_hint`; absent that, `default_model_hint`; absent that, `standard`. The dispatched `subagent_type` is the task's `implementer:` field, defaulting to `dag-implementer` when absent (see `../writing-dag-plans/plan-format.md` §Per-task frontmatter schema). Mark task `running`. **All ready tasks dispatch in the same tick — that's the parallelism.** The BLOCKED-retry ladder still bumps one tier above the resolved tier (cheap→standard, standard→opus) — the BLOCKED upgrade is one step above the original resolved tier, not a fixed override.
 
+   When constructing each implementer dispatch, substitute the absolute path to `skills/executing-dag-plans/git-commit-safe` into the prompt's `{git_commit_safe_path}` placeholder (resolve it from the plugin root). Implementers commit through this helper so concurrent dispatches in the same tick never race on the shared git index.
+
    Pre-flight check: before the first dispatch tick, verify every distinct `implementer:` value referenced by the plan resolves in the current harness's agent registry. If any are missing, halt with a clear error naming the missing subagent_type(s) and instruct the user to deploy them (`vault.sync-agents`) and `/clear` so the harness reloads. Newly-deployed `.claude/agents/*.md` files only register at session start in Claude Code today. Also validate every `*_hint` value across all tasks and every plan-level `default_*_hint` is in `{cheap, standard, opus}`. Halt with a clear error naming the offending task id (or `plan-level` for a `default_*_hint` field), field name, and bad value if any fails — this catches hand-edits that bypassed the writing-dag-plans validator. No silent fallback to `standard`.
 5. Continue per-task review chains (one per running task — they progress in parallel across the DAG).
 6. As tasks reach terminal states (`done` / `failed`), update plan file frontmatter and re-render visualization.
@@ -100,6 +102,7 @@ Because all task statuses live in the plan file's frontmatter, re-invoking `/par
 - NEVER dispatch the implementer subagent with the whole plan as context. Only the task's own text + immediate-deps context. Plan file is for the executor, not the workers.
 - Persist plan file changes after every status transition. The plan file is the source of truth — if the controller dies, the plan file's status field is what survives.
 - Do NOT skip either review stage. Spec compliance first, then code quality. No shortcuts.
+- ALL implementer commits go through `git-commit-safe` (atomic-mutex + path-scoped commit). The dispatch MUST inject `{git_commit_safe_path}`. This is what prevents `index.lock` contention and cross-task stage-bundling when multiple implementers commit concurrently.
 
 ## Dispatch templates
 

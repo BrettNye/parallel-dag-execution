@@ -19,6 +19,7 @@ The implementer MUST receive:
 - This task's frontmatter (id, depends_on, files).
 - An "upstream context" block: for each task id in `depends_on:`, a short summary of what that upstream task produced — paths created/modified, key types/contracts/exports, commit SHA. Pull these from the plan file's task body for `done` upstream tasks.
 - The repo's `CLAUDE.md` (if present) so it follows project conventions.
+- The absolute path to the `git-commit-safe` helper (`skills/executing-dag-plans/git-commit-safe`), substituted into the prompt as `{git_commit_safe_path}`. Implementers commit through it so concurrent implementers don't race on the shared git index.
 
 ## Prompt template
 
@@ -34,11 +35,17 @@ You are dispatched to implement one task in a DAG-aware execution plan.
 
 {contents of repo's CLAUDE.md, if any}
 
-- Use `git add` with EXPLICIT file paths matching the task's `files:` list.
-  NEVER `git add -A` or `git add .`. Other implementers may be running
-  concurrently in the same repo; staging non-task files would bundle their
-  work into your commit. Run `git status` before staging; verify ONLY your
-  files are staged; then commit.
+- Commit via the race-safe helper, NOT a bare `git commit`:
+
+    {git_commit_safe_path} "<commit message>" <your task's files...>
+
+  It serializes against other implementers running concurrently in the same
+  repo (atomic lock around the commit instant) and commits ONLY the paths you
+  name (so it cannot bundle another implementer's files). Pass EXPLICIT paths
+  from your task's `files:` list. NEVER `git add -A` / `git add .`, and never a
+  bare `git commit` — the shared index will lock-fail or bundle concurrent work.
+
+  If `{git_commit_safe_path}` is missing/empty, STOP and report BLOCKED — the controller failed to inject the commit helper; do not hand-roll a commit (you would race other implementers on the shared index).
 
 ## Your output
 

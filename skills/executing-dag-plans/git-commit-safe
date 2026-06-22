@@ -1,0 +1,54 @@
+#!/usr/bin/env sh
+# git-commit-safe — race-safe commit for parallel DAG implementer subagents.
+# Usage: git-commit-safe "<commit message>" <path> [<path>...]
+# Serializes commits via an atomic mkdir mutex and commits ONLY the named paths.
+set -eu
+
+if [ "$#" -lt 2 ]; then
+  echo "usage: git-commit-safe \"<message>\" <path> [<path>...]" >&2
+  exit 2
+fi
+
+msg="$1"
+shift
+
+git_dir="$(git rev-parse --git-dir)" || { echo "git-commit-safe: not a git repository" >&2; exit 1; }
+lock="$git_dir/dag-commit.lock"
+stale_seconds=60
+timeout_tries=300      # ~30s at 0.1s/try
+sleep_interval="0.1"
+
+now_epoch() { date +%s; }
+lock_mtime() { stat -c %Y "$lock" 2>/dev/null || echo 0; }
+
+tries=0
+while ! mkdir "$lock" 2>/dev/null; do
+  mt="$(lock_mtime)"
+  if [ "$mt" -ne 0 ] && [ "$(( $(now_epoch) - mt ))" -ge "$stale_seconds" ]; then
+    # Serialize the break and re-verify staleness so we never delete a
+    # lock a peer freshly re-acquired.
+    if mkdir "$lock.break" 2>/dev/null; then
+      mt2="$(lock_mtime)"
+      if [ "$mt2" -ne 0 ] && [ "$(( $(now_epoch) - mt2 ))" -ge "$stale_seconds" ]; then
+        rmdir "$lock" 2>/dev/null || true
+      fi
+      rmdir "$lock.break" 2>/dev/null || true
+    fi
+    continue
+  fi
+  tries=$((tries + 1))
+  if [ "$tries" -ge "$timeout_tries" ]; then
+    echo "git-commit-safe: could not acquire commit lock after ~30s (held by another implementer?)" >&2
+    exit 1
+  fi
+  sleep "$sleep_interval"
+done
+trap 'rmdir "$lock" 2>/dev/null || true' EXIT INT TERM
+
+# git add -- "$@" is required before --only: git commit --only rejects untracked/new
+# files. Explicit paths only — no bundling reintroduced.
+git add -- "$@"
+
+# Commit ONLY the named paths. --only takes the working-tree content of exactly
+# these paths, ignoring any other staged content (no bundling). -m precedes --.
+git commit --only -m "$msg" -- "$@"
