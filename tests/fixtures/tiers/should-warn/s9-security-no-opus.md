@@ -31,7 +31,7 @@ files: [src/auth/session.ts]
 status: pending
 ```
 
-Implement session token generation and validation. Produces a cryptographically random token, stores it, and validates it on incoming requests.
+Implement session token generation and validation. Produces a securely random token using a system entropy source, stores it, and validates it on incoming requests.
 
 ## Implementation
 
