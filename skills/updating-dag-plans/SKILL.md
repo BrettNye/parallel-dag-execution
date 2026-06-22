@@ -22,7 +22,7 @@ Mutate an in-flight or partially-executed DAG plan without breaking resumability
 ## Required reading
 
 - `../writing-dag-plans/plan-format.md` — canonical *structural* contract and validation rules.
-- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H9 and soft heuristics S1-S8.
+- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H9 and soft heuristics S1-S9.
 
 Updates that add new tasks or modify task bodies/scope must pass BOTH validations, same as fresh authoring.
 
@@ -51,6 +51,10 @@ If the user genuinely needs to mutate immutable history, the answer is to author
 | **Modify body** | Target's status is `pending` or `ready`. | Replace the task body (everything after the YAML block). No re-validation needed. Re-render only if body change affects mermaid label. |
 | **Modify `files:`** | Target's status is `pending`. | Update the `files:` list in the YAML block. Re-run full file-scope conflict detection across the entire DAG. May surface new conflicts requiring additional `depends_on:` edges. |
 | **Rewire `depends_on:`** | All affected tasks' statuses are `pending`. | Update `depends_on:` for the target. Re-run topo-sort + cycle detection + file-scope conflict detection. |
+| **Modify tier hint** (`model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`) | Target's status is `pending` or `ready` | Update YAML field. Re-validate enum (`cheap | standard | opus`, rule #7). No mermaid re-render (label doesn't show tier). |
+| **Modify plan-level default hint** (`default_*_hint` in frontmatter) | At least one task is `pending` or `ready` | Update frontmatter field. Re-validate enum (rule #8). Affects all tasks lacking a per-task override and not yet `running`/`done`/`failed`/`skipped`. Refuse if every task is already immutable. |
+
+> **Why `ready` is mutable for tier hints:** Unlike `files:` (mutable only on `pending`, because a `ready` task queues for the next tick and a file-scope change could conflict with a running sibling), tier hints don't interact with the parallelism contract — mutating a `ready` task's tier between ticks is safe; the next tick reads fresh state and dispatches at the new resolved tier.
 
 ## Process
 
@@ -79,6 +83,7 @@ If the user genuinely needs to mutate immutable history, the answer is to author
    - On **modify `files:`**: run H3 on the modified task. Run S2 on it.
    - On **rewire `depends_on:`**: run S1, S5, H9 on the updated DAG.
    - On **remove task**: no quality re-validation needed (removing tasks doesn't introduce new quality issues).
+   - On **modify tier hint** / **modify plan-level default hint**: re-validate the enum (rules #7/#8). Run S9 on the affected task(s). No structural re-validation needed (tier hints don't affect the DAG).
 
    Hard rule failure → refuse with rule + task + fix. Soft heuristic warnings → present and ask "save anyway? (y/N)" — default N.
 
@@ -116,4 +121,10 @@ If the user genuinely needs to mutate immutable history, the answer is to author
 ✗ Refused: Cannot remove task-1 (status: done)
    This task already shipped. To remove its work from the codebase,
    author a new revert task; do not edit the historical plan.
+
+✗ Refused: Cannot modify task-3.model_hint (status: running)
+   An implementer subagent is currently executing this task at its
+   originally-resolved tier. Wait for completion (or BLOCKED), then
+   the BLOCKED-retry ladder will pick up the new value if you've
+   updated it by then.
 ```
