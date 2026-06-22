@@ -62,14 +62,7 @@ depends_on: {task.depends_on or "[] (root task)"}
   from your task's `files:` list. NEVER `git add -A` / `git add .`, and never a
   bare `git commit` — the shared index will lock-fail or bundle concurrent work.
 
-  Fallback if `{git_commit_safe_path}` is unavailable, run the equivalent
-  inline before committing:
-
-    lock="$(git rev-parse --git-dir)/dag-commit.lock"
-    until mkdir "$lock" 2>/dev/null; do sleep 0.1; done
-    trap 'rmdir "$lock" 2>/dev/null' EXIT
-    git add -- <your task's files...>
-    git commit --only -m "<message>" -- <your task's files...>
+  If `{git_commit_safe_path}` is missing/empty, STOP and report BLOCKED — the controller failed to inject the commit helper; do not hand-roll a commit (you would race other implementers on the shared index).
 
 ## Your output
 
