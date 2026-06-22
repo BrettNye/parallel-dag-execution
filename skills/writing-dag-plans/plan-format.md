@@ -22,6 +22,9 @@ Example skeleton:
 ---
 title: my-feature
 created: 2026-05-02
+default_model_hint: standard            # OPTIONAL. cheap | standard | opus. Default `standard`. Implementer tier.
+default_spec_reviewer_hint: standard    # OPTIONAL. cheap | standard | opus. Default `standard`.
+default_quality_reviewer_hint: standard # OPTIONAL. cheap | standard | opus. Default `standard`.
 ---
 
 ```mermaid
@@ -71,6 +74,8 @@ status: pending
 
 The mermaid block is REQUIRED at the top. It is regenerated from scratch on every save by `writing-dag-plans` or `updating-dag-plans` — never hand-edit it. The block reflects the current DAG including status-driven node coloring.
 
+All three `default_model_hint` / `default_spec_reviewer_hint` / `default_quality_reviewer_hint` frontmatter keys are optional; omitting any (or all) keeps `standard` everywhere = today's behavior.
+
 ## Per-task frontmatter schema
 
 Every `## Task: ...` heading is immediately followed by a YAML block:
@@ -82,7 +87,9 @@ files:                 # REQUIRED. Files this task creates or modifies.
   - path/to/file.ts
 status: pending        # REQUIRED. pending | ready | running | done | failed | skipped
 implementer: dag-implementer  # OPTIONAL. subagent_type to dispatch for this task. Defaults to dag-implementer. Use to route specialized tasks to persona-typed subagents (e.g., profile-charmeleon for backend, profile-gastly for tests). The named subagent must be available in the harness's agent registry at dispatch time.
-model_hint: cheap      # OPTIONAL. cheap | standard | opus. Implementer model selection hint.
+model_hint: cheap             # OPTIONAL. cheap | standard | opus. Implementer model selection hint. Falls back to `default_model_hint`, then `standard`.
+spec_reviewer_hint: standard    # OPTIONAL. Spec reviewer tier. cheap | standard | opus. Falls back to default_spec_reviewer_hint, then `standard`.
+quality_reviewer_hint: standard # OPTIONAL. Quality reviewer tier. cheap | standard | opus. Falls back to default_quality_reviewer_hint, then `standard`.
 single_threaded: false # OPTIONAL. If true, task forces dispatch tick to itself. Use for scope-less/exploratory tasks.
 is_wiring_task: false  # OPTIONAL. If true, plan-quality.md H3 (single-subsystem in files:) is bypassed. Use only for tasks whose explicit purpose is to wire two subsystems together; should depend_on the tasks producing each side.
 ```
@@ -92,6 +99,30 @@ is_wiring_task: false  # OPTIONAL. If true, plan-quality.md H3 (single-subsystem
 When a plan has tasks for different specialized subagents, set `implementer:` per task. Example: a plan with backend tasks for `profile-charmeleon` and test-infrastructure tasks for `profile-gastly` declares each accordingly. The executor reads `implementer:` per dispatch and selects the subagent_type at runtime. Tasks without an `implementer:` field fall back to `dag-implementer`.
 
 The spec and quality reviewers (`dag-spec-reviewer`, `dag-quality-reviewer`) are persona-agnostic — they review the diff against the task spec and code quality regardless of which implementer wrote it. There's no per-task review override.
+
+## Tier resolution
+
+The executor resolves the model tier for each role using the following logic:
+
+```
+resolve_tier(task, role) =
+    task[role + "_hint"]                               if present
+    else plan_frontmatter["default_" + role + "_hint"] if present
+    else "standard"
+
+resolve_model(tier) =
+    "haiku"  if tier == "cheap"
+    "sonnet" if tier == "standard"
+    "opus"   if tier == "opus"
+```
+
+The three role values are:
+
+- `model` — the implementer. Per-task field: the existing `model_hint`. Plan-level default: `default_model_hint`. The naming asymmetry (no `_hint` suffix on the per-task field) is explicit and intentional.
+- `spec_reviewer` — the spec reviewer. Per-task field: `spec_reviewer_hint`. Plan-level default: `default_spec_reviewer_hint`.
+- `quality_reviewer` — the quality reviewer. Per-task field: `quality_reviewer_hint`. Plan-level default: `default_quality_reviewer_hint`.
+
+A per-task hint inconsistent with the plan-level default is NOT an error — per-task overrides bypass plan-level defaults entirely.
 
 ## Per-task body structure
 
@@ -179,6 +210,10 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
 4. **File-disjoint parallel branches** — if two tasks share an entry in `files:`, there MUST be a directed path between them in `depends_on:` (one transitively depends on the other). Otherwise reject with a clear conflict report naming both tasks and the overlapping file(s).
 5. **Required fields** — `id`, `depends_on`, `files`, `status` per task. Empty `files:` is rejected unless `single_threaded: true`.
 6. **Immutable history** — `updating-dag-plans` rejects mutations to any task whose status is `running`, `done`, `failed`, or `skipped`.
+7. **Per-task hint enum** — `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`, when present on any task, MUST be one of `cheap | standard | opus`. Any other value → refuse save with the offending task id, field name, and the bad value.
+8. **Plan-level default enum** — `default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint`, when present in frontmatter, MUST be one of `cheap | standard | opus`. Any other value → refuse with the field name and the bad value.
+
+Rules #7 and #8 use the same refusal-message format as rules 1–6.
 
 ## Why `files:` is the load-bearing field
 
