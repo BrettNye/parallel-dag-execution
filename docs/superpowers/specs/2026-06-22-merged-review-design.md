@@ -102,13 +102,13 @@ Both use the existing rules-1-8 refusal-message format.
 Lives in `plan-quality.md` alongside S1–S9. Same warn-and-confirm pattern; single-direction (only ever nudges *safe* tasks toward `merged`, never the reverse).
 
 **S10 — review-mode suggestion.** Suggest `review_mode: merged` for a task when ALL hold:
-- The task is **clearly mechanical** — reuses S9's mechanical signals: `files:` all match docs-only / fixture-only / test-data globs (`**/*.md`, `**/test/fixtures/**`, `**/tests/data/**`, `**/CHANGELOG*`, `**/README*`), OR title/body matches `\b(rename|format|move|copy|extract|inline|docs?[-_]only|test[-_]data|fixture[-_]only)\b`; AND
+- The task is **clearly mechanical** — uses a signal set parallel to S9's (intentionally distinct; S9 governs tier, S10 governs review mode — not duplicates, do not reconcile): `files:` all match docs-only / fixture-only / test-data globs (`**/*.md`, `**/test/fixtures/**`, `**/tests/data/**`, `**/CHANGELOG*`, `**/README*`), OR title/body matches `\b(rename|format|move|copy|extract|inline|docs?[-_]only|test[-_]data|fixture[-_]only)\b`; AND
 - The task trips **none** of S9's risk signals — novelty regex (`\b(algorithm|protocol|state machine|consensus|concurrency|race|lock|transaction|cryptograph|atomicity)\b`), `## Why this abstraction` heading, or security-path globs (`**/auth/**`, `**/security/**`, `**/crypto/**`, `**/payments/**`, `**/session*`); AND
 - `resolve_review_mode(task)` currently resolves to `split`.
 
 Suggested action: `review_mode: merged`. The author confirms or skips (joins the batched "save anyway? (y/N)" prompt, default N). S10 **never** auto-writes the field.
 
-S10 reuses S9's signal definitions verbatim so the two heuristics stay coherent; a note in both records that S9 governs *tier* and S10 governs *review mode*, sharing the same risk-signal vocabulary.
+S10 uses a signal set parallel to S9's, intentionally distinct (S9 governs *tier*; S10 governs *review mode*) — not a verbatim reuse, not duplicates, do not reconcile. Both share the spirit of S9's risk vocabulary but the two heuristics are independent; a note in both records their distinct purposes.
 
 ## The merged reviewer
 

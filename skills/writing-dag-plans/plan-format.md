@@ -234,7 +234,7 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
 9. **Per-task review-mode enum** — `review_mode`, when present on any task, MUST be `merged | split`. Any other value → refuse naming the task id, field, and bad value.
 10. **Plan-level review-mode enum** — `default_review_mode`, when present in frontmatter, MUST be `merged | split`. Any other value → refuse naming the field and bad value.
 
-Rules #7 and #8 use the same refusal-message format as rules 1–6.
+Rules #7–#10 use the same refusal-message format as rules 1–6.
 
 ## Why `files:` is the load-bearing field
 

@@ -61,13 +61,13 @@ implementer DONE
       → EITHER verdict ISSUES → re-dispatch implementer with the combined feedback → merged re-review → loop
 ```
 
-Reviewer tiers fall back per-task → plan-level default → `standard`. Review-issue re-dispatch of the **implementer** uses the original resolved implementer tier (NOT the BLOCKED-upgraded one). Spec-before-quality ordering only matters for `split`; `merged` is gated (by S10 / author choice) to small low-risk tasks where it doesn't.
+Reviewer tiers fall back per-task → plan-level default → `standard`. Review-issue re-dispatch of the **implementer** uses the original resolved implementer tier (NOT the BLOCKED-upgraded one). Spec-before-quality ordering only matters for `split`; `merged` is gated (by the writing-dag-plans validator / author choice) to small low-risk tasks where it doesn't.
 
 ## Implementer status handling
 
 | Status | Action |
 |---|---|
-| **DONE** | Proceed to spec review. |
+| **DONE** | Proceed to review chain. |
 | **DONE_WITH_CONCERNS** | Read concerns. If correctness/scope, address before review. If observations only, log and proceed. |
 | **NEEDS_CONTEXT** | Provide missing context, re-dispatch. |
 | **BLOCKED** | Auto-retry-once with bumped `model:` (cheap→standard, standard→opus; an already-`opus` tier stays at `opus` — there is no tier above it). On second BLOCKED, mark task `failed`. |
