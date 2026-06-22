@@ -34,33 +34,40 @@ The executor is a **synchronous controller-turn loop**, not a background process
 
    When constructing each implementer dispatch, substitute the absolute path to `skills/executing-dag-plans/git-commit-safe` into the prompt's `{git_commit_safe_path}` placeholder (resolve it from the plugin root). Implementers commit through this helper so concurrent dispatches in the same tick never race on the shared git index.
 
-   Pre-flight check: before the first dispatch tick, verify every distinct `implementer:` value referenced by the plan resolves in the current harness's agent registry. If any are missing, halt with a clear error naming the missing subagent_type(s) and instruct the user to deploy them (`vault.sync-agents`) and `/clear` so the harness reloads. Newly-deployed `.claude/agents/*.md` files only register at session start in Claude Code today. Also validate every `*_hint` value across all tasks and every plan-level `default_*_hint` is in `{cheap, standard, opus}`. Halt with a clear error naming the offending task id (or `plan-level` for a `default_*_hint` field), field name, and bad value if any fails — this catches hand-edits that bypassed the writing-dag-plans validator. No silent fallback to `standard`.
+   Pre-flight check: before the first dispatch tick, verify every distinct `implementer:` value referenced by the plan resolves in the current harness's agent registry. If any are missing, halt with a clear error naming the missing subagent_type(s) and instruct the user to deploy them (`vault.sync-agents`) and `/clear` so the harness reloads. Newly-deployed `.claude/agents/*.md` files only register at session start in Claude Code today. Also validate every `*_hint` value across all tasks and every plan-level `default_*_hint` is in `{cheap, standard, opus}`. Halt with a clear error naming the offending task id (or `plan-level` for a `default_*_hint` field), field name, and bad value if any fails — this catches hand-edits that bypassed the writing-dag-plans validator. No silent fallback to `standard`. Also validate every `review_mode` / `default_review_mode` is in `{merged, split}` (halt naming the offending task id or `plan-level`, field, and value — no silent fallback). And if any task resolves to `merged`, require `dag-merged-reviewer` in the agent registry (same registry pre-flight as `implementer:` values); halt with the deploy-the-agent message if missing.
 5. Continue per-task review chains (one per running task — they progress in parallel across the DAG).
 6. As tasks reach terminal states (`done` / `failed`), update plan file frontmatter and re-render visualization.
 7. Tick ends. The controller awaits next user prompt; the user can `/update` or just say "continue."
 
 ## Per-task review chain
 
-Once an implementer reports DONE on a task:
+Once an implementer reports DONE, branch on `resolve_review_mode(task)` (resolver in `../writing-dag-plans/plan-format.md` §Review-mode resolution):
 
+`split` (default) — the two-call chain:
 ```
 implementer DONE
-  → dispatch dag-spec-reviewer
-      → APPROVED → dispatch dag-quality-reviewer
+  → dispatch dag-spec-reviewer  (model: resolve_model(resolve_tier(task, 'spec_reviewer')))
+      → APPROVED → dispatch dag-quality-reviewer  (model: resolve_model(resolve_tier(task, 'quality_reviewer')))
           → APPROVED → mark task `done`, persist status
           → ISSUES → re-dispatch implementer with quality feedback → loop
       → ISSUES → re-dispatch implementer with spec feedback → loop
 ```
 
-Dispatch the spec reviewer with `model: resolve_model(resolve_tier(task, 'spec_reviewer'))` and the quality reviewer with `model: resolve_model(resolve_tier(task, 'quality_reviewer'))`. Reviewer tiers fall back per-task → plan-level default → `standard`. Review-issue re-dispatch of the **implementer** uses the original resolved implementer tier (NOT the BLOCKED-upgraded one) — only BLOCKED upgrades.
+`merged` — one combined call:
+```
+implementer DONE
+  → dispatch dag-merged-reviewer  (model: resolve_model(resolve_tier(task, 'quality_reviewer')))
+      → BOTH verdicts APPROVED → mark task `done`, persist status
+      → EITHER verdict ISSUES → re-dispatch implementer with the combined feedback → merged re-review → loop
+```
 
-Spec review precedes quality review — fixing spec compliance often changes the code being quality-reviewed.
+Reviewer tiers fall back per-task → plan-level default → `standard`. Review-issue re-dispatch of the **implementer** uses the original resolved implementer tier (NOT the BLOCKED-upgraded one). Spec-before-quality ordering only matters for `split`; `merged` is gated (by the writing-dag-plans validator / author choice) to small low-risk tasks where it doesn't.
 
 ## Implementer status handling
 
 | Status | Action |
 |---|---|
-| **DONE** | Proceed to spec review. |
+| **DONE** | Proceed to review chain. |
 | **DONE_WITH_CONCERNS** | Read concerns. If correctness/scope, address before review. If observations only, log and proceed. |
 | **NEEDS_CONTEXT** | Provide missing context, re-dispatch. |
 | **BLOCKED** | Auto-retry-once with bumped `model:` (cheap→standard, standard→opus; an already-`opus` tier stays at `opus` — there is no tier above it). On second BLOCKED, mark task `failed`. |

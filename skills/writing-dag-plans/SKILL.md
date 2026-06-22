@@ -50,8 +50,8 @@ need a charter. But make the call here, instead of defaulting to one plan.
 
 ## Two reference docs you MUST read first
 
-- **`./plan-format.md`** — canonical *structural* contract: top-of-file layout, per-task frontmatter schema (`id`, `depends_on`, `files`, `status`, `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`, `single_threaded`, `is_wiring_task`), plan-level defaults (`default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint`), §Tier resolution, status semantics, structural validation rules, mermaid block spec, ASCII tree spec.
-- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H9, refuse on violation) and soft heuristics (S1-S9, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, and best-practice signals.
+- **`./plan-format.md`** — canonical *structural* contract: top-of-file layout, per-task frontmatter schema (`id`, `depends_on`, `files`, `status`, `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`, `single_threaded`, `is_wiring_task`, `review_mode`), plan-level defaults (`default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint`, `default_review_mode`), §Tier resolution, §Review-mode resolution, status semantics, structural validation rules, mermaid block spec, ASCII tree spec.
+- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H9, refuse on violation) and soft heuristics (S1-S10, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, and best-practice signals.
 
 Every plan you author must pass BOTH structural validation AND quality validation. Structural validation catches "the file is malformed"; quality validation catches "the decomposition is sloppy."
 
@@ -174,7 +174,7 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
 
 7. **Run quality validation** per `plan-quality.md`:
    - Hard rules H1-H9 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence, import resolution, contract-sequencing). Any failure → refuse, name the rule + task + fix, exit.
-   - Soft heuristics S1-S9 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch). Collect as warnings.
+   - Soft heuristics S1-S10 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch, review-mode sense-check). Collect as warnings.
 
 8. **Decomposition-principles audit (LLM-judgment pass).** Re-read the full plan with fresh eyes and check it against the four principles below. This step is judgment-driven — the mechanical rules in step 7 catch structural violations; this step catches *holistic* decomposition smells across the whole plan. Surface concerns as warnings (not refusals); the user confirms or revises.
 
