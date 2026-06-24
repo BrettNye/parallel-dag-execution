@@ -51,7 +51,7 @@ need a charter. But make the call here, instead of defaulting to one plan.
 ## Two reference docs you MUST read first
 
 - **`./plan-format.md`** — canonical *structural* contract: top-of-file layout, per-task frontmatter schema (`id`, `depends_on`, `files`, `status`, `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`, `single_threaded`, `is_wiring_task`, `review_mode`), plan-level defaults (`default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint`, `default_review_mode`), §Tier resolution, §Review-mode resolution, status semantics, structural validation rules, mermaid block spec, ASCII tree spec.
-- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H9, refuse on violation) and soft heuristics (S1-S10, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, and best-practice signals.
+- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H11, refuse on violation) and soft heuristics (S1-S11, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, and best-practice signals.
 
 Every plan you author must pass BOTH structural validation AND quality validation. Structural validation catches "the file is malformed"; quality validation catches "the decomposition is sloppy."
 
@@ -149,7 +149,7 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
 
    Any failure → refuse, explain, exit. Do NOT write the file.
 
-6.5. **Identify contract surface.** Walk each task's `## Implementation` block and extract defined contract symbols (interfaces, types, exported function signatures, schema definitions) per the H9 detection patterns in `plan-quality.md`. For each consumer task, identify which other tasks define symbols it imports or references. If any consumer task references a contract from a non-dependency, surface as a planner-level decision: either add the `depends_on:` edge or refactor to remove the cross-task reference. Loop until clean. (This is the planner-side mirror of H9 — catch the issue before it becomes a refusal at validation time.)
+6.5. **Identify contract surface.** Walk each task's `## Implementation` block and extract defined contract symbols (interfaces, types, exported function signatures, schema definitions) per the H9 detection patterns in `plan-quality.md`. For each consumer task, identify which other tasks define symbols it imports or references. If any consumer task references a contract from a non-dependency, surface as a planner-level decision: either add the `depends_on:` edge or refactor to remove the cross-task reference. Loop until clean. (This is the planner-side mirror of H9 — catch the issue before it becomes a refusal at validation time.) Note: capabilities referenced only in prose or acceptance criteria — not in code blocks — are not visible to this symbol-walk; H10 (missing-producer index) and the step-8 prose-consumption sweep together cover that blind spot.
 
 6.6. **Optional plan-level tier prompt.** After the plan is structurally valid, scan every task's title, body, and `files:` for complexity signals to decide whether to suggest a plan-level reviewer default.
 
@@ -173,16 +173,31 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
    - Does not prompt per-task during decomposition — tier choice is a low-priority field.
 
 7. **Run quality validation** per `plan-quality.md`:
-   - Hard rules H1-H9 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence, import resolution, contract-sequencing). Any failure → refuse, name the rule + task + fix, exit.
-   - Soft heuristics S1-S10 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch, review-mode sense-check). Collect as warnings.
+   - Hard rules H1-H11 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence, import resolution, contract-sequencing, missing-producer index, elided-file completeness). Any failure → refuse, name the rule + task + fix, exit.
+   - Soft heuristics S1-S11 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch, review-mode sense-check, repo-convention drift). Collect as warnings.
 
-8. **Decomposition-principles audit (LLM-judgment pass).** Re-read the full plan with fresh eyes and check it against the four principles below. This step is judgment-driven — the mechanical rules in step 7 catch structural violations; this step catches *holistic* decomposition smells across the whole plan. Surface concerns as warnings (not refusals); the user confirms or revises.
+8. **Decomposition-principles audit (LLM-judgment pass).** Re-read the full plan with fresh eyes and check it against the seven principles below. This step is judgment-driven — the mechanical rules in step 7 catch structural violations; this step catches *holistic* decomposition smells across the whole plan. Surface concerns as warnings (not refusals); the user confirms or revises.
 
    - **DRY across the whole plan.** Beyond S1's sibling-pair check: does any abstraction repeat across non-sibling tasks? Are there hidden shared assumptions (test helpers, mock factories, fixture data) that no task explicitly owns?
    - **Single Responsibility per task** (stricter than H2). Does any task bundle multiple distinct action paths or concerns under one acceptance group? If so, would splitting unlock parallelism, or is the bundling defensible by codebase convention? Flag the trade-off; do not auto-split.
    - **Separation of Concerns across files.** Does any task touch raw I/O (`fs.readFile`, `fs.writeFile`, `db.query`, network calls) when there's a store/repository/client abstraction in the plan that should mediate? Surface as a layering smell with the suggested fix (e.g., "have task X go through ClaimsStore instead of direct fs").
-   - **Industry-standard hygiene.** Error handling at boundaries, atomic writes for state mutations, idempotency for tools that may run twice, type-safe input validation, mtime/version OCC where concurrent edits are possible. Surface anything missing.
+   - **Repo-convention adherence.** Check each task against the repo's own convention
+     docs and the per-layer named reference implementation (e.g. "mirror `haul/events.ts`",
+     "shape of `integrations/` not `miller-paving/`") — not a blanket "industry standard"
+     or a generic "see haul". Pin the reference per layer, because the reference itself
+     varies across layers.
    - **Contract clarity.** Beyond H9/S8: are there contracts that *should* exist but don't? E.g., two tasks both define a `User` type independently — they should share one. Surface as a decomposition concern with the suggested fix (add a contracts-defining task that both depend on).
+   - **Prose-consumption closure.** For every capability referenced only in a task's
+     prose or acceptance criteria (never in a code block — those are H10's domain),
+     name the task that produces it. Flag any consumed capability with no producer in
+     the consumer's `depends_on`. This is the semantic half H10's static index cannot
+     see; partition by consumption site so the two never double-report.
+   - **Elided-sibling completeness.** When a task's `## Implementation` elides siblings
+     ("the other three follow the same shape", trailing "etc.", or "per §X" standing in
+     for content), enumerate the implied siblings and confirm each one exists AND
+     satisfies H11 (carries an inlined fragment or a countable checksum). "It exists"
+     must not pass on a hollow stub — the elided sibling needs verifiable content, not
+     just a file.
 
    Output format: same as soft heuristics — list with principle, affected task ids, specific concern, suggested fix. After the list (combined with step 7's soft warnings if any): "save anyway? (y/N)" — default N.
 
