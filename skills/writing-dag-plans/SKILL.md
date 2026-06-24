@@ -173,7 +173,7 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
    - Does not prompt per-task during decomposition — tier choice is a low-priority field.
 
 7. **Run quality validation** per `plan-quality.md`:
-   - Hard rules H1-H11 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence, import resolution, contract-sequencing, missing-producer index, elided-file completeness). Any failure → refuse, name the rule + task + fix, exit.
+   - Hard rules H1-H11 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence, import resolution, contract-sequencing, missing-producer index, elided-sibling completeness). Any failure → refuse, name the rule + task + fix, exit.
    - Soft heuristics S1-S11 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch, review-mode sense-check, repo-convention drift). Collect as warnings.
 
 8. **Decomposition-principles audit (LLM-judgment pass).** Re-read the full plan with fresh eyes and check it against the seven principles below. This step is judgment-driven — the mechanical rules in step 7 catch structural violations; this step catches *holistic* decomposition smells across the whole plan. Surface concerns as warnings (not refusals); the user confirms or revises.
