@@ -8,9 +8,13 @@ Where `superpowers:subagent-driven-development` dispatches one implementer subag
 
 ## Skills
 
-- **`writing-dag-plans`** — author a plan with explicit `depends_on` and `files` per task. Enforces file-disjoint parallel branches at authoring time.
-- **`executing-dag-plans`** — read a DAG plan, topo-sort, dispatch ready tasks in parallel. Per-task two-stage review (spec then quality). Auto-retry-once on `BLOCKED` with model upgrade. Halt-downstream on failure; let parallel branches finish.
+- **`writing-dag-plans`** — author a plan with explicit `depends_on` and `files` per task. Enforces file-disjoint parallel branches **and contract coherence** at authoring time via a hard/soft rule set (H1–H11 / S1–S11): refuses compound tasks, missing or absent producers for consumed contracts, and bare spec-pointer acceptance criteria; warns on unanchored cross-cut interfaces and decomposition smells.
+- **`executing-dag-plans`** — read a DAG plan, topo-sort, dispatch ready tasks in parallel. Per-task review (two-stage spec→quality, or a merged single-pass review for small/mechanical tasks). Auto-retry-once on `BLOCKED` with model upgrade. Halt-downstream on failure; let parallel branches finish.
 - **`updating-dag-plans`** — mutate `pending`/`ready` tasks mid-flight. `running`/`done`/`failed`/`skipped` are immutable history.
+
+## Multi-plan superspecs (fan-out)
+
+When a spec fans out into ~3+ interlocking pieces with separate review/lifecycles (e.g. a shared library + its first consumer, or a core engine + N adapters), `writing-dag-plans` authors a thin **superspec-charter** first — the connective tissue no single plan owns: the cross-plan contract surface (shared types/schemas), shared invariants every child must uphold, and the build-order gate between children. You then run the skill once per child plan, pulling children one at a time. Single-deliverable specs skip the charter (one spec → one plan). You don't invoke this separately: run `/parallel-dag-execution:plan` as usual and the skill's fan-out checkpoint decides whether to charter first.
 
 ## Slash commands
 
@@ -23,6 +27,7 @@ Where `superpowers:subagent-driven-development` dispatches one implementer subag
 - `dag-implementer` — TDD-disciplined task implementer.
 - `dag-spec-reviewer` — spec compliance checker (catches over-build and under-build).
 - `dag-quality-reviewer` — code quality reviewer.
+- `dag-merged-reviewer` — combined spec + quality review in one pass for small/mechanical tasks (opt-in via `review_mode: merged`).
 
 ## Install
 
