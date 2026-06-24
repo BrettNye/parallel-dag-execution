@@ -51,6 +51,7 @@ The implementer subagent enforces these at code-write time (via auto-loaded `sup
 | H7 | **`## Implementation` subsection presence** | Tasks without `is_wiring_task: true` MUST have a `## Implementation` subsection (level-2 heading exactly `## Implementation`) containing **at least two** fenced code blocks per `plan-format.md` "Per-task body structure": one minimum-viable impl, one minimum-viable failing test. Detection: locate the `## Implementation` heading; count fenced code blocks before the next level-2 (`## `) heading. Fewer than 2 fails. Tasks with `is_wiring_task: true` are exempt — they may omit the subsection entirely. |
 | H8 | **Import resolution** | Every `import`/`require` referenced in any code block in any task body MUST resolve to one of: (a) an external dependency declared in the project's `package.json` / `Cargo.toml` / `pyproject.toml` / equivalent; (b) a file created by some task in this plan (listed in some task's `files:`); (c) a file pre-existing in the target codebase (verified by reading the filesystem). Detection: regex-extract `import .* from ["']<path>["']` and `require\(["']<path>["']\)` from each code block; for each path classify and verify resolution. Refuse on any undeclared import. Output names the offending task, the import statement, and a concrete fix ("create a task that owns this file" or "verify the file pre-exists in the codebase"). External-dep detection MAY require reading `package.json`; relative-path detection MUST resolve against the task's `files:` directory or the codebase root. |
 | H9 | **Contract-sequencing — consumer must depend on definer** | Build a definer index by parsing fenced code blocks under `## Implementation` for every task and extracting defined contract symbols per language: TS/JS `export (interface\|type\|class\|function\|const) <Name>` and `export default ...`; Python top-level `class <Name>`, `def <Name>(`, `<Name>: TypeAlias`, `@dataclass class <Name>`, `class <Name>(Protocol)`, `class <Name>(TypedDict)`; Rust `pub (struct\|enum\|trait\|fn\|type) <Name>`; Go top-level `(type\|func) <Name>` with capitalized first letter; JSON Schema top-level `definitions:` / `$defs:` keys; OpenAPI `components.schemas:` keys; protobuf `message`/`enum`/`service <Name>`; GraphQL `type`/`interface`/`enum`/`input <Name>`. Build map `(file_path, symbol_name) → defining_task_id`. Then build a consumer index by scanning each task's code blocks for references to definer-index symbols (imports per H8 extraction + direct usage in code). For each `(consumer_task_id, defined_symbol_name, definer_task_id)` triple where consumer ≠ definer: compute the transitive `depends_on:` closure of consumer (DFS). If `definer_task_id ∉ closure` → violation. Skip pre-existing files (per H8's classification), external package imports, and same-task references. Wiring tasks (`is_wiring_task: true`) apply normally — they should already `depends_on:` their parents by convention. |
+| H10 | **Missing-producer — consumed member has no definer** | Extend H9's per-task defined-symbol index to include members/methods/fields within exported classes/objects (not just top-level exports). For each task, collect member/property/method accesses (and named imports) whose base symbol or import path is owned by ANOTHER task T (per H8's file-classification). For each accessed member `m`: if `m` is absent from T's defined-symbol set (top-level exports ∪ indexed members) → violation. Skip symbols/members resolving to a pre-existing file or external dependency (inherits H9/H8 skips — covers externally/dynamically-produced capabilities), and same-task references. A naming mismatch (consumed `myTasks` vs produced `tasksForUser`) fires by design — the named capability is not wired. **Partition with the prose sweep (step 8):** H10 owns references in code blocks; the prose sweep owns references appearing only in prose/acceptance text. A reference in both yields the H10 finding only. |
 
 On any hard rule failure: refuse to save. Output a specific message naming the task `id`, the rule number, and a concrete suggested fix. Do not write the plan file.
 
@@ -74,9 +75,9 @@ Each warning is presented as a list with: rule number, affected task ids, specif
 ## Detection algorithm (run on every save)
 
 1. Run `plan-format.md` structural validation (cycles, undefined deps, required fields, file-disjoint parallel branches). Any failure → refuse, exit.
-2. Run hard rules H1-H9. Any failure → refuse, explain which rule and which task, exit.
+2. Run hard rules H1-H10. Any failure → refuse, explain which rule and which task, exit. Note: H10 requires a member-level index extension over H9 — extend the definer index built in H9 to include methods/fields/properties within exported classes/objects before running H10's member-access scan.
 3. Run soft heuristics S1-S10. Collect warnings.
-4. Run **decomposition-principles audit** (see `SKILL.md` step 11.5): re-read the plan against DRY / SRP / SoC / industry-standard hygiene with fresh eyes. This is judgment-based, LLM-driven, and complements the mechanical rules above. Collect warnings.
+4. Run **decomposition-principles audit** (see `SKILL.md` step 8): re-read the plan against DRY / SRP / SoC / industry-standard hygiene with fresh eyes. This is judgment-based, LLM-driven, and complements the mechanical rules above. Collect warnings.
 5. If warnings exist (from step 3 or step 4): present grouped list, ask "save anyway? (y/N)" (default N).
 6. On user confirm OR no warnings: save plan file.
 
@@ -208,6 +209,13 @@ When refusing, the skill prints:
     Defined by: task-claims-contracts (file: src/contracts/claim.ts)
     Issue: task-claims-processor references ClaimRecord but does not depends_on task-claims-contracts (transitively)
     Fix:   add "task-claims-contracts" to task-claims-processor.depends_on
+
+  task-component violates H10 (consumed capability has no producer)
+    Capability: state.myTasks
+    Owner:      task-state (produces state, file: src/state/app-state.ts)
+    Issue:      task-component references state.myTasks but task-state defines no myTasks
+    Fix:        add a producer for myTasks (state method + its api-client/controller/
+                repository data path) OR correct the reference if myTasks was renamed
 
 Plan not saved. Revise and try again.
 ```
