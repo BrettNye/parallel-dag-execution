@@ -185,7 +185,45 @@ are deliberately not namespaced — "cross-run locks are intentional"
 (`orchestrator.ts:190`) — and `selectRunnable` is fed an unfiltered
 `store.heldLockKeys()` (`engine/tick.ts:152`).
 
-### 5.4 Lane A has no gate
+### 5.4 File-level architecture
+
+Every file touched, and by which component. This table is the authoring surface
+for the implementation plan.
+
+**`BrettNye/parallel-dag-execution` (MIT)**
+
+| File | Change |
+|---|---|
+| `skills/to-plan-json/SKILL.md` | NEW. The converter (§6). |
+| `skills/to-plan-json/mapping.md` | NEW. Field mapping + closure algorithm reference (§6.2–6.5), split out so `SKILL.md` stays a process doc — mirrors `writing-dag-plans/{SKILL,plan-format}.md`. |
+| `agents/dag-implementer.md` | Concern emission to `outputs/concerns` + unattended addendum (§7). |
+| `capabilities/apply-closure/pangolin-setup.sh` | NEW. Lane A numbered-closure applier (§6.2). |
+| `capabilities/apply-work/pangolin-setup.sh` | NEW. Lane B single-patch applier (§8.2). |
+| `tests/fixtures/converter/should-pass/*.md` | NEW. Diamond closure, single root, `single_threaded`. |
+| `tests/fixtures/converter/should-refuse/*.md` | NEW. Non-canonical path, glob in `files:`. |
+| `tests/converter-validate.test.sh` | NEW. Mechanical assertions (§11.2). |
+| `.claude-plugin/plugin.json` | Register the new skill. |
+
+**`BrettNye/stoa` (FSL-1.1-MIT)** — CLI files stay thin wrappers; all logic in `src/core/`, per `task-list.ts:2,17`.
+
+| File | Change |
+|---|---|
+| `src/core/four-section.ts` | NEW. `renderFourSection()` / `parseFourSection()` — one definition of the format, used by import **and** materialize (fixes the render/parse split). |
+| `src/core/lock-path.ts` | NEW. `canonicalizeLockPath()` / `isCanonical()` / `hasGlob()`. The single canonical-form definition (§6.3, §8.1, §8.2). |
+| `src/core/pangolin-bundle.ts` | NEW. `readBundleItems()` / `resolveBlobPath()`. **The only module that knows pangolin's format** — isolates the coupling so it is auditable and swappable if §3.3 stops holding. |
+| `src/core/follow-up-plan.ts` | NEW. `buildFollowUpPlan(task)` → plan.json object. Pure; snapshot-testable without touching disk. |
+| `src/core/tasks.ts` | Add optional `body?: string` to `CreateTaskInput` (§8.1). |
+| `src/cli/commands/task-import.ts` | NEW. Thin wrapper (§8.1). |
+| `src/cli/commands/task-materialize.ts` | NEW. Thin wrapper (§8.2). |
+| `src/cli/commands/task-close.ts` | NEW. Thin wrapper (§8.3). |
+| `src/cli/index.ts` | Register the three commands. |
+| `src/core/{four-section,lock-path,pangolin-bundle,follow-up-plan}.test.ts` | NEW. Colocated, per `src/core/tasks.test.ts`. |
+
+Four small single-purpose core modules rather than three fat command files: each
+has one reason to change, and the two silent-corruption risks (lock-string
+identity, four-section well-formedness) each get their own tested module.
+
+### 5.5 Lane A has no gate
 
 Self-gating is unsound. `buildLineage` sets `S.set(gate.id, gateCopyId)`
 (`respawn.ts:73-77`); the caller then sets `S.set(config.subject, fixId)`
@@ -270,15 +308,15 @@ Locks are copied **verbatim — the converter validates, it never rewrites.**
 Both lanes' lock strings must be byte-identical for cross-lane serialization to
 work (§9.6), but asking a markdown skill to *transform* strings is exactly where
 drift would enter. So the converter **detects** instead: before emitting, it
-checks every `files:` entry against the canonical form (§8.2 step 4) — no
+checks every `files:` entry against the canonical form (`core/lock-path.ts`, §5.4) — no
 leading `./`, forward slashes only, no repeated slashes, no trailing slash, no
 glob metacharacters — and **refuses to convert the plan** if any entry deviates,
 naming the task and the offending path. Detect-and-refuse is LLM-safe in a way
 that transform-and-hope is not.
 
-The canonical form is therefore defined in exactly one place — the stoa function
-in §8.2, which is unit-tested (§11.1) — and the converter is a consumer of that
-definition, not a second implementation of it. Authors fix the plan; the skill
+The canonical form is therefore defined in exactly one place —
+`stoa/src/core/lock-path.ts`, unit-tested (§11.1) — and the converter is a
+consumer of that definition, not a second implementation of it. Authors fix the plan; the skill
 never silently changes what a task declared it would touch.
 
 ### 6.4 `model_hint` maps to a subagent variant
@@ -340,12 +378,29 @@ paths (`dispatch.ts:227`); dogfood's plan warns in-line that `findings.json`
 "would silently break" the binding (`examples/dogfood-gated/plan.json:23`).
 
 ```json
-[{ "title": "Split oversized scope-hash module",
-   "files": ["src/core/scope-hash.ts"],
-   "scope": "…",
-   "out_of_scope": "…",
-   "verification": "…" }]
+{ "schemaVersion": 1,
+  "concerns": [
+    { "title": "Split oversized scope-hash module",
+      "files": ["src/core/scope-hash.ts"],
+      "scope": "…",
+      "out_of_scope": "…",
+      "verification": "…" }
+  ] }
 ```
+
+**Versioned envelope, not a bare array.** The emitter is a prompt and the reader
+is code in a different repo, released independently — the loosest possible
+coupling. `schemaVersion` lets `task-import` reject an unknown shape loudly
+instead of silently harvesting nothing when the prompt later changes. This
+follows pangolin's own precedent for a persisted contract read by multiple
+parties (`pangolin-core/src/pipeline.ts:47-49`, where `schemaVersion: 1` is a
+literal so call sites narrow on it).
+
+**Malformed or unknown-version input is skipped, reported, and never fatal** —
+one bad blob must not sink the whole harvest. This matches pangolin's own
+best-effort posture at the equivalent boundary (`readSentinel` collapses
+`absent` and `malformed` alike to `{}` and never throws,
+`executors/dispatch.ts:199-216`).
 
 Two rules preserve the gate's integrity:
 
@@ -382,7 +437,22 @@ which is correct in-session and wrong here (§9.1).
 
 All three land in `src/cli/commands/`, registered in `src/cli/index.ts`
 following the existing `registerX(p: Command)` convention (`index.ts:85-86`).
-They share one four-section contract and one canonicalization function.
+
+**The CLI files stay thin.** Stoa's established shape is a command file that
+parses flags, calls a `src/core/` function, and formats output — nothing else
+(`task-list.ts:2,17`; `task-create.ts:2,20`). All logic here lives in the four
+core modules named in §5.4, so the commands are wiring:
+
+| Command | Core modules it composes |
+|---|---|
+| `task-import` | `pangolin-bundle` → `four-section` → `lock-path` → `tasks.createTask` |
+| `task-materialize` | `tasks.listTasks` → `task-readiness` → `four-section` → `lock-path` → `follow-up-plan` |
+| `task-close` | `pangolin-bundle` → `tasks.updateTask` |
+
+This is what keeps the two silent-corruption risks — lock-string identity and
+four-section well-formedness — inside tested pure functions rather than inside
+CLI actions, and it is why `four-section` and `lock-path` are shared modules
+rather than logic duplicated per command.
 
 Stoa gains knowledge of pangolin's **bundle shape and blob layout** — a coupling
 to a format, not a dependency on code. This mirrors pangolin's own
@@ -404,7 +474,7 @@ coupling must stay one-directional and format-only.
 4. Idempotency: `findTaskOnDisk(vaultPath, id)` (`src/core/tasks.ts:278`) — same
    title → same slug → same id → skip with a report line.
 5. Pass each concern's `files` array through the **same** canonicalization
-   function the materializer uses (§8.2 step 4) — it is idempotent, so applying
+   function the materializer uses (`core/lock-path.ts`) — it is idempotent, so applying
    it at both boundaries is safe and guarantees the string stoa stores is
    already the string that becomes a lock key. Reject glob metacharacters here
    too: failing at import points at the emitting implementer, which is where the
@@ -534,7 +604,7 @@ correct, not an error.
 A lane-B follow-up touching a file a lane-A task is editing serializes behind it
 (§5.3). This holds **only if both lanes' lock strings are byte-identical**.
 Two mechanisms enforce it from opposite ends: lane B canonicalizes through one
-tested function (§8.2 step 4, §11.1), and lane A refuses to convert a plan whose
+tested function (`core/lock-path.ts`, §11.1), and lane A refuses to convert a plan whose
 `files:` entries are not already in that form (§6.3). Neither lane transforms
 silently.
 
@@ -546,7 +616,7 @@ Listed so nobody later mistakes these for bugs.
 
 | In-session | Lane A | Why |
 |---|---|---|
-| spec + quality review per task, unbounded fix loop | none | Morning human review is a required step and catches spec-compliance better; a gate costs 2N containers (§5.4). The implementer's TDD + `verification-before-completion` (`agents/dag-implementer.md:6, 24`) survives intact and is the real gate. |
+| spec + quality review per task, unbounded fix loop | none | Morning human review is a required step and catches spec-compliance better; a gate costs 2N containers (§5.5). The implementer's TDD + `verification-before-completion` (`agents/dag-implementer.md:6, 24`) survives intact and is the real gate. |
 | BLOCKED → retry with upgraded model | retry at same model | `maxAttempts: 2` (`orchestrator.ts:98`); no per-item model input (§6.4). |
 | `NEEDS_CONTEXT` → controller supplies context | loud failure | Nobody to ask (§7.1). |
 | per-task `review_mode` / reviewer tiers | dropped | No reviewers in lane A. |
@@ -567,8 +637,16 @@ Listed so nobody later mistakes these for bugs.
 
 ### 11.2 converter (plugin)
 
-Fixture plans → expected plan.json under the existing `tests/*.md` LLM-graded
-convention, plus two **mechanical** assertions needing no grader:
+**There is no CI in this repo** (`.github/` is absent; the only executable tests
+are `tests/concurrent-commit.test.sh` and `tests/stale-lock.test.sh`, run by
+hand). So the converter gets both halves of the existing convention and nothing
+that pretends to be automated:
+
+- **Fixtures**, LLM-graded like every other rule test:
+  `tests/fixtures/converter/should-{pass,refuse}/*.md`, matching the existing
+  `tests/fixtures/<family>/should-{pass,refuse,warn}/` layout.
+- **`tests/converter-validate.test.sh`**, a hand-run shell test in the shape of
+  the two that already exist, carrying the assertions that need no grader:
 
 - `pangolin orch validate <out>` exits 0.
 - **Every item has a non-empty `inputs.subagent`.** Required because
