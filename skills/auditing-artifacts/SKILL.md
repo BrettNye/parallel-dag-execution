@@ -131,7 +131,11 @@ digraph auditing_artifacts {
    be built wrong. It is still worth reporting as a provenance correction.
 
 3. **Check for a prior audit.** Look for an `## Audit record` section in the
-   artifact.
+   artifact. Recompute the **normalized hash** defined in step 9 — excluding the
+   record section, trailing blanks stripped — and compare it to the recorded `rev`.
+   Comparing the whole file, or `git`-diffing against the recorded SHA, always
+   reports "changed" because the record is itself a change; that silently disables
+   this entire step.
    - Unchanged since the recorded revision → report that verdict and stop. Do not
      re-run.
    - Changed → **diff-scoped re-audit**: pass each lens the diff plus the sections
@@ -195,11 +199,31 @@ digraph auditing_artifacts {
    ```markdown
    ## Audit record
 
-   - **2026-07-29** · rev `<sha-or-hash>` · lenses: absence, ambiguity, grounding,
+   - **2026-07-29** · rev `<normalized-hash>` · lenses: absence, ambiguity, grounding,
      charter, coherence, design · **NOT READY — 4 blocking**
      - Deferred, accepted: <one line each>
      - Empirical unknowns opened: <list, each with its probe task>
    ```
+
+   **`rev` is a hash of the artifact EXCLUDING this `## Audit record` section, with
+   trailing blank lines stripped.** Not the whole file, and not a bare `git` SHA.
+
+   This is load-bearing and the failure is silent. Writing the record *changes the
+   file*, so a whole-file hash — or `git diff` against the SHA you just recorded —
+   reports "changed" on the very next run, forever. The step 3 short-circuit then
+   never fires, every re-audit pays for a full fan-out, and nothing errors to tell
+   you. Stripping the record alone is also not enough: the blank line separating it
+   from the body shifts the hash too (observed).
+
+   ```bash
+   # the value to record, and the value step 3 recomputes — must be identical
+   sed '/^## Audit record$/,$d' "$ARTIFACT" \
+     | sed -e :a -e '/^\n*$/{$d;N;};/\n$/ba' \
+     | sha1sum | cut -c1-12
+   ```
+
+   Record a commit SHA too if the artifact is tracked, as provenance — but compare
+   on the normalized hash, never on the SHA.
 
    This is what makes step 3 work, and what stops the next pass from re-deriving
    settled ground.

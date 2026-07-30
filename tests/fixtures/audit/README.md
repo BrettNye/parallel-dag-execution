@@ -15,6 +15,21 @@ own or block on what shouldn't block.
 Each fixture's header comment declares its lens, expected severity, and a
 substring the report must contain.
 
+**A fixture scores only the lens named in its `LENS:` line.** Run other lenses
+against it and you are exercising the harness, not grading them — their findings
+have no declared expectation to check against, so neither a hit nor a miss means
+anything. Two consequences worth knowing:
+
+- A fixture may contain **undeclared real defects** that other lenses correctly
+  find. That is not a fixture failure; it is a fixture that under-documents itself.
+  When it happens, add the defect to the header under `ALSO PRESENT` with its
+  expected severity per lens, so the next run is scoreable
+  (`should-flag/coherence-superseded-no-marker.md` carries a worked example).
+- Never audit a fixture with steps 6 and 9 of `auditing-artifacts` enabled. Writing
+  an `## Audit record` into a fixture rewrites the input, and some fixtures
+  deliberately carry one while others deliberately do not. The skill has a
+  read-only path for exactly this; use it.
+
 ## Why `should-defer` exists
 
 The severity gate is the highest-leverage rule in this design and the easiest to
