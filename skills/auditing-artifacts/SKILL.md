@@ -131,8 +131,18 @@ digraph auditing_artifacts {
    be built wrong. It is still worth reporting as a provenance correction.
 
 3. **Check for a prior audit.** Look for an `## Audit record` section in the
-   artifact. Recompute the **normalized hash** defined in step 9 — excluding the
-   record section, trailing blanks stripped — and compare it to the recorded `rev`.
+   artifact. **It is an append-only log — one entry per audit, newest last — and an
+   entry may carry no verdict** (a placeholder written when the artifact changed but
+   has not been re-audited, e.g. `lenses: none — NOT YET RE-AUDITED`).
+
+   So compare against **the most recent entry that carries a verdict**, not simply the
+   most recent entry. The `rev` on a verdict-less entry records *what the artifact was
+   when someone noted it needed re-auditing* — it is not something you can
+   short-circuit on. Matching it means "nothing has changed since that note", which is
+   not the same as "there is a prior verdict for this content".
+
+   Recompute the **normalized hash** defined in step 9 — excluding the record section,
+   trailing blanks stripped — and compare it to that entry's `rev`.
    Comparing the whole file, or `git`-diffing against the recorded SHA, always
    reports "changed" because the record is itself a change; that silently disables
    this entire step.
@@ -201,15 +211,30 @@ digraph auditing_artifacts {
 8. **Present the verdict** to the user: the one-line verdict, blocking findings,
    joint resolutions, contradictions, then the rest. Lead with the count.
 
-9. **Record the audit in the artifact** — add or update `## Audit record`:
+9. **Record the audit in the artifact** — **append** an entry to `## Audit record`.
+   Never rewrite or replace an earlier entry: the log is how a later pass tells a
+   settled decision from a fresh one, and collapsing it to the latest verdict destroys
+   the diff-scoping basis.
 
    ```markdown
    ## Audit record
 
-   - **2026-07-29** · rev `<normalized-hash>` · lenses: absence, ambiguity, grounding,
-     charter, coherence, design · **NOT READY — 4 blocking**
+   - **2026-07-29** · rev `<normalized-hash>` · commit `<sha>` · lenses: absence,
+     ambiguity, grounding, charter, coherence, design (6/6 ran) ·
+     **NOT READY — 4 blocking**
      - Deferred, accepted: <one line each>
      - Empirical unknowns opened: <list, each with its probe task>
+   ```
+
+   State how many lenses ran out of how many dispatched — a run with an unrun lens is
+   not the same evidence as a complete one, and step 3 cannot tell later.
+
+   If you are noting that the artifact changed **without** auditing it, say so
+   explicitly rather than writing a bare `rev`, so step 3 knows there is no verdict
+   here to short-circuit on:
+
+   ```markdown
+   - **2026-07-30** · rev `<normalized-hash>` · lenses: none — NOT YET RE-AUDITED
    ```
 
    **`rev` is a hash of the artifact EXCLUDING this `## Audit record` section, with
