@@ -56,6 +56,13 @@ decision, an already-listed empirical unknown, a defect another lens owns.
 | frozen decisions (all lenses) | — | — | ✅ |
 | `absence`, `ambiguity`, `charter` (spec) | ❌ none yet | ❌ | ❌ |
 | `coverage`, `context-sufficiency` (plan) | ❌ none yet | ❌ | ❌ |
+| **`dag-audit-reconciler`** | ✅ `reconciler/merge-promote-downgrade/` | — | — |
+
+The reconciler has its own harness — see [`reconciler/README.md`](reconciler/README.md).
+It cannot be graded by a single-artifact fixture, because its inputs are N lens
+reports, and its failures are *absences*: a dropped finding, a promotion never made,
+a contradiction collapsed by vote, a downgrade with no logged reason. None of those
+look wrong on the page, which is why it needs a case with known answers.
 
 **The ❌ rows are real gaps, not "covered by the others."** The fixtures present
 encode the bug classes with observed recurrence; the rest are unwritten. Do not
