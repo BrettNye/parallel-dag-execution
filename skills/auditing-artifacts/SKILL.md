@@ -165,6 +165,38 @@ digraph auditing_artifacts {
    catalog, unless the user named a subset. Tier defaults come from the catalog;
    resolve to a model the same way the executor does.
 
+   **Never narrow the set yourself.** Do not infer that a lens "isn't needed here" —
+   that judgement fails silently, and a lens you skip produces no evidence that it was
+   skipped. Narrowing is the author's call, made explicitly. What you owe them is the
+   information to make it, below.
+
+   ### What a gate-2 lens adds over `writing-dag-plans`' own validation
+
+   A plan authored by `writing-dag-plans` has already passed H1–H11, S1–S11, structural
+   validation, and its step-8 decomposition audit. Those overlap the plan lenses
+   unevenly, so an author narrowing the set should know which lenses are genuinely
+   additive:
+
+   | Lens | Already covered by plan-quality? | Additive? |
+   |---|---|---|
+   | `coverage` | **Nothing.** No rule maps spec requirements to tasks. | **Fully** |
+   | `verifiability` | H4 (an AC *exists*) + S4 (vague criteria). Presence and vagueness only — nothing about falsifiability, crash-passing, tautology, or quantifier mismatch. | **Nearly fully** |
+   | `coherence` | **Nothing.** No rule compares a task's `## Implementation` sketch against its own ACs. | **Fully** |
+   | `grounding` | Step 3.5's symbol-consumer grep; "do not fabricate file paths". | **Mostly** |
+   | `charter` | Step 8's repo-convention pass, incl. the named per-layer reference implementation. | Partly |
+   | `context-sufficiency` | H11 **is** the bare-spec-pointer rule; plus H2, S2/S3 sizing, step 8's elided-sibling completeness. | Largely covered |
+   | `dag-integrity` | Structural validation (cycles, file-disjoint parallel branches) + H8 import resolution + H9 contract sequencing + H10 missing-producer index + step 5's file-scope conflict loop. | Largely covered |
+
+   So if cost forces a subset, the top four rows are where the un-checked risk lives —
+   and `coverage` is first, because a plan that legitimately *selects* from a longer spec
+   is exactly where a dropped requirement hides, and no H-rule looks.
+
+   **One caution on reading this table.** "Largely covered" means covered *by the
+   rules*, which run mechanically. It does not mean covered because the plan's author
+   checked. An author validating their own decomposition is the weakest form of the
+   check — it is the familiarity the fan-out exists to defeat — so do not let "I already
+   looked at that" stand in for a rule that actually ran.
+
 5. **Dispatch every lens in ONE message** so they run concurrently. This is
    load-bearing: sequential dispatch reintroduces the anchoring the design exists
    to remove. Each lens gets the artifact path, its own fragment verbatim, the
