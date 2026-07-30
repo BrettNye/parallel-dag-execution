@@ -92,6 +92,17 @@ digraph auditing_artifacts {
    For gate 2, locate the parent spec — if it cannot be found, say so and audit
    coverage against what the plan claims to deliver, noting the limitation.
 
+   **If the artifact is a test fixture, run read-only: skip steps 6 and 9.** A
+   fixture under `tests/fixtures/**` (or carrying a `FIXTURE:` header comment) is
+   the thing under test. Writing an `## Audit record` into it rewrites the input —
+   and some fixtures deliberately have one, to exercise step 3's short-circuit,
+   while others deliberately do not. Dropping a `.audit/` tree into the fixture
+   directory is likewise noise in the test tree. Report the verdict to the user and
+   stop; keep the lens reports in the conversation instead of on disk.
+
+   This matters because running the fixtures is how anyone smoke-tests this skill,
+   so the default path must not corrupt them.
+
 2. **Locate charter material.** Root and nested `CLAUDE.md`/`AGENTS.md`, the
    convention/boundary docs they point to, and `.claude/audit-charter.md` if
    present. Pass the list of paths to every lens; do not summarize it for them —
@@ -136,29 +147,39 @@ digraph auditing_artifacts {
 5. **Dispatch every lens in ONE message** so they run concurrently. This is
    load-bearing: sequential dispatch reintroduces the anchoring the design exists
    to remove. Each lens gets the artifact path, its own fragment verbatim, the
-   charter paths, the repo root, and (gate 2) the spec path.
-
-6. **Collect all lens reports into the audit directory.** A lens that fails or
-   returns nothing is reported as a gap — never silently dropped, because a
-   missing lens is missing coverage, not a clean result.
+   charter paths, the repo root, (gate 2) the spec path, and **the path it must
+   write its own report to** (see step 6).
 
    **The audit directory** is `<artifact-dir>/.audit/<artifact-basename>/` — beside
    the artifact, so the reports travel with it and a re-audit can diff against
-   them. Create it if absent. Write one file per lens, **verbatim**:
+   them. Create it before dispatching. Each lens is told to write:
 
    ```
    <artifact-dir>/.audit/<artifact-basename>/lens-<name>.md
    ```
 
-   Verbatim matters: the reconciler must receive each report whole, including its
-   "Checked, no finding" section, and writing them to disk is what keeps them
-   byte-identical instead of summarized on the way through. Six lens reports on a
-   large artifact run to tens of thousands of tokens, and pasting them inline is
-   what creates the pressure to trim.
-
    If the repo would rather not track these, add `.audit/` to `.gitignore` — the
-   `## Audit record` written in step 9 is the durable summary; these files are
-   working artifacts.
+   `## Audit record` written in step 9 is the durable summary; these are working
+   artifacts.
+
+6. **Collect the report paths — the lenses write their own files.**
+
+   **Each lens writes its own report and returns the path plus a one-line
+   verdict.** You never handle report bodies. This is not a stylistic preference:
+   a lens's report already exists in the lens's context, so having the orchestrator
+   write it means reproducing tens of thousands of tokens it already holds — paying
+   twice for zero information, and re-introducing exactly the pressure to summarize
+   that "verbatim" exists to prevent. When the lens writes it, byte-identical is
+   true *by construction* rather than by discipline.
+
+   A lens that fails, returns nothing, or returns no path is reported as a **gap** —
+   never silently dropped, because a missing lens is missing coverage, not a clean
+   result. Verify each promised file actually exists before continuing; a lens that
+   claims a path it did not write is the same gap.
+
+   Do not read the report bodies yourself. You have no job that requires them:
+   merging is the reconciler's, and skimming them on the way through is how a
+   finding gets quietly lost before the downgrade log can record it.
 
 7. **Dispatch the reconciler** with the lens-report **paths** (not their text), the
    artifact, and the repo root. One call. Do not pre-merge, pre-filter, or drop

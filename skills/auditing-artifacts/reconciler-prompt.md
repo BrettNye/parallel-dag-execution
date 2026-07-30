@@ -6,9 +6,9 @@ Template for the single reconciler call that follows the lens fan-out.
 
 The reconciler MUST receive:
 
-- Every lens report, **labeled by lens name**, complete and unedited — including
-  each lens's "Checked, no finding" section, since a clean verdict is a claim it
-  must adjudicate.
+- The **path** to every lens report, labeled by lens name. It reads them itself, so
+  each arrives complete and unedited — including the "Checked, no finding" section,
+  since a clean verdict is a claim it must adjudicate.
 - The artifact path, and for a plan audit the parent spec path.
 - The repo root, so it can read code to settle a contested claim.
 - The names of any lenses that failed to run.
@@ -20,16 +20,22 @@ The reconciler MUST NOT receive:
   makes suppression visible to the author.
 - Your own view of which findings matter.
 
-## Delivering the reports: files, not inline text
+## Delivering the reports: always paths
 
-Six lens reports on a large artifact run to tens of thousands of tokens. Pasting
-them inline works for a small run and becomes the dominant cost on a real one —
-and the pressure it creates to trim or summarize them is exactly what the "complete
-and unedited" rule forbids.
+**Pass paths. Never report bodies.** Each lens writes its own report to
+`<artifact-dir>/.audit/<artifact-basename>/lens-<name>.md` and returns that path
+(see `SKILL.md` steps 5–6); the reconciler has `Read` and opens them itself.
 
-**Default: write each lens report verbatim to its own file and pass the paths.**
-The reconciler has `Read`; one file per lens keeps attribution unambiguous and
-leaves the reports byte-identical to what the lens produced.
+Two reasons this is not a preference:
+
+1. **The orchestrator never holds the text.** A report already exists in its lens's
+   context — routing it through the orchestrator means reproducing tens of thousands
+   of tokens for zero information, and every token of that pressure pushes toward
+   summarizing. One file per lens keeps attribution unambiguous and makes
+   byte-identical true by construction.
+2. **Nobody between the lens and the reconciler can lose a finding.** That is what
+   the downgrade log is for, and it only works if the reconciler sees what the lens
+   actually wrote.
 
 The audit directory is defined in `./SKILL.md` step 6 — beside the artifact:
 
@@ -45,8 +51,10 @@ docs/superpowers/specs/.audit/2026-07-29-foo-design.md/lens-coherence.md
 …
 ```
 
-Pass inline text only when the reports are small enough that the extra files are
-noise. Never mix: all inline, or all by path, so nothing is half-delivered.
+The only exception: a lens that was dispatched without a report path returns its
+report inline (and says so). Pass that one through as text, labeled, and note in the
+prompt which lens it was — a mixed delivery is fine as long as it is *declared*, so
+nothing looks half-delivered.
 
 Whichever form you use, **every lens report goes in whole** — including its
 "Checked, no finding" section, since a clean verdict is a claim the reconciler must
@@ -54,8 +62,8 @@ adjudicate.
 
 ## Prompt template
 
-<!-- Section order: (1) role; (2) coordinates; (3) unrun lenses; (4) the lens
-     reports — paths by default, inline only when small (bulk, volatile, last). -->
+<!-- Section order: (1) role; (2) coordinates; (3) unrun lenses; (4) the lens report
+     PATHS (short and stable — the reconciler reads the files itself). -->
 
 ```
 You are reconciling a parallel {spec|plan} audit. {n} independent lenses each
@@ -79,9 +87,16 @@ each finding DEFECT vs STALE · state the verdict.
 {if downstream}DOWNSTREAM ARTIFACTS: {plan_paths_and_statuses}; commits since authoring: {shas}{/if}
 {if not downstream}DOWNSTREAM ARTIFACTS: none located by the skill — search for them yourself before upholding any BLOCKING.{/if}
 
---- LENS REPORTS ---
+--- LENS REPORTS (read each one; they are complete and unedited as the lens wrote them) ---
 
-{for each report: "## Lens: " + name + "\n" + report_verbatim + "\n"}
+{for each report: "- " + name + ": " + report_path + "\n"}
+{if any inline}
+The following lens was dispatched without a report path and returned inline. Treat it
+exactly like the others:
+
+## Lens: {inline_name}
+{inline_report_verbatim}
+{/if}
 ```
 
 ## Agent invocation example

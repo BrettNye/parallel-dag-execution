@@ -17,6 +17,10 @@ Each lens MUST receive:
   spec, its task statuses, and commits landed since authoring. Say explicitly when
   there are none — "none found" is different from an omitted field, and a lens told
   nothing will assume nothing exists.
+- **The report path it must write** —
+  `<artifact-dir>/.audit/<artifact-basename>/lens-<name>.md`. The lens writes its own
+  report and returns only that path plus a one-line verdict; the orchestrator never
+  handles report bodies. Create the directory before dispatching so no lens has to.
 
 Each lens MUST NOT receive:
 
