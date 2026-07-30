@@ -9,9 +9,16 @@ COVERS: universal claim vs existential assertion, and the suppressor.
                   extra entries; the seven unenumerated members are where it breaks.
                   WARN.
   task-statuses — same universal shape ("every status maps"), but the assertion
-                  iterates the exported `RUN_STATUSES` array and asserts
-                  count-equality against its length, so a newly added member fails
-                  the test rather than being skipped. MUST NOT WARN.
+                  iterates the exported `RUN_STATUSES` array and asserts the claimed
+                  property PER MEMBER, so a newly added member fails the test rather
+                  than being skipped. MUST NOT WARN.
+                  FIRST RUN (2026-07-30) CHANGED THIS TASK. It originally claimed
+                  "maps to a NON-EMPTY label" while asserting only count-equality —
+                  which proves coverage and never non-emptiness, so a record of all
+                  `''` passed. The must-not-warn task carried a real defect that
+                  S14's suppressor unconditionally silenced. Both were fixed: S14 now
+                  requires the suppressor to discharge the SAME predicate the claim
+                  makes, and this task now asserts the property inside the loop.
 EXPECTED WARNING TEXT (substring):
   S14
   task-reasons
@@ -93,9 +100,11 @@ export const STATUS_LABEL: Record<(typeof RUN_STATUSES)[number], string> = {
 
 ## Acceptance criteria
 
-- Every status maps to a non-empty label: the test iterates `RUN_STATUSES` itself and
-  asserts `Object.keys(STATUS_LABEL).length === RUN_STATUSES.length`, so a status
-  added later fails rather than being silently unmapped.
+- Every status maps to a non-empty label: the test iterates `RUN_STATUSES` itself and,
+  for each member, asserts `STATUS_LABEL[s]` is a non-empty string — so a status added
+  later fails rather than being silently unmapped, and a status mapped to `''` fails
+  too. It also asserts `Object.keys(STATUS_LABEL).length === RUN_STATUSES.length` to
+  catch extra keys.
 - An unknown string is rejected at the type level, pinned by a `@ts-expect-error` case.
 
 Test file: `test/read/status.spec.ts`.

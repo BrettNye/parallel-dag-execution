@@ -17,6 +17,16 @@ COVERS: silence as the correct answer, with each rule's trigger words PRESENT bu
     file is not self-scoped.
 MUST NOT WARN: any task, any rule. A single warning here means a rule is matching
   words instead of shapes, which is the failure mode that gets a soft rule ignored.
+FIRST RUN (2026-07-30) FIXED TWO DEFECTS IN THIS FIXTURE:
+  - H7 (hard rule): `## Implementation` had ONE fenced block; H7 requires at least
+    two (impl + failing test) for any task without `is_wiring_task: true`. The plan
+    would have been REFUSED before a single soft rule ran, so a green result here
+    proved nothing. A failing-test block was added.
+  - The `Promise<number>` return was asserted by no criterion, so an implementer
+    could return the wrong count and pass every bullet. The added test block pins it.
+  Both were reported by the run as defects outside S12-S15's remit — which is the
+  fixture suite working as intended: the graded verdicts were right, and the free
+  observations were worth more than the grade.
 -->
 
 ---
@@ -53,8 +63,17 @@ import { RETENTION_DAYS } from './config.js';
 import { PURGE_STATUSES } from './statuses.js';
 
 export async function purge(now: Date, db: Db): Promise<number> {
-  // delete where deleted_at < now - RETENTION_DAYS
+  // delete where deleted_at < now - RETENTION_DAYS; returns rows deleted
 }
+```
+
+```typescript
+// test/purge/purge.spec.ts
+it('deletes past the window and keeps the survivor', async () => {
+  await seed([{ id: 'old', deleted_at: daysAgo(31) }, { id: 'new', deleted_at: daysAgo(29) }]);
+  expect(await purge(NOW, db)).toBe(1);
+  expect(await ids()).toEqual(['new']);
+});
 ```
 
 ## Acceptance criteria

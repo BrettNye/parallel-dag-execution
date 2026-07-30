@@ -18,8 +18,12 @@ EXPECTED WARNING TEXT (substring):
   positive
 MUST NOT WARN: task-cancel (firing on the correct form is worse than not firing —
   it teaches authors to ignore S12).
-NOTE: S15 also legitimately fires on task-skip's "the record is unchanged" bullet.
-  That is a separate rule and not a failure here; score S12 only.
+NOTE: S15 does NOT fire on task-skip's "The record is unchanged" bullet, and this
+  header said the opposite before the first run. S15's subject restriction limits it
+  to claims about a FILE or path; "the record" is a runtime entity whose state a test
+  reads back directly. Getting this backwards in the fixture header is the same error
+  the restriction exists to prevent — S15 is about unobservable diff properties, not
+  about the word "unchanged". Score S12 only.
 -->
 
 ---

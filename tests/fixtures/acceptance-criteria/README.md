@@ -48,7 +48,28 @@ until it is being ignored.
 
 ## Status
 
-**Authored 2026-07-30, not yet run.** Per `tests/fixtures/audit/README.md`, a fixture is
-not finished until it has been run once and its output reconciled into the header — six
-of eleven fixtures in the audit suite carried undeclared defects on their first run. Treat
-these four as unvalidated until that happens.
+**Run 2026-07-30. 4/4 graded verdicts correct** — every trigger fired on the intended
+task, every suppressor held, and `should-pass` drew zero fires. Method: headers stripped
+to a scratch copy outside the repo so each run was blind to its own answer key, one
+independent pass per fixture, each applying the rule text from `plan-quality.md` in place.
+
+**The grade was the least useful output.** The runs found five defects, and the pattern
+from the audit suite held — three of four fixtures carried undeclared problems:
+
+| Where | Defect | Fix |
+|---|---|---|
+| S12 rule | pattern list was **passive-voice only**; "Cancel issues no DELETE" never matched | added the active-voice alternation |
+| S12 rule | listed `toBeNull`/`toBeUndefined`/`not.toHaveBeenCalled` as triggers while scoping matching to *prose bullets* — tokens it could never see. Also disagreed with S14's "stated assertion" scope | match scope now includes the assertion a bullet names, inline or in `## Implementation` |
+| S12 rule | suppressor demanded a **sibling** bullet, so it fired on the correct *one-bullet* form (positive control inside the same bullet) | suppressor accepts the same bullet |
+| S14 rule | suppressor discharged the *quantifier* but not the *predicate* — count-equality silenced "every status maps to a **non-empty** label", which all-`''` satisfies | suppressor must discharge the same predicate; fixture asserts per member |
+| S15 rule | token list had **no subject restriction**, so "the row is unchanged" / "fields unchanged" fired. Flagged independently by three of four runs | subject must resolve to a file or path |
+| `s15` fixture | both tasks `depends_on: []` while both declared the same spec file — the plan would be **refused for non-disjoint parallel branches before S12–S15 ran** | `task-legacy` now depends on `task-pup` |
+| `should-pass` fixture | **one** fenced block in `## Implementation`; H7 requires two — refused before any soft rule ran, so green proved nothing | failing-test block added |
+| `s12` fixture header | asserted S15 fires on "the record is unchanged" — wrong, and wrong in exactly the way the new subject restriction prevents | corrected |
+
+Two things worth keeping from this. **`should-pass` passed for the wrong reason**: three
+rules were saved by agents reading for *intent* where the literal text would have
+over-fired. A suppressor that only works when the reader is charitable is not a
+suppressor, and a blind run is what exposed the difference. And **S13 has no
+`should-warn` fixture**, so its text is the least tested of the four — it was exercised
+only as a non-fire.

@@ -18,9 +18,18 @@ EXPECTED WARNING TEXT (substring):
   task-legacy
   files:
 MUST NOT WARN: task-pup.
+ALSO EXPECTED (not scored here): S12 fires on task-legacy. "No new control appears in
+  the legacy dialog" is a negative whose only sibling is the diff-property bullet, and
+  the `toBeNull()` in its Implementation block is an S12 trigger token. That is
+  correct — task-legacy IS crash-passing — it just belongs to S12, not S15.
 WHY THIS ONE MATTERS: found by running an audit fixture, not by review — the
   contradiction between an AC and its own `files:` list was in a fixture its author
   wrote and never noticed. A rule catches it for free; a lens costs a dispatch.
+FIRST RUN (2026-07-30) FIXED A STRUCTURAL DEFECT IN THIS FIXTURE. Both tasks were
+  `depends_on: []` while both declared `test/app/legacy-dialog.component.spec.ts`, so
+  step 1 of the detection algorithm would refuse the plan for non-disjoint parallel
+  branches before S12-S15 ever ran — the fixture could not have exercised the rule it
+  was written for. task-legacy now depends on task-pup, which orders the two writes.
 -->
 
 ---
@@ -30,8 +39,7 @@ created: 2026-07-30
 
 ```mermaid
 flowchart TD
-    task-pup["task-pup"]
-    task-legacy["task-legacy"]
+    task-pup["task-pup"] --> task-legacy["task-legacy"]
 ```
 
 ## Tasks
@@ -70,7 +78,7 @@ Test file: `test/app/pup-dialog.component.spec.ts`.
 
 ```yaml
 id: task-legacy
-depends_on: []
+depends_on: [task-pup]
 files:
   - src/app/legacy-dialog.component.ts
   - test/app/legacy-dialog.component.spec.ts
