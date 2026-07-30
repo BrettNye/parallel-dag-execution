@@ -99,6 +99,28 @@ Three more defects, all in rules the fixture wasn't aimed at:
 **Recording a prediction before the run is worth repeating.** It cost two sentences and
 converted "I think this clause is wrong" into evidence — the prediction and the finding
 were reached independently, which neither a re-read nor an unannotated run could have
-established. Note also that S12 has now been repaired by *three* separate runs, none of
-which was aimed at it: a rule with a token list keeps under-firing at the edges of that
-list, and only fixtures written for *other* rules seem to walk into them.
+established.
+
+### The class fix these runs were actually pointing at
+
+S12 was repaired by three separate runs, none aimed at it. Two of those runs asked
+directly whether its pattern list was *"exhaustive-and-binding or illustrative"* — and
+both times the answer was to add the missing tokens. **Three instances patched, the class
+never addressed.**
+
+The class is this: S12, S14 and S15 each stand in for a semantic concept via a finite
+list of surface forms. The concept has unbounded phrasings; the list has a boundary; every
+phrasing outside it is a silent miss. And the misses are found by fixtures written for
+*other* rules, because a fixture written for S12 reaches for the same vocabulary as S12's
+list — same author, same phrasings — so it lands inside the list and passes.
+
+`plan-quality.md` now states that the enumerations **illustrate the shape rather than
+bound it**, and that matching is on meaning, with the lists as a fast path. Triggers only:
+no suppressor was loosened and S15's subject restriction is untouched. That asymmetry is
+deliberate and it is what makes the widening safe — the suppressors were already semantic,
+so they keep holding as the triggers widen. All five fixtures still produce their expected
+verdicts under meaning-matching, `should-pass` included.
+
+Worth carrying to any future rule here: **prefer a stated shape with examples over an
+enumeration**, and when an enumeration is unavoidable, say out loud that it is not
+exhaustive. Otherwise every fixture run buys one token and leaves the boundary intact.
