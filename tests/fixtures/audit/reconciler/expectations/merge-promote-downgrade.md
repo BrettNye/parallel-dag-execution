@@ -1,6 +1,14 @@
 # EXPECTED — merge-promote-downgrade
 
-**Do not paste this into the reconciler's prompt.** Score against it afterwards.
+The grading key for `../merge-promote-downgrade/`. **All paths below are relative to
+that directory**, which is the tree the reconciler is given as its repo root.
+
+It lives out here on purpose. The reconciler gets the case directory as its repo root
+and has `Read` and `Glob`, so a key *inside* that tree is a guardrail made of a polite
+request — and a reconciler that reasonably decides to look around would contaminate
+its own run. As a sibling, it cannot.
+
+Score against it after the run. Never pass it, or its path, into the prompt.
 
 Inputs: `artifact.md`, `plan.md`, `code/`, and five lens reports —
 `coverage`, `verifiability`, `grounding`, `design`, `charter`.

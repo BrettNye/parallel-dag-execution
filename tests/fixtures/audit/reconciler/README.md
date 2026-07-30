@@ -12,24 +12,33 @@ downgrade with no logged reason. None of those look wrong on the page.
 
 ## Layout
 
-One directory per case:
+One directory per case, and **the grading key lives outside it**:
 
 ```
-<case>/
-  EXPECTED.md          the contract — read this first
+expectations/
+  <case>.md            the contract — read this first, and keep it out of the run
+<case>/                ← this directory IS the tree the reconciler is given
   artifact.md          the spec the lenses audited
   plan.md              a downstream plan (present when the case tests STALE)
   code/…               real files, so a contradiction can be adjudicated
   lens-<name>.md       the inputs, in the shape dag-auditor emits
 ```
 
+**Why the key is a sibling rather than a file in the case.** The reconciler is handed
+the case directory as its repo root and has `Read` and `Glob` — it is *supposed* to
+look around, because adjudicating a contradiction means reading the code. A key inside
+that tree is a guardrail made of a polite request, and the one behaviour you want most
+from this component (going and checking) is the behaviour that would break the test.
+Outside the tree, the run cannot be contaminated at all.
+
 ## Running one
 
-Dispatch `dag-audit-reconciler` with the lens-report paths, the artifact path, and
-the case directory as repo root — exactly as `auditing-artifacts` step 7 would. Then
-score its output against `EXPECTED.md`.
+Dispatch `dag-audit-reconciler` with the lens-report paths, the artifact path, and the
+case directory as repo root — exactly as `auditing-artifacts` step 7 would. Then score
+its output against `expectations/<case>.md`.
 
-**Do not paste `EXPECTED.md` into the prompt.** It names the answers.
+Never pass the key, or its path, into the prompt. Paths inside the key are relative to
+the case directory, not to `expectations/`.
 
 ## What every case checks
 
