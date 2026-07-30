@@ -136,6 +136,13 @@ digraph auditing_artifacts {
    Comparing the whole file, or `git`-diffing against the recorded SHA, always
    reports "changed" because the record is itself a change; that silently disables
    this entire step.
+
+   **A mismatch is not proof the artifact changed.** Before scoping a re-audit to a
+   diff, rule out a line-ending rewrite: `git check-attr text eol -- <artifact>`. If
+   `eol` is unspecified, the file may have been translated on checkout and every hash
+   moved without a word of the content changing. Confirm against the diff itself
+   (`git diff --stat`) rather than trusting the hash alone, and say which you relied
+   on. Treating a translated file as "changed" costs a full fan-out for nothing.
    - Unchanged since the recorded revision → report that verdict and stop. Do not
      re-run.
    - Changed → **diff-scoped re-audit**: pass each lens the diff plus the sections
@@ -224,6 +231,30 @@ digraph auditing_artifacts {
 
    Record a commit SHA too if the artifact is tracked, as provenance — but compare
    on the normalized hash, never on the SHA.
+
+   **Check that git cannot rewrite the artifact's bytes, or the hash is not
+   normalized at all.** A hash over content whose line endings git may translate is
+   stable only until the next checkout. Before recording `rev`, confirm the artifact's
+   extension is pinned:
+
+   ```bash
+   git check-attr text eol -- "$ARTIFACT"      # want: eol=lf (or crlf), not unspecified
+   ```
+
+   If `eol` is unspecified and `core.autocrlf` is on anywhere the repo is cloned — the
+   Windows default — a checkout rewrites the file CRLF, every hash changes, and the
+   step 3 short-circuit **silently stops firing**. Same silent-and-expensive failure as
+   the self-invalidating hash above, arriving by a different route. The fix is one line
+   in `.gitattributes`:
+
+   ```
+   specs/*.md text eol=lf
+   ```
+
+   Report it as an EMPIRICAL-UNKNOWN-style caveat in the record if you cannot fix it,
+   naming the exact line needed — do not record a `rev` while implying it is durable.
+   Observed in the wild: a repo pinning `*.sh` and `agents/*.md` to LF but not
+   `specs/*.md`, on a machine where every commit warns about CRLF translation.
 
    This is what makes step 3 work, and what stops the next pass from re-deriving
    settled ground.

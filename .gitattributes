@@ -1,0 +1,27 @@
+# Line endings are pinned, not left to `core.autocrlf`.
+#
+# This is not tidiness. Two things in this repo depend on bytes surviving a checkout:
+#
+# 1. `auditing-artifacts` step 9 records a normalized content hash (`rev`) so a
+#    re-audit can short-circuit instead of paying for another full lens fan-out. A
+#    hash over content git may translate is stable only until the next clone — and
+#    when it moves, the short-circuit stops firing SILENTLY. Nothing errors; every
+#    re-audit just quietly costs full price again.
+# 2. The audit fixtures under `tests/fixtures/audit/` are graded by substring match
+#    against their header contracts, and the reconciler fixture cites exact
+#    `file:line` positions. Those are byte-level claims.
+#
+# On Windows `core.autocrlf` is on by default, so leaving this unspecified means the
+# repo behaves differently depending on who cloned it. Everything here is text.
+
+* text=auto eol=lf
+
+# Stated explicitly for the files whose bytes are load-bearing, so the intent
+# survives someone relaxing the blanket rule above.
+*.md          text eol=lf
+*.ts          text eol=lf
+*.json        text eol=lf
+*.sh          text eol=lf
+
+# Extensionless shell script.
+skills/executing-dag-plans/git-commit-safe text eol=lf
