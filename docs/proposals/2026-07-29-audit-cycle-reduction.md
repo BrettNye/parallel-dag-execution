@@ -31,7 +31,11 @@
 | `skills/executing-dag-plans/quality-reviewer-prompt.md` | 2 | modify — scope line strengthened (C7) |
 | `skills/executing-dag-plans/SKILL.md` | 2 | modify — consolidation log lifecycle (C7/C8) |
 
-Untouched in both phases: `plan-quality.md` (H1–H11, S1–S11 all stand),
+Untouched in both phases: ~~`plan-quality.md` (H1–H11, S1–S11 all stand)~~ — **no longer
+true, see §0.1**: `plan-quality.md` gained S12–S15 (acceptance-criteria falsifiability)
+once a measurement showed every rework-causing defect was an AC-falsifiability defect
+and none was an H-rule finding. H1–H11 and S1–S11 do all still stand; the change is
+purely additive. Also untouched:
 `agents/dag-{implementer,spec-reviewer,quality-reviewer,merged-reviewer}.md`
 except the one C7 prompt line, `commands/{execute,plan,update}.md`, all existing
 `tests/fixtures/**`.

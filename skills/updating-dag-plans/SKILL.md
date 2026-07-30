@@ -22,7 +22,7 @@ Mutate an in-flight or partially-executed DAG plan without breaking resumability
 ## Required reading
 
 - `../writing-dag-plans/plan-format.md` — canonical *structural* contract and validation rules.
-- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H11 and soft heuristics S1-S11.
+- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H11 and soft heuristics S1-S15 — S12-S15 are the acceptance-criteria falsifiability set, so re-run them on any task whose ACs you edit.
 
 Updates that add new tasks or modify task bodies/scope must pass BOTH validations, same as fresh authoring.
 

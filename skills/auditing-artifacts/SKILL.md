@@ -172,7 +172,7 @@ digraph auditing_artifacts {
 
    ### What a gate-2 lens adds over `writing-dag-plans`' own validation
 
-   A plan authored by `writing-dag-plans` has already passed H1–H11, S1–S11, structural
+   A plan authored by `writing-dag-plans` has already passed H1–H11, S1–S15, structural
    validation, and its step-8 decomposition audit. Those overlap the plan lenses
    unevenly, so an author narrowing the set should know which lenses are genuinely
    additive:
@@ -180,16 +180,23 @@ digraph auditing_artifacts {
    | Lens | Already covered by plan-quality? | Additive? |
    |---|---|---|
    | `coverage` | **Nothing.** No rule maps spec requirements to tasks. | **Fully** |
-   | `verifiability` | H4 (an AC *exists*) + S4 (vague criteria). Presence and vagueness only — nothing about falsifiability, crash-passing, tautology, or quantifier mismatch. | **Nearly fully** |
+   | `verifiability` | H4 (an AC *exists*), S4 (vague), and **S12–S15** — the falsifiability set: crash-passing absence, tautology, quantifier mismatch, diff-property. Those are the four *recurring* shapes. | Partly — for **novel** unfalsifiability the rules do not pattern-match: a spy blind to the real mechanism, an assertion a normalizing library defeats, a DOM binding left unpinned, a gate that reports success after its checker died |
    | `coherence` | **Nothing.** No rule compares a task's `## Implementation` sketch against its own ACs. | **Fully** |
    | `grounding` | Step 3.5's symbol-consumer grep; "do not fabricate file paths". | **Mostly** |
    | `charter` | Step 8's repo-convention pass, incl. the named per-layer reference implementation. | Partly |
    | `context-sufficiency` | H11 **is** the bare-spec-pointer rule; plus H2, S2/S3 sizing, step 8's elided-sibling completeness. | Largely covered |
    | `dag-integrity` | Structural validation (cycles, file-disjoint parallel branches) + H8 import resolution + H9 contract sequencing + H10 missing-producer index + step 5's file-scope conflict loop. | Largely covered |
 
-   So if cost forces a subset, the top four rows are where the un-checked risk lives —
-   and `coverage` is first, because a plan that legitimately *selects* from a longer spec
-   is exactly where a dropped requirement hides, and no H-rule looks.
+   So if cost forces a subset, the top rows are where the un-checked risk lives — and
+   `coverage` is first, because a plan that legitimately *selects* from a longer spec is
+   exactly where a dropped requirement hides, and no rule looks. `coherence` is second
+   and cheapest.
+
+   `verifiability` moved down this table when S12–S15 landed, and that is the intended
+   direction of travel: **every recurring lens finding that becomes a rule makes gate 2
+   cheaper without costing coverage**, because a rule runs free in the authoring pass and
+   a lens dispatch does not. When a lens keeps finding the same shape, that shape wants
+   to be a rule — see `plan-quality.md` S12–S15 for the worked example.
 
    **One caution on reading this table.** "Largely covered" means covered *by the
    rules*, which run mechanically. It does not mean covered because the plan's author
