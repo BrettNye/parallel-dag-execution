@@ -58,7 +58,7 @@ re-reading it.**
 | `charter` reclassified as **not fixture-testable** | Its job is reading a real charter and real enforcement config; a synthetic fixture would grade it against a fake repo. Validated per-repo instead. |
 | The reconciler got its own fixture harness, with the grading key **outside** the case tree | Nothing graded the component carrying severity assignment, promotion, and the downgrade log — and its failures are absences, which never look wrong on the page. |
 
-Two claims in §1 need qualifying against evidence:
+Three claims need qualifying against evidence:
 
 - **§1.2's premise held.** Of ~18 findings raised after a first pass across two real
   audit lineages, one was genuinely undiscoverable earlier. But the payoff was **not**
@@ -68,6 +68,21 @@ Two claims in §1 need qualifying against evidence:
   in the same way when they share a blind spot; observed twice. Convergence multiplies
   confidence only across *independent* evidence paths, and the reconciler now carries
   that caution explicitly.
+- **Diff-scoping's cost saving is UNMEASURED. Retraction.** Commit `dd13440`'s message
+  claims a scoped re-audit ran "-35%, ~5x faster" against a full pass on the same spec.
+  That number is wrong and should not be cited. It came from comparing two *mid-run*
+  progress snapshots taken at different points; the scoped run's **final** total was
+  ~780k, above the full pass's mid-run figure, and the full pass's final total was never
+  recorded. The comparison is also confounded — the second pass had a newly-written
+  charter to read and prior resolutions to verify, work the first pass never did.
+
+  §2.6 is unaffected: it justifies diff-scoping on **not reopening settled ground**,
+  which is the correct rationale and independent of any saving. Do not re-argue it as a
+  cost optimisation without a controlled measurement — same artifact, same charter
+  state, full vs scoped, both run to completion.
+
+  Worth recording as a method note, not just a correction: the error was reading a
+  progress display as a result. A running total is not a total.
 
 Still untested: whether a **cold session** honours "dispatch every lens in ONE
 message." It cannot be checked by an orchestrator that has just been reasoning about
