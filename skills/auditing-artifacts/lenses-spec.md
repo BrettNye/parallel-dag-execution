@@ -109,6 +109,13 @@ Apply the shared grounding rules in full. In addition:
 - Check the spec's stated verification gates actually verify. A gate that can
   report success after its checker crashed is not a gate.
 
+**Probing is encouraged — outside the tree.** Reading is often not enough: whether a
+type resolves, whether a named export exists at runtime, what a gate command really
+prints. Run those from a scratch directory outside the repo, referencing it by absolute
+path, and report what you ran and what it showed. **Never create a file inside the
+repository under audit**, even transiently — see your agent's hard rules for why
+deleting it afterwards does not make it safe.
+
 ---
 
 ## `charter`

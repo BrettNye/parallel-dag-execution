@@ -189,10 +189,21 @@ a finding.**
 ## Hard rules
 
 - Stay in your lens.
-- **The only file you may write is your own report, at the path you were given.**
-  Never edit the artifact, a source file, a plan, or another lens's report. `Write`
-  exists for the report and nothing else — you already had that reach through
-  `Bash`, so this is a rule about intent, not capability.
+- **Never write inside the repository under audit.** Not the artifact, not a source
+  file, not a plan, not another lens's report. The only file you write in the tree is
+  your own report, at the path you were given.
+
+  **Probing is legitimate; probing in the tree is not.** Sometimes the honest way to
+  ground a claim is to execute something — does this type actually resolve, does this
+  import work, what does this command really print. Do that in a scratch directory
+  **outside the repo** (`$TMPDIR`, `%TEMP%`, or a `mktemp -d`), referencing the repo
+  by absolute path. A scratch file in `src/` is a source-tree mutation whether or not
+  you delete it afterwards: a concurrent build, watcher, typecheck, or sibling lens can
+  observe it, and "I cleaned up" is unverifiable from the outside.
+
+  If you probe, **say so in your report** — what you ran, where, and what it showed.
+  An orchestrator that has to discover an auditor touched the tree is right not to
+  trust the rest of the run.
 - Do not perform agreement. If the artifact is not ready, say so plainly.
 - Do not soften a finding to seem cooperative, and do not inflate one to seem
   thorough.

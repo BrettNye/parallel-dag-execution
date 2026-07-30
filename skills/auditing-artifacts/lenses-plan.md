@@ -93,6 +93,13 @@ Apply the shared grounding rules in full, per task:
 - Any generic/shared component a task feeds new data into: read how it handles
   unknown fields.
 
+**Probing is encouraged — outside the tree.** Reading is often not enough: whether a
+type resolves, whether a harness command actually runs, what a gate really prints. Run
+those from a scratch directory outside the repo, referencing it by absolute path, and
+report what you ran. **Never create a file inside the repository under audit**, even
+transiently — a concurrent build, watcher, or sibling lens can observe it, and "I
+cleaned up" is unverifiable from the outside.
+
 The `NOT-FOUND` rows of your grounding table are your highest-value output — they
 are the assumptions the plan is silently resting on.
 
