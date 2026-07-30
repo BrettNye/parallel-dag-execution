@@ -138,14 +138,33 @@ digraph auditing_artifacts {
    to remove. Each lens gets the artifact path, its own fragment verbatim, the
    charter paths, the repo root, and (gate 2) the spec path.
 
-6. **Collect all lens reports.** A lens that fails or returns nothing is reported
-   as a gap — never silently dropped, because a missing lens is missing coverage,
-   not a clean result.
+6. **Collect all lens reports into the audit directory.** A lens that fails or
+   returns nothing is reported as a gap — never silently dropped, because a
+   missing lens is missing coverage, not a clean result.
 
-7. **Dispatch the reconciler** with every lens report, the artifact, and the repo
-   root. One call. Do not pre-merge, pre-filter, or drop anything first — merging
-   is its job, and quietly discarding a finding on the way in defeats the
-   downgrade log.
+   **The audit directory** is `<artifact-dir>/.audit/<artifact-basename>/` — beside
+   the artifact, so the reports travel with it and a re-audit can diff against
+   them. Create it if absent. Write one file per lens, **verbatim**:
+
+   ```
+   <artifact-dir>/.audit/<artifact-basename>/lens-<name>.md
+   ```
+
+   Verbatim matters: the reconciler must receive each report whole, including its
+   "Checked, no finding" section, and writing them to disk is what keeps them
+   byte-identical instead of summarized on the way through. Six lens reports on a
+   large artifact run to tens of thousands of tokens, and pasting them inline is
+   what creates the pressure to trim.
+
+   If the repo would rather not track these, add `.audit/` to `.gitignore` — the
+   `## Audit record` written in step 9 is the durable summary; these files are
+   working artifacts.
+
+7. **Dispatch the reconciler** with the lens-report **paths** (not their text), the
+   artifact, and the repo root. One call. Do not pre-merge, pre-filter, or drop
+   anything first — merging is its job, and quietly discarding a finding on the
+   way in defeats the downgrade log. See `./reconciler-prompt.md` for the
+   paths-vs-inline rule.
 
 8. **Present the verdict** to the user: the one-line verdict, blocking findings,
    joint resolutions, contradictions, then the rest. Lead with the count.

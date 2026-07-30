@@ -31,8 +31,18 @@ and unedited" rule forbids.
 The reconciler has `Read`; one file per lens keeps attribution unambiguous and
 leaves the reports byte-identical to what the lens produced.
 
+The audit directory is defined in `./SKILL.md` step 6 — beside the artifact:
+
 ```
-<audit-dir>/lens-<name>.md      # one per lens, verbatim
+<artifact-dir>/.audit/<artifact-basename>/lens-<name>.md
+```
+
+e.g. for `docs/superpowers/specs/2026-07-29-foo-design.md`:
+
+```
+docs/superpowers/specs/.audit/2026-07-29-foo-design.md/lens-grounding.md
+docs/superpowers/specs/.audit/2026-07-29-foo-design.md/lens-coherence.md
+…
 ```
 
 Pass inline text only when the reports are small enough that the extra files are
