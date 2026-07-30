@@ -316,6 +316,20 @@ Findings are the author's to fix, not this skill's. Two rules when they are fixe
 
 Then re-audit — which will be diff-scoped per step 3.
 
+**Re-audit on divergence, not on a schedule.** The trigger is a *material* change: the
+artifact's decisions moved, or a downstream plan diverged from what the spec says. A
+plan that selects from a spec rather than transcribing it has not diverged — specs
+routinely specify more than a plan needs, and expecting a 1:1 mapping manufactures
+findings.
+
+**Know when to stop.** If the reconciler's growth line shows the blocking count holding
+steady while the artifact keeps growing, the audit has started generating its own
+material: round N's findings live in the text round N−1's fixes created. Some of that is
+real; much of it is the artifact reaching into detail that belongs in code — how a
+function behaves on a corrupt file, the exact shape of an options object. Those are
+questions a test answers against something that runs. Stop auditing and go build; the
+next round's findings will be cheaper to discover in code than in prose.
+
 ## Hard rules
 
 - Lenses run in parallel, in one dispatch. Never sequentially.

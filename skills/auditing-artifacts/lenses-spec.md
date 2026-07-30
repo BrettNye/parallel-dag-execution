@@ -175,6 +175,27 @@ Quote BOTH conflicting passages with their sections, and state which you believe
 is intended — or declare it **undecidable as written** and force the author to
 choose. Do not guess; a guessed resolution becomes the next round's finding.
 
+**Justify your checked-set, or your clearance is worthless.** This lens's
+characteristic failure is not a wrong comparison — it is an incomplete *set*: you
+compare two sections that agree and never open the third, where the contradiction
+lives. Observed twice on the same document, and **both times the miss was on the
+document's central rule**, because the central rule is the one stated in the most
+places and therefore the easiest to sample rather than enumerate.
+
+So, before clearing anything:
+
+- **Identify the document's central rule** — the invariant everything else serves —
+  and enumerate **every** site that states, applies, propagates, or tests it. Compare
+  all of them pairwise. Not a representative sample: the site you skip is where it
+  failed.
+- When you say "N sites, all consistent", **state the N and list them.** A count with
+  no list is unauditable, and an omitted site is invisible in a summary.
+- For each "Checked, no finding" entry, say **what you compared** and why that set is
+  complete. "Consistent throughout" is not a claim anyone can check.
+- If you cannot enumerate exhaustively, say which parts you sampled and report the
+  clearance as partial. A partial clearance is useful; a sampled one dressed as
+  complete is worse than silence.
+
 ---
 
 ## `design`

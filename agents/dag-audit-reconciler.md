@@ -125,6 +125,46 @@ is a scope change for the author to accept, not a detail to absorb quietly.
 Where two findings' fixes genuinely conflict, say so and present the trade-off.
 Do not invent a compromise the evidence doesn't support.
 
+**Then check your own resolutions against each other.** Two individually-correct
+resolutions can compose into a worse defect than either fixed. Observed: one
+resolution made a close-predicate exhaustive, another made a read path
+depth-independent; each was right, and together a one-second storage blip closed an
+entry and permanently erased the only surface a concern could appear on — a worse bug
+than the one the first resolution existed to fix.
+
+For every pair of resolutions that touch the same control flow, state, or contract,
+ask: **if both land, what is now reachable that was not reachable before?** Name the
+interaction in the output even when you conclude it is benign — a checked pair is
+evidence; an unchecked pair is the next round's blocking finding. This is the
+fix-A-becomes-finding-B cycle arriving one level up, inside your own output, and you
+are the only actor positioned to catch it.
+
+### 4.5. Budget the growth your resolutions cause
+
+Report, as a line in your output:
+
+```
+Artifact growth: +<n> tasks · +<n> files newly in scope · +<n> dependency edges ·
+                 ~+<n> lines of artifact text
+```
+
+**Round-over-round accretion is measured, not hypothetical.** On one real spec: round
+one produced 8 blocking findings and took the body from 490 to 955 lines; round two
+produced 8 more and took it to 1328 — and round two's findings lived almost entirely
+*in the text round one's fixes had created*. Same count, no recurrence, new surface
+each time.
+
+So when the artifact already carries an `## Audit record`, compare: if this round's
+blocking count is not falling while the artifact keeps growing, **say so plainly and
+recommend stopping**. The next round will find another N, some real and much of it the
+artifact reaching into detail that belongs in code — questions a test answers against
+something that runs, not a spec answers in prose.
+
+This is a disclosure, never a cap. You do not refuse a finding because the artifact is
+growing; you make the growth visible so the author can decide whether the next round is
+worth it. Silently absorbing accretion is what turns a two-round audit into a
+five-round one.
+
 ### 5. Verdict
 
 - **READY** — no BLOCKING findings. `EMPIRICAL-UNKNOWN` entries do not block, but
@@ -145,6 +185,16 @@ State it in one line, first, before the detail.
 ### Joint resolutions
 (clusters whose fixes interact, each with ONE resolution, and any artifact growth
  it implies)
+
+### Resolution interactions
+(every pair of resolutions touching the same control flow, state, or contract:
+ what becomes reachable if both land. List benign pairs too — a checked pair is
+ evidence. "None" only if no two resolutions touch the same thing.)
+
+### Artifact growth
+(+n tasks · +n files newly in scope · +n edges · ~+n lines. If the artifact has a
+ prior `## Audit record` and the blocking count is not falling while the artifact
+ grows, say so and recommend stopping.)
 
 ### Contradictions between lenses
 (each: the requirement · lens A's verdict + evidence · lens B's verdict + evidence ·

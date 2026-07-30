@@ -204,3 +204,13 @@ Hunt for:
 
 Quote both passages with their task ids. State which is intended, or declare it
 **undecidable as written** and force the author to choose.
+
+**Justify your checked-set, or your clearance is worthless.** This lens's
+characteristic failure is an incomplete *set*, not a wrong comparison: you check two
+tasks that agree and never open the third, where the contradiction lives. Identify the
+plan's central contract — the type, constant, or rule the most tasks depend on — and
+enumerate **every** task that produces, consumes, asserts against, or documents it.
+Compare all of them. When you write "N tasks, all consistent", state the N and list
+them; a count with no list is unauditable, and the task you skipped is where it broke.
+If you cannot enumerate exhaustively, report the clearance as partial and say what you
+sampled.
