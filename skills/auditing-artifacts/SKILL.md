@@ -161,9 +161,36 @@ digraph auditing_artifacts {
    - No prior audit → full scope.
    - `--full` overrides and forces a whole-artifact re-audit.
 
-4. **Select the lens set and resolve tiers.** All lenses from the matching
-   catalog, unless the user named a subset. Tier defaults come from the catalog;
-   resolve to a model the same way the executor does.
+4. **Select the lens set and resolve tiers.**
+
+   **First pass:** all lenses from the matching catalog, unless the user named a subset.
+
+   **Re-audit: scope the lens SET to the diff, not just each lens's input.** Step 3
+   narrows what a lens reads; this narrows *which lenses run at all*. For each lens ask:
+   **could this diff have changed anything my concern covers?** If not, it does not run —
+   carry its prior verdict forward in the audit record instead, marked `carried`.
+
+   | Diff touched | Lenses that must re-run |
+   |---|---|
+   | acceptance criteria only | `verifiability`, `coherence` |
+   | task bodies / added tasks | `coverage`, `context-sufficiency`, `grounding`, `coherence` |
+   | `depends_on`, `files:`, task ids | `dag-integrity`, `coherence` |
+   | a `file:line` citation or a named symbol | `grounding` |
+   | a convention/enforcement claim | `charter`, `grounding` |
+
+   `coherence` re-runs on almost any edit — that is correct, it is the lens that catches
+   a fix contradicting an untouched section, which is the failure mode re-audits exist
+   for. A typical round 2 is **2–3 lenses, not 6.** Running all six on a two-section diff
+   is the cost the two-gate design was supposed to remove, and it is what the omission of
+   this step was producing.
+
+   **Convergence — stop drawing.** A re-audit round whose findings are all DEFERRED, or
+   all outside the diff, means the artifact has converged: record READY and stop. Do
+   **not** run another round to see if a new draw turns something up. A fresh draw on
+   settled text will always find *something*, and that is the unbounded-criterion failure
+   this skill's own anti-patterns warn about — arriving one layer up, as round count.
+
+   Tier defaults come from the catalog; resolve to a model the same way the executor does.
 
    **Never narrow the set yourself.** Do not infer that a lens "isn't needed here" —
    that judgement fails silently, and a lens you skip produces no evidence that it was
@@ -263,7 +290,15 @@ digraph auditing_artifacts {
      **NOT READY — 4 blocking**
      - Deferred, accepted: <one line each>
      - Empirical unknowns opened: <list, each with its probe task>
+   - **2026-07-30** · rev `<normalized-hash>` · lenses: verifiability, coherence (2/2 ran;
+     carried: coverage, dag-integrity, grounding, charter, context-sufficiency — diff
+     touched acceptance criteria only) · **READY**
    ```
+
+   A diff-scoped round records **both** the lenses that ran and the ones `carried`, with
+   the one-line reason. A carried lens is a live prior verdict, not a gap — but only if
+   the record says which and why, otherwise "2/2 ran" is indistinguishable from four
+   lenses silently skipped.
 
    State how many lenses ran out of how many dispatched — a run with an unrun lens is
    not the same evidence as a complete one, and step 3 cannot tell later.
