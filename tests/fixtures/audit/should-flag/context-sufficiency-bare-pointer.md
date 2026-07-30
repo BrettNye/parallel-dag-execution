@@ -24,6 +24,20 @@ ALSO PRESENT, scoreable: `task-adapters` declares `files:` for one adapter only
   (`csv.adapter.ts`) while its body describes four. Expected at BLOCKING from
   `context-sufficiency` (the stated scope cannot accommodate the described work) and
   independently from `dag-integrity` (understated `files:`).
+
+  Also (found 2026-07-29 on the first run, undeclared until then):
+  - `RawRow` HAS NO DECLARATION SITE. It appears only in `task-adapters`' snippet and
+    its AC; no task creates a module that declares it, and `task-normalize`'s body
+    names no export, no signature, and no row type — so the upstream-summary channel
+    that should carry the contract has nothing to carry. `csv.adapter.ts` cannot
+    compile: it returns `RawRow[]` from a type it can neither import nor declare
+    in-scope. Expected at BLOCKING. Two competent readings of "calls the normalizer"
+    also diverge (per-row vs batch), and the AC "exactly once per row" is written
+    against the first while `parseCsv` returns an array.
+  - `pnpm test src/feeds` FILTERS A PATH WITH NO TESTS. The declared spec is
+    `test/feeds/normalize.spec.ts`; most runners treat a non-matching filter as zero
+    tests and exit 0, so `task-normalize`'s one mechanical gate passes vacuously.
+    Expected at DEFERRED.
 ASSUMES: nothing about the host repo.
 -->
 

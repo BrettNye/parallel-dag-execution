@@ -19,6 +19,16 @@ ALSO PRESENT, scoreable: R1 is only PARTIALLY covered — `task-schema` adds the
   column but no task backfills existing rows, which R1's second sentence requires.
   Expected at BLOCKING or DEFERRED from `coverage` (either is defensible; silence
   is not).
+
+  Also (found 2026-07-29 on the first run, undeclared until then):
+  - R4's HTTP CLAUSE HAS NO OWNER. `?includeDeleted=true` needs the controller or a
+    query-param DTO; `task-list` declares only `exports.query.ts` and its spec, while
+    `exports.controller.ts` belongs to `task-route`, whose body and ACs are about
+    `DELETE`/`204`. So `task-list`'s AC ("present with `?includeDeleted=true`") can
+    pass at the query-function level while the endpoint never parses the param.
+    Expected at DEFERRED — `exports.query.ts` is plausibly the parsing seam, and a
+    lens that says so while flagging the risk has read it correctly. BLOCKING is also
+    defensible if it argues the seam is not there.
 ASSUMES: nothing about the host repo.
 -->
 

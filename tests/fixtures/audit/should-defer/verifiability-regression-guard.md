@@ -25,6 +25,22 @@ ALSO PRESENT, scoreable at BLOCKING: `task-migrate`'s AC — "the migration appl
 CONTRAST: this fixture and `should-flag/verifiability-absence-passes-on-crash.md`
   are the matched pair for this lens — the same weakness class, one blocking and one
   not, distinguished only by whether a concrete failure exists.
+
+ALSO PRESENT, scoreable (found 2026-07-29 on the first run, undeclared until then —
+and both were authored by accident, which is what makes them worth grading):
+  - `"returns 0"` IS AMBIGUOUS IN THE WRONG DIRECTION. `grep -c` on a present file
+    with no match prints `0` and exits **1**; on a missing file it prints nothing and
+    exits **2**; on a match it prints `1` and exits **0**. So a runner reading
+    "returns 0" as an *exit code* inverts the criterion — exit 0 means the unwanted
+    1.x string WAS found. Expected as part of the DEFERRED finding; a lens that
+    demands the outcome be stated as a count-on-stdout has read it correctly.
+  - THE PATTERN IS LOCKFILE-FORMAT-COUPLED. `@vendor/parser@1` matches pnpm v6-style
+    keys (`/@vendor/parser@1.9.0`) but not v5-style (`/@vendor/parser/1.9.0`), and the
+    plan never pins the format — so a silently non-matching pattern is
+    indistinguishable from a clean tree. Also DEFERRED, same finding cluster: it is
+    another way the guard can read as satisfied without having looked.
+  Neither promotes the finding to BLOCKING. Both are reasons the guard is weak, and
+  the guard still protects an already-true state.
 ASSUMES: nothing about the host repo.
 -->
 

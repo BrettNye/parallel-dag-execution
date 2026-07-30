@@ -16,6 +16,18 @@ EXPECTED REPORT (substring match):
   positive
 MUST NOT REPORT: DAG edges (that is `dag-integrity`) or spec coverage (that is
   `coverage`).
+
+ALSO PRESENT, scoreable (found 2026-07-29 on the first run, undeclared until then):
+  - `task-legacy`'s `files:` GRANTS WRITE ACCESS TO THE FILE ITS AC FORBIDS TOUCHING.
+    The AC says `legacy-dialog.component.ts` is "untouched" while the task declares
+    that same path in `files:`, so the constraint is unenforceable from both
+    directions at once: a unit spec cannot observe whether a file was edited, and the
+    executor's scope tripwire cannot fire because an implementer who adds the control
+    is *inside* their declared scope. Expected from `verifiability` at BLOCKING as
+    part of the untouched-is-a-diff-property finding — the right resolution is to
+    remove the file from `files:` and state the no-edit boundary as review-owned, not
+    as an acceptance criterion. `dag-integrity` may also reach it via `files:`
+    ownership; either is correct.
 ASSUMES: nothing about the host repo.
 -->
 

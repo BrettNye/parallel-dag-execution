@@ -8,9 +8,16 @@ own or block on what shouldn't block.
 
 | Bucket | Contract |
 |---|---|
-| `should-flag/` | The named lens must report the defect at **BLOCKING**. |
-| `should-defer/` | The named lens must report the defect at **DEFERRED** — finding it is correct, *blocking* on it is the regression. |
-| `should-pass/` | The named lens must return **no finding**. Reporting one is the failure. |
+| `should-flag/` | The named lens must report **the named defect** at **BLOCKING**. |
+| `should-defer/` | The named lens must report **the named defect** at **DEFERRED** — finding it is correct, *blocking* on it is the regression. |
+| `should-pass/` | The named lens must return **no finding** on the artifact as a whole. Reporting one is the failure. |
+
+**A bucket grades the named defect, not the whole artifact** (except `should-pass`,
+where the whole artifact is the claim). A `should-defer` fixture may legitimately
+contain a blocking defect too — the sharpest ones do, because a lens that grades one
+DEFERRED and the other BLOCKING in the same document is discriminating rather than
+pattern-matching. Declare those under `ALSO PRESENT` with their expected severity;
+finding them is a pass, not a bucket violation.
 
 Each fixture's header comment declares its lens, expected severity, and a
 substring the report must contain.
@@ -20,6 +27,38 @@ substring the report must contain.
 and one file per fixture keeps the convention; the header's `SHAPE:` line says so and
 tells you to dispatch with both roles pointing at the file. Spec-lens fixtures are just
 the spec.
+
+## Run record
+
+**2026-07-29 — full suite, 10 lens fixtures + the reconciler case. 10/10 passed.**
+Every declared contract met; no lens reported anything its header forbade. Notable
+behaviours worth preserving as the bar: `coverage` walked into the
+owned-in-a-task-body trap and out again; `design` justified a DEFERRED by reading the
+acceptance criterion that would catch the divergence in-runtime; `verifiability`
+settled an ambiguity by *running* `grep -c` rather than reasoning about it; and
+`context-sufficiency` verified the execution contract against the plugin's own agent
+definitions instead of trusting the brief.
+
+The same run found ten undeclared defects in six of eleven fixtures — all now
+reconciled into their headers, and the reason for the rule below.
+
+## A fixture is not finished until it has been run
+
+**Authoring and running are one step, not two.** Write the artifact, dispatch the
+named lens at it once, then reconcile whatever it found back into the header before
+committing.
+
+This is not a nicety. On the first full run of this suite, **six of eleven fixtures
+contained real defects the author never declared** — ten items in total, every one
+correct: a capability with no persistence path, an authorization gap, a mermaid block
+understating its own graph, an acceptance criterion whose wording inverts under an
+exit-code reading, a requirement clause with no owning task, a `files:` list granting
+write access to the very file its criterion forbade touching, and a type referenced by
+two tasks and created by none.
+
+An undeclared defect is not harmless. A lens that reports it is **unscoreable** — the
+run produces a finding the header cannot confirm or deny — and the natural reading of
+an unexpected finding is that the lens misfired, which is exactly backwards.
 
 **A fixture scores only the lens named in its `LENS:` line.** Run other lenses
 against it and you are exercising the harness, not grading them — their findings

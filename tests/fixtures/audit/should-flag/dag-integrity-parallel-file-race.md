@@ -14,6 +14,15 @@ EXPECTED REPORT (substring match):
   missing
 MUST NOT REPORT: acceptance-criteria quality (that is `verifiability`) or whether
   the decomposition is well-factored (that is out of scope at this gate).
+
+ALSO PRESENT, scoreable (found 2026-07-29 on the first run, undeclared until then):
+  - THE MERMAID BLOCK UNDERSTATES ITS OWN GRAPH. It declares five nodes but exactly
+    one edge (`task-a --> task-e`), so it depicts task-b, task-c, and task-d as
+    unrelated roots and gives no hint that two of them write the same file. It
+    technically matches the (buggy) YAML, which is what makes it misleading: a
+    reviewer skimming the diagram sees independent work. Expected at DEFERRED — no
+    execution consequence, but real, and it will need regenerating once the missing
+    edge is added.
 ASSUMES: nothing about the host repo.
 -->
 
