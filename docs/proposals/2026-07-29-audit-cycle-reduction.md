@@ -40,6 +40,39 @@ Phase 1 is deliverable and useful alone. Nothing in it can regress an existing
 plan, because nothing in it is on the existing path — the audit is invoked
 explicitly at a gate.
 
+### 0.1 As built — what implementation changed (2026-07-29)
+
+Phase 1 shipped. This section records the deltas rather than editing the proposal
+above, so the difference between what was designed and what running it taught us
+stays visible. **Five flaws were found by executing the skill; none was found by
+re-reading it.**
+
+| Change | Why |
+|---|---|
+| Lenses write their own report files; the orchestrator only handles paths | Step 6 as designed had the orchestrator write reports **verbatim** — but they arrive in its context, so that means reproducing tens of thousands of tokens it already holds, and re-creating the pressure to summarise that "verbatim" existed to prevent. Byte-identical is now true by construction. |
+| `rev` is a **normalized** hash — record section excluded, trailing blanks stripped | The original `rev <sha-or-hash>` self-invalidated: writing the record changes the file, so the artifact reads as "changed" forever, the step-3 short-circuit never fires, and every re-audit silently pays full price. |
+| The audit directory is defined (`<artifact-dir>/.audit/<artifact-basename>/`) | `reconciler-prompt.md` referenced an `<audit-dir>` that nothing defined. |
+| Fixtures are audited **read-only** — steps 6 and 9 skipped | Writing an `## Audit record` into a fixture rewrites the input, and some fixtures deliberately carry one to exercise the short-circuit. Running the fixtures is how anyone smoke-tests this. |
+| Downstream artifacts are passed to every lens (step 2.5), and the reconciler re-checks every BLOCKING against them | Three of five proposed BLOCKINGs on a partly-implemented spec were defects a downstream plan already stated correctly — including **two lenses converging on one**, because they shared a blind spot rather than confirming each other. |
+| A `coherence` lens was added to both catalogs | Every other lens compares the artifact to something *external*. Nothing compared it to itself, and long specs amended in place are exactly where that bites. |
+| `charter` reclassified as **not fixture-testable** | Its job is reading a real charter and real enforcement config; a synthetic fixture would grade it against a fake repo. Validated per-repo instead. |
+| The reconciler got its own fixture harness, with the grading key **outside** the case tree | Nothing graded the component carrying severity assignment, promotion, and the downgrade log — and its failures are absences, which never look wrong on the page. |
+
+Two claims in §1 need qualifying against evidence:
+
+- **§1.2's premise held.** Of ~18 findings raised after a first pass across two real
+  audit lineages, one was genuinely undiscoverable earlier. But the payoff was **not**
+  recall of known findings — it was a large volume of *net-new* blocking defects. §6
+  records the numbers.
+- **Convergence is weaker evidence than §2 implies.** Two lenses agreeing can be wrong
+  in the same way when they share a blind spot; observed twice. Convergence multiplies
+  confidence only across *independent* evidence paths, and the reconciler now carries
+  that caution explicitly.
+
+Still untested: whether a **cold session** honours "dispatch every lens in ONE
+message." It cannot be checked by an orchestrator that has just been reasoning about
+why parallelism matters.
+
 ---
 
 ## 1. The problem

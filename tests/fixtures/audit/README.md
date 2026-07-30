@@ -15,6 +15,12 @@ own or block on what shouldn't block.
 Each fixture's header comment declares its lens, expected severity, and a
 substring the report must contain.
 
+**Plan-lens fixtures carry their parent spec in the same file**, under a
+`## Parent spec` heading, with the plan following `## Tasks`. A plan audit needs both,
+and one file per fixture keeps the convention; the header's `SHAPE:` line says so and
+tells you to dispatch with both roles pointing at the file. Spec-lens fixtures are just
+the spec.
+
 **A fixture scores only the lens named in its `LENS:` line.** Run other lenses
 against it and you are exercising the harness, not grading them — their findings
 have no declared expectation to check against, so neither a hit nor a miss means
@@ -50,13 +56,31 @@ decision, an already-listed empirical unknown, a defect another lens owns.
 |---|---|---|---|
 | `coherence` (spec) | ✅ ×2 | — | — |
 | `grounding` (spec) | ✅ | — | — |
-| `verifiability` (plan) | ✅ | — | — |
-| `dag-integrity` (plan) | ✅ | — | — |
 | `design` (spec) | — | ✅ | — |
+| `coverage` (plan) | ✅ | — | ✅ |
+| `verifiability` (plan) | ✅ | ✅ | — |
+| `context-sufficiency` (plan) | ✅ | — | — |
+| `dag-integrity` (plan) | ✅ | — | — |
 | frozen decisions (all lenses) | — | — | ✅ |
-| `absence`, `ambiguity`, `charter` (spec) | ❌ none yet | ❌ | ❌ |
-| `coverage`, `context-sufficiency` (plan) | ❌ none yet | ❌ | ❌ |
 | **`dag-audit-reconciler`** | ✅ `reconciler/merge-promote-downgrade/` | — | — |
+| `absence`, `ambiguity` (spec) | ❌ none yet | ❌ | ❌ |
+| `charter` (spec + plan) | **n/a — see below** | n/a | n/a |
+
+**Two lenses carry a matched pair, and those are the strongest rows.** `coverage` has
+a should-flag *and* a should-pass, so it is graded in both directions — a lens that
+manufactures gaps fails one, a lens that misses them fails the other. `verifiability`
+has a should-flag and a should-defer covering the *same weakness class*, distinguished
+only by whether a concrete failure exists. Single-direction rows can only catch
+under-reporting.
+
+**`charter` is not fixture-testable, and that is a conclusion rather than a backlog
+item.** Its entire job is reading a *real* charter and *real* enforcement config — a
+synthetic fixture would need a fake `CLAUDE.md` and a fake lint config, and would then
+be grading the lens against a fake repo rather than against anything true. Its
+validation is per-repo: point it at a tree with an `audit-charter.md` and check that it
+reads the enforcement config *before* grading severity. Observed doing exactly that on
+two real repos, including catching a `.dependency-cruiser.cjs` comment that contradicted
+its own rule body.
 
 The reconciler has its own harness — see [`reconciler/README.md`](reconciler/README.md).
 It cannot be graded by a single-artifact fixture, because its inputs are N lens
@@ -65,8 +89,13 @@ a contradiction collapsed by vote, a downgrade with no logged reason. None of th
 look wrong on the page, which is why it needs a case with known answers.
 
 **The ❌ rows are real gaps, not "covered by the others."** The fixtures present
-encode the bug classes with observed recurrence; the rest are unwritten. Do not
-read a green fixture run as full lens coverage.
+encode the bug classes with observed recurrence; the rest are unwritten. Do not read a
+green fixture run as full lens coverage.
+
+**There is no runner, and that caps how many fixtures are worth having.** Each is
+scored by hand — dispatch the lens, read the output, compare to the header. Six
+fixtures that get run beat fifteen that do not, so prioritise by regression risk
+(the severity gate, the "no findings is valid" affordance) over filling in the table.
 
 ## Running
 

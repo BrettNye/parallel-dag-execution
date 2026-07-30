@@ -76,6 +76,34 @@ claude --plugin-dir /path/to/parallel-dag-execution
 
 Hot-reload after edits with `/reload-plugins`.
 
+**If you installed from a directory marketplace, `/reload-plugins` will not pick up
+your edits.** It re-reads a version-pinned copy under
+`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, so a `plugin.json` version
+bump needs a *new* cache directory and reloading cannot create one. Refresh the
+marketplace's view of the directory first, then reinstall:
+
+```
+/plugin marketplace update <marketplace-name>
+/plugin install <plugin>@<marketplace-name>
+```
+
+Skipping the `update` step is silent — the reload reports success and keeps serving the
+old copy.
+
+## Testing
+
+`tests/fixtures/` holds fixtures for both halves of the plugin: plan-validation
+fixtures under `contracts/`, `review-mode/`, and `tiers/`, and audit fixtures under
+`audit/`.
+
+Audit fixtures are prompt-level, not unit tests — a lens is a model dispatch, so there
+is no assertion harness. Each is scored by dispatching the named lens at it and
+checking the report against the header's declared severity and substrings. Start at
+[`tests/fixtures/audit/README.md`](tests/fixtures/audit/README.md), which documents the
+`should-flag` / `should-defer` / `should-pass` buckets, why the middle one exists, and
+which lenses have no fixture yet. `dag-audit-reconciler` has a separate harness with
+its grading keys held outside the tree it reads.
+
 ## Composition with superpowers
 
 This plugin assumes you've already invoked `superpowers:brainstorming` to produce the spec. Subagent definitions auto-load `superpowers:test-driven-development`, `superpowers:verification-before-completion`, and `superpowers:requesting-code-review` via the `skills:` frontmatter field — no copy-paste of TDD discipline into prompts.
