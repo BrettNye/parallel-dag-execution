@@ -37,7 +37,7 @@ warns there, it is matching words instead of shapes.
 | Rule | should-warn | should-pass |
 |---|---|---|
 | S12 | ✅ `s12-absence-no-positive-companion` | ✅ (shared) |
-| S13 | ❌ none yet — it is an LLM-judgment rule like S1, and the honest fixture is harder to write than the others | ✅ (shared) |
+| S13 | ✅ `s13-tautological-expected-value` — trigger plus **both** suppressors (literal-stated, and shape-not-value) | ✅ (shared) |
 | S14 | ✅ `s14-universal-claim-existential-assertion` | ✅ (shared) |
 | S15 | ✅ `s15-untouched-file-in-own-scope` — the escalated, fully mechanical form | ✅ (shared) |
 
@@ -70,6 +70,35 @@ from the audit suite held — three of four fixtures carried undeclared problems
 Two things worth keeping from this. **`should-pass` passed for the wrong reason**: three
 rules were saved by agents reading for *intent* where the literal text would have
 over-fired. A suppressor that only works when the reader is charitable is not a
-suppressor, and a blind run is what exposed the difference. And **S13 has no
-`should-warn` fixture**, so its text is the least tested of the four — it was exercised
-only as a non-fire.
+suppressor, and a blind run is what exposed the difference.
+
+### Second run — S13, 2026-07-30
+
+`s13-tautological-expected-value` added and run blind. **3/3 graded verdicts correct**,
+each non-fire citing the intended suppressor. All four rules now have a `should-warn`
+fixture.
+
+This fixture carried a **pre-run hypothesis** in its header — a written prediction that
+S13's suppressor 1 was too strict — recorded *before* the run so the run could confirm
+or refute it independently instead of inheriting it. The run confirmed it and made it
+worse than predicted: suppressor 1 and the trigger clause returned **opposite verdicts
+on the same criterion**, so the outcome depended on which sentence was read second.
+Suppressor 1 required the criterion's literal to be *absent* from the impl block — but
+H7 *requires* the impl block to show the real value, so the clause penalised the
+standard cure for tautology on nearly every correctly-written task. It now turns on what
+the assertion **references** (literal vs declaration), which is what it always meant.
+
+Three more defects, all in rules the fixture wasn't aimed at:
+
+| Where | Defect | Fix |
+|---|---|---|
+| S12 | token list omitted `toBe(false)` / `toBeFalsy` / `not.toBe(true)` — *after* the rule widened its match scope specifically to see code-level tokens, so it looked at `expect(signal.aborted).toBe(false)` and ignored it | tokens added |
+| S12 | matched `is null` but not `has null` / `remains null` / `stays null`. A one-word gap, and the **same under-firing family** as the passive-voice bug the previous run fixed | alternation widened |
+| S12–S15 | "fire once per task" was stated for S12 only, leaving the warning count undefined for the others | stated for all four |
+
+**Recording a prediction before the run is worth repeating.** It cost two sentences and
+converted "I think this clause is wrong" into evidence — the prediction and the finding
+were reached independently, which neither a re-read nor an unannotated run could have
+established. Note also that S12 has now been repaired by *three* separate runs, none of
+which was aimed at it: a rule with a token list keeps under-firing at the edges of that
+list, and only fixtures written for *other* rules seem to walk into them.
