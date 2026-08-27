@@ -1024,3 +1024,23 @@ mechanical, and it trips none of S9's risk signals.
 - The parsed object still holds its 7 HEAD keys with their HEAD values — `name`, `description`, `author`, `license`, `homepage`, `repository`, `keywords` — with `keywords` still an array of exactly 5 entries. Only `version` reads differently.
 - `.gitattributes` contains a line pinning `skills/auditing-artifacts/resolve-declared-paths` to `text eol=lf`, alongside the existing `git-commit-safe` entry, and `git check-attr eol -- skills/auditing-artifacts/resolve-declared-paths` reports `eol: lf`.
 - The helper is executable in the index: `git ls-files -s skills/auditing-artifacts/resolve-declared-paths` reports mode `100755`.
+
+## Audit record
+
+- **2026-08-27** · rev `b0d8f9e24dc9` · commit `7d51995` · lenses: coverage,
+  dag-integrity, grounding, charter, context-sufficiency, verifiability, coherence
+  (7/7 ran) · **NOT READY — 14 blocking**
+  - 27 proposed BLOCKING merged to 14 distinct root causes. Largest cluster: six
+    lenses on one defect (`task-charter-template` AC1 heading arithmetic).
+  - No charter material exists in this repo — every lens was told so explicitly.
+  - All 14 are DEFECT, none STALE: downstream searched by symbol, not filename;
+    nothing from this plan has landed.
+  - Growth if all resolutions applied: +0 tasks · +1 file newly in scope
+    (`skills/auditing-artifacts/reconciler-prompt.md`) · net 0 edges · ~+95 lines.
+  - Round-2 marker: **14 blocking, 1027 → ~1122 lines.** If round 2 does not come
+    in materially below 14 while the artifact grows, stop.
+  - Deferred, accepted: 20 findings, all riding a joint resolution at near-zero
+    cost (AC precision D1/D3/D7/D9; cross-reference accuracy D2/D4/D11/D12;
+    fixture design D5/D6/D13; scope D8/D10/D14/D15/D16).
+  - Empirical unknowns opened: none. Every claim settled by reading the tree.
+  - Two authoring rules found to under-cover — see the harvest note below.

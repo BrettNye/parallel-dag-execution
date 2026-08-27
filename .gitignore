@@ -35,3 +35,6 @@ venv/
 
 # Claude Code local state if anyone runs claude inside this repo
 .claude/settings.local.json
+
+# Audit working artifacts. The `## Audit record` in the artifact is the durable summary.
+.audit/
