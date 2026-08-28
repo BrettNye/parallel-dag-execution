@@ -17,6 +17,10 @@ Each lens MUST receive:
   spec, its task statuses, and commits landed since authoring. Say explicitly when
   there are none — "none found" is different from an omitted field, and a lens told
   nothing will assume nothing exists.
+- **Ground-truth tables** (see `SKILL.md` step 2.6): the declared-path and
+  charter-citation tables from the pre-pass, or the explicit "did not run" notice
+  if the helper failed. As with downstream artifacts, "did not run" is different
+  from an omitted field — a lens told nothing will assume nothing exists.
 - **The report path it must write** —
   `<artifact-dir>/.audit/<artifact-basename>/lens-<name>.md`. The lens writes its own
   report and returns only that path plus a one-line verdict; the orchestrator never
@@ -54,8 +58,10 @@ CHARTER — read these to establish what this repo actually requires:
 {if none}  (none found — proceed and say so; do not substitute generic best practice){/if}
 
 GROUND TRUTH (resolved before dispatch — these are facts, not claims):
-{path_table}
-{charter_citation_table}
+{ground_truth_path_table}
+{ground_truth_charter_citation_table}
+{if prepass_failed}  (path pre-pass did not run — no ground truth is available; assume
+  nothing about whether any declared path or charter citation resolves){/if}
 
 Read this table before reporting on any path. An ABSENT entry in a create-task's
 `files:` is EXPECTED, not a finding. A path cited in prose as already existing

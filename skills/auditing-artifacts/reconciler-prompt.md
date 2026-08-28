@@ -66,8 +66,11 @@ adjudicate.
 
 ## Prompt template
 
-<!-- Section order: (1) role; (2) coordinates; (3) unrun lenses; (4) the lens report
-     PATHS (short and stable — the reconciler reads the files itself). -->
+<!-- Section order: (1) role; (2) coordinates; (3) unrun lenses; (4) GROUND TRUTH
+     TABLES — the step 2.6 pre-pass tables, placed before the merge instructions
+     that reference the downgrade rule so the rule has something to point at;
+     (5) the lens report PATHS (short and stable — the reconciler reads the files
+     itself). -->
 
 ```
 You are reconciling a parallel {spec|plan} audit. {n} independent lenses each
