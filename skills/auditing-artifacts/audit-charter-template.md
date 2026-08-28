@@ -10,9 +10,9 @@ docs, and perform well on those alone.
 |---|:---:|:---:|:---:|
 | Enforcement map | yes | | yes |
 | Hard invariants | yes | yes | yes |
-| Named reference implementations | yes | yes | |
+| Named reference implementations, per layer | yes | yes | |
 | Recurring bug classes | yes | yes | yes |
-| Frozen decisions | yes | | |
+| Frozen decisions (repo-wide) | yes | | |
 | Verification gotchas | yes | yes | |
 | Verification commands | yes | yes | yes |
 
