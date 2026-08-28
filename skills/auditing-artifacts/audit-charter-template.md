@@ -4,6 +4,20 @@ Copy to `.claude/audit-charter.md` in a repo that wants one. **Optional** — th
 lenses already read the repo's own `CLAUDE.md`, convention docs, and boundary
 docs, and perform well on those alone.
 
+## Who reads what
+
+| Section | auditor | implementer | reviewers |
+|---|:---:|:---:|:---:|
+| Enforcement map | yes | | yes |
+| Hard invariants | yes | yes | yes |
+| Named reference implementations | yes | yes | |
+| Recurring bug classes | yes | yes | yes |
+| Frozen decisions | yes | | |
+| Verification gotchas | yes | yes | |
+| Verification commands | yes | yes | yes |
+
+`reviewers` = `dag-spec-reviewer`, `dag-quality-reviewer`, `dag-merged-reviewer`.
+
 ## Grow it from audit records — do not author it up front
 
 This is the load-bearing instruction. A charter written in one sitting duplicates
@@ -84,6 +98,15 @@ Settled questions. A lens may challenge one only with new grounded evidence that
 it is factually wrong — never because it would have chosen differently.
 
 - **DECIDED:** <what> — because <why> — <date>
+
+## Verification commands
+
+What to run to prove a change in a given area actually works. Gotchas below
+holds the trap; the command that replaces it belongs here.
+
+| Area | Command that proves it | What it does not cover |
+|---|---|---|
+| e.g. <layer> | `<command>` | `<the gap>` |
 
 ## Verification gotchas
 
