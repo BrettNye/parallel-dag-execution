@@ -133,9 +133,9 @@ digraph auditing_artifacts {
 2.6. **Resolve declared paths before dispatching.** Run
    `./resolve-declared-paths <artifact> <repo-root> <charter-paths...>` once and
    pass its tables verbatim to every lens. This replaces N private resolutions
-   with one shared one, before any lens runs — today each of 7 lenses
+   with one shared one, before any lens runs — today each of 8 lenses
    independently globs, greps and stats the same handful of paths, roughly 20–40
-   redundant tool calls per audit and 7 private inferences where one shared
+   redundant tool calls per audit and 8 private inferences where one shared
    resolution would do.
 
    If the helper cannot run, say so explicitly to every lens — "path pre-pass did
