@@ -43,6 +43,24 @@ flowchart TD
     task-fixtures-audit --> task-release
     task-fixtures-plan --> task-release
 
+    class task-plan-quality-s16 pending
+
+    class task-audit-prepass-wiring done
+    class task-plan-quality-s16 done
+    class task-plan-schema done
+    class task-exec-prompts-charter done
+    class task-release done
+    class task-lens-ambiguity done
+    class task-crossrefs done
+    class task-fixtures-plan done
+    class task-fixtures-audit done
+    class task-exec-preflight done
+    class task-charter-template done
+    class task-authoring-enforcement done
+    class task-reconciler-verdicts done
+    class task-exec-evidence done
+    class task-resolver-script done
+
     classDef done fill:#90ee90,stroke:#333
     classDef ready fill:#fffacd,stroke:#333
     classDef running fill:#87ceeb,stroke:#333
@@ -150,7 +168,7 @@ id: task-charter-template
 depends_on: []
 files:
   - skills/auditing-artifacts/audit-charter-template.md
-status: pending
+status: done
 ```
 
 Spec component A. Give the charter a declared audience and a positive-form
@@ -235,7 +253,7 @@ id: task-resolver-script
 depends_on: []
 files:
   - skills/auditing-artifacts/resolve-declared-paths
-status: pending
+status: done
 model_hint: opus
 spec_reviewer_hint: opus
 quality_reviewer_hint: opus
@@ -386,7 +404,7 @@ id: task-plan-schema
 depends_on: []
 files:
   - skills/writing-dag-plans/plan-format.md
-status: pending
+status: done
 ```
 
 Spec component F. Two optional plan-level frontmatter keys.
@@ -452,7 +470,7 @@ id: task-plan-quality-s16
 depends_on: []
 files:
   - skills/writing-dag-plans/plan-quality.md
-status: pending
+status: done
 ```
 
 Spec component G. A soft heuristic, in the S-series, firing once per plan.
@@ -503,7 +521,7 @@ id: task-lens-ambiguity
 depends_on: []
 files:
   - skills/auditing-artifacts/lenses-plan.md
-status: pending
+status: done
 ```
 
 Spec component E. Gate 1 has an `ambiguity` lens; gate 2 does not, and plan-side
@@ -594,7 +612,7 @@ files:
   - skills/auditing-artifacts/SKILL.md
   - skills/auditing-artifacts/auditor-prompt.md
   - skills/auditing-artifacts/reconciler-prompt.md
-status: pending
+status: done
 ```
 
 Spec component B4, audit side. Hook the resolver into the skill and hand its
@@ -689,7 +707,7 @@ id: task-reconciler-verdicts
 depends_on: [task-resolver-script]
 files:
   - agents/dag-audit-reconciler.md
-status: pending
+status: done
 ```
 
 Spec component D. Two changes only — the severity taxonomy already exists at
@@ -746,7 +764,7 @@ files:
   - skills/executing-dag-plans/spec-reviewer-prompt.md
   - skills/executing-dag-plans/quality-reviewer-prompt.md
   - skills/executing-dag-plans/merged-reviewer-prompt.md
-status: pending
+status: done
 ```
 
 Spec component C, template half — and a latent bug fix.
@@ -815,7 +833,7 @@ id: task-exec-preflight
 depends_on: [task-resolver-script, task-plan-schema]
 files:
   - skills/executing-dag-plans/SKILL.md
-status: pending
+status: done
 ```
 
 Spec component C (skill half) and the executor half of component F — F1's
@@ -903,7 +921,7 @@ id: task-authoring-enforcement
 depends_on: [task-plan-schema, task-plan-quality-s16]
 files:
   - skills/writing-dag-plans/SKILL.md
-status: pending
+status: done
 ```
 
 Enforcement half of components F and G. Both land in this one file, which is why
@@ -956,7 +974,7 @@ files:
   - skills/executing-dag-plans/implementer-prompt.md
   - skills/executing-dag-plans/quality-reviewer-prompt.md
   - skills/executing-dag-plans/merged-reviewer-prompt.md
-status: pending
+status: done
 ```
 
 Spec component H. `dag-implementer` already carries
@@ -1020,7 +1038,7 @@ files:
   - skills/updating-dag-plans/SKILL.md
   - commands/audit-plan.md
   - README.md
-status: pending
+status: done
 is_wiring_task: true
 quality_reviewer_hint: opus
 ```
@@ -1106,7 +1124,7 @@ files:
   - tests/fixtures/audit/reconciler/expectations/unevidenced-world-claim.md
   - tests/fixtures/audit/reconciler/README.md
   - tests/fixtures/audit/README.md
-status: pending
+status: done
 ```
 
 **S2 override, recorded deliberately.** This task declares 8 files, crossing
@@ -1203,7 +1221,7 @@ files:
   - tests/fixtures/schema/README.md
   - tests/fixtures/visual-verification/should-warn/s16-ui-task-no-owner.md
   - tests/fixtures/visual-verification/should-pass/s16-ui-task-with-owner.md
-status: pending
+status: done
 ```
 
 Fixtures for components F and G, following the existing per-feature directory
@@ -1273,7 +1291,7 @@ depends_on: [task-crossrefs, task-exec-evidence, task-exec-preflight, task-fixtu
 files:
   - .claude-plugin/plugin.json
   - .gitattributes
-status: pending
+status: done
 is_wiring_task: true
 model_hint: cheap
 review_mode: merged
