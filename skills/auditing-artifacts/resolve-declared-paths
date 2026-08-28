@@ -13,7 +13,10 @@ TAB=$(printf '\t')
 
 # A ./ or ../ token is written relative to the document that carries it, so a
 # doc citing its own sibling resolves there too — otherwise every such mention
-# reads ABSENT, which is the false absence this exists to kill.
+# reads ABSENT, which is the false absence this exists to kill. Real instance:
+# skills/auditing-artifacts/SKILL.md cites five siblings as `./lenses-spec.md`
+# and friends. Do not "simplify" this away; it turns five true files into five
+# fabricated ABSENT rows. Everything else stays anchored to the supplied root.
 here=$(dirname -- "$artifact")
 
 classify() {  # $1 = candidate path, relative to root
@@ -48,40 +51,56 @@ extract_declared() {
     # discussed a dozen times is one row, not a dozen.
     function prose(p, n,   k) { k = p SUBSEP "prose"; if (k in seen) return; seen[k] = 1
                                 printf "%s\tprose L%d\n", p, n }
-    BEGIN { task = "unknown"; infiles = 0; infm = 0; fence = 0 }
+    BEGIN { task = "unknown"; infiles = 0; infm = 0; fence = 0; lang = "" }
     {
       s = $0; sub(/\r$/, "", s); sub(/^[ \t]+/, "", s)
 
       if (NR == 1 && s ~ /^---[ \t]*$/) { infm = 1; next }
       if (infm == 1) {
         if (s ~ /^---[ \t]*$/ || s ~ /^\.\.\.[ \t]*$/) { infm = 0; next }
-        # The plan-level spec: key is unbackticked and outside any files: list,
-        # so it matches neither other clause and would never be resolved.
+        # plan-format.md:7 makes spec: a required frontmatter path, but it is
+        # unbackticked and outside any files: list, so it matches neither other
+        # clause. Without this it is silently never resolved — a plan can point
+        # at a spec that does not exist and no table row would ever say so.
         if (s ~ /^spec:[ \t]/) { v = clean(substr(s, 6))
                                  if (v != "") emit(v, "frontmatter spec:") }
         next
       }
 
-      # Track the OPENING fence length so a nested shorter fence cannot
-      # scramble the in-code/in-prose state.
+      # Track the OPENING fence length and its info string, so a nested shorter
+      # fence cannot scramble the in-code/in-prose state and so a files: list
+      # can be told apart by the language it sits in.
       if (s ~ /^```/) {
         n = 0; while (substr(s, n + 1, 1) == "`") n++
-        if (fence == 0) fence = n; else if (n >= fence) fence = 0
+        if (fence == 0) { fence = n
+                          lang = substr(s, n + 1)
+                          sub(/[ \t{].*$/, "", lang); lang = tolower(lang) }
+        else if (n >= fence) { fence = 0; lang = "" }
         infiles = 0; next
       }
 
-      if (s ~ /^id:[ \t]/ || s ~ /^id:$/) {
-        t = clean(substr(s, 4)); if (t != "") task = t
-        infiles = 0; next
-      }
-      if (s ~ /^files:[ \t]*$/) { infiles = 1; next }
-      if (infiles == 1) {
-        if (s ~ /^-[ \t]/) {
-          v = clean(substr(s, 2))
-          if (v != "") emit(v, tasklabel(task) " files:")
-          next
+      # Task declarations live in a ```yaml block (plan-format.md) or, for a
+      # bare fragment, in no fence at all. A files: list inside a ```sh heredoc
+      # or a ```markdown example is illustration: harvesting it invents a path
+      # AND misattributes it to whichever task the fence happens to sit under.
+      # The allowlist is deliberate. Skipping a real declaration only leaves a
+      # gap; harvesting a fake one manufactures the false ABSENT this kills.
+      taskyaml = (fence == 0 || lang == "yaml" || lang == "yml")
+
+      if (taskyaml) {
+        if (s ~ /^id:[ \t]/ || s ~ /^id:$/) {
+          t = clean(substr(s, 4)); if (t != "") task = t
+          infiles = 0; next
         }
-        infiles = 0
+        if (s ~ /^files:[ \t]*$/) { infiles = 1; next }
+        if (infiles == 1) {
+          if (s ~ /^-[ \t]/) {
+            v = clean(substr(s, 2))
+            if (v != "") emit(v, tasklabel(task) " files:")
+            next
+          }
+          infiles = 0
+        }
       }
 
       if (fence == 0) {          # backticked path-shaped tokens in prose only
@@ -90,6 +109,11 @@ extract_declared() {
           tok = substr(rest, RSTART + 1, RLENGTH - 2)
           rest = substr(rest, RSTART + RLENGTH)
           sub(/:[0-9]+(-[0-9]+)?$/, "", tok)   # a file:line cite names a file
+          # A path-shaped token carries no whitespace. `grep -c 'x' a/b.md` is a
+          # command that mentions a path, not a path: taking the whole string as
+          # one and reporting it ABSENT is exactly the fabricated finding this
+          # exists to kill — same reason globs, URLs and <placeholders> are cut.
+          if (tok ~ /[ \t]/) continue
           if (tok ~ /\// && tok ~ /\.[A-Za-z0-9_]+$/) prose(tok, NR)
         }
       }
