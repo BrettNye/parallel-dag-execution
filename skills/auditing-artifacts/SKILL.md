@@ -47,7 +47,7 @@ expensive failure mode of a two-gate pipeline.
 
 - **`./lenses-spec.md`** — the 6 spec lenses, each with its concern, prompt
   fragment, and default tier.
-- **`./lenses-plan.md`** — the 7 plan lenses, same.
+- **`./lenses-plan.md`** — the 8 plan lenses, same.
 - **`./auditor-prompt.md`** — dispatch template for `dag-auditor`.
 - **`./reconciler-prompt.md`** — dispatch template for `dag-audit-reconciler`.
 - **`./audit-charter-template.md`** — optional per-repo charter file.
@@ -184,6 +184,7 @@ digraph auditing_artifacts {
    | Diff touched | Lenses that must re-run |
    |---|---|
    | acceptance criteria only | `verifiability`, `coherence` |
+   | a requirement's wording or an AC's precision | `ambiguity`, `verifiability`, `coherence` |
    | task bodies / added tasks | `coverage`, `context-sufficiency`, `grounding`, `coherence` |
    | `depends_on`, `files:`, task ids | `dag-integrity`, `coherence` |
    | a `file:line` citation or a named symbol | `grounding` |
@@ -210,20 +211,21 @@ digraph auditing_artifacts {
 
    ### What a gate-2 lens adds over `writing-dag-plans`' own validation
 
-   A plan authored by `writing-dag-plans` has already passed H1–H11, S1–S15, structural
+   A plan authored by `writing-dag-plans` has already passed H1–H11, S1–S16, structural
    validation, and its step-8 decomposition audit. Those overlap the plan lenses
    unevenly, so an author narrowing the set should know which lenses are genuinely
    additive:
 
    | Lens | Already covered by plan-quality? | Additive? |
    |---|---|---|
-   | `coverage` | **Nothing.** No rule maps spec requirements to tasks. | **Fully** |
+   | `coverage` | **S16 only**, and only for rendered-surface verification ownership. Nothing maps spec requirements to tasks in general. | **Largely** |
    | `verifiability` | H4 (an AC *exists*), S4 (vague), and **S12–S15** — the falsifiability set: crash-passing absence, tautology, quantifier mismatch, diff-property. Those are the four *recurring* shapes. | Partly — for **novel** unfalsifiability the rules do not pattern-match: a spy blind to the real mechanism, an assertion a normalizing library defeats, a DOM binding left unpinned, a gate that reports success after its checker died |
    | `coherence` | **Nothing.** No rule compares a task's `## Implementation` sketch against its own ACs. | **Fully** |
    | `grounding` | Step 3.5's symbol-consumer grep; "do not fabricate file paths". | **Mostly** |
    | `charter` | Step 8's repo-convention pass, incl. the named per-layer reference implementation. | Partly |
    | `context-sufficiency` | H11 **is** the bare-spec-pointer rule; plus H2, S2/S3 sizing, step 8's elided-sibling completeness. | Largely covered |
    | `dag-integrity` | Structural validation (cycles, file-disjoint parallel branches) + H8 import resolution + H9 contract sequencing + H10 missing-producer index + step 5's file-scope conflict loop. | Largely covered |
+   | `ambiguity` | **Nothing at gate 2.** S12–S15 grade an AC's falsifiability, not a requirement's. | **Fully** |
 
    So if cost forces a subset, the top rows are where the un-checked risk lives — and
    `coverage` is first, because a plan that legitimately *selects* from a longer spec is

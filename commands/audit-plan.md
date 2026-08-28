@@ -11,16 +11,17 @@ deliver, noting the limitation.
 **The spec is approved and frozen.** No lens may reopen a spec design decision;
 this gate asks only whether the plan honors the spec and will execute safely.
 
-Use the plan lens set (`./lenses-plan.md` — all seven lenses unless the user named
+Use the plan lens set (`./lenses-plan.md` — all eight lenses unless the user named
 a subset), dispatch them in one message, then reconcile.
 
 If the user asks which lenses are worth running — or is weighing the cost against just
 executing — show them the overlap table in `auditing-artifacts` step 4. A plan from
-`writing-dag-plans` has already passed H1–H11 and S1–S15, which largely cover
+`writing-dag-plans` has already passed H1–H11 and S1–S16, which largely cover
 `dag-integrity` and `context-sufficiency`, and since S12–S15 also cover the four
-recurring acceptance-criteria failure shapes, but do **not** touch `coverage` or
-`coherence` at all. Do not narrow the set on your own judgement; give them the table
-and let them choose.
+recurring acceptance-criteria failure shapes and S16 covers rendered-surface
+verification ownership, but do **not** touch `coverage` beyond that, `coherence`,
+or `ambiguity` at all. Do not narrow the set on your own judgement; give them the
+table and let them choose.
 
 Pass `--full` through if present, to force a whole-artifact re-audit instead of a
 diff-scoped one.

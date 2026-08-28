@@ -8,7 +8,7 @@ Where `superpowers:subagent-driven-development` dispatches one implementer subag
 
 ## Skills
 
-- **`writing-dag-plans`** — author a plan with explicit `depends_on` and `files` per task. Enforces file-disjoint parallel branches **and contract coherence** at authoring time via a hard/soft rule set (H1–H11 / S1–S15): refuses compound tasks, missing or absent producers for consumed contracts, and bare spec-pointer acceptance criteria; warns on unanchored cross-cut interfaces and decomposition smells. **S12–S15 ask whether each acceptance criterion can actually fail** — flagging absence assertions that pass on a crash, tautologies, universal claims proved by existential assertions, and criteria that assert a property of the commit rather than of behaviour.
+- **`writing-dag-plans`** — author a plan with explicit `depends_on` and `files` per task. Enforces file-disjoint parallel branches **and contract coherence** at authoring time via a hard/soft rule set (H1–H11 / S1–S16): refuses compound tasks, missing or absent producers for consumed contracts, and bare spec-pointer acceptance criteria; warns on unanchored cross-cut interfaces and decomposition smells. **S12–S15 ask whether each acceptance criterion can actually fail** — flagging absence assertions that pass on a crash, tautologies, universal claims proved by existential assertions, and criteria that assert a property of the commit rather than of behaviour. **S16 flags a rendered-output change with no task owning its visual verification.**
 - **`executing-dag-plans`** — read a DAG plan, topo-sort, dispatch ready tasks in parallel. Per-task review (two-stage spec→quality, or a merged single-pass review for small/mechanical tasks). Auto-retry-once on `BLOCKED` with model upgrade. Halt-downstream on failure; let parallel branches finish.
 - **`updating-dag-plans`** — mutate `pending`/`ready` tasks mid-flight. `running`/`done`/`failed`/`skipped` are immutable history.
 - **`auditing-artifacts`** — audit a spec (gate 1) or a plan (gate 2) by fanning out independent single-concern **lenses in parallel**, then reconciling them into one severity-classified verdict. See below.
@@ -22,7 +22,12 @@ brainstorm → spec → [gate 1: audit-spec] → writing-dag-plans → [gate 2: 
 A broad "audit this spec" prompt draws **one** sample of which concern the auditor looks hardest at — so a later round finds real material because it is a *new draw*, not a deeper look. Worse, each serial round reads the artifact **as fixed by the previous round**, so the fresh-context independence that makes auditing work decays with every round. Parallel lenses convert that luck into coverage while keeping independence maximal.
 
 - **Spec lenses (6):** `absence` · `ambiguity` · `grounding` · `charter` · `coherence` · `design`
-- **Plan lenses (7):** `coverage` · `dag-integrity` · `grounding` · `charter` · `context-sufficiency` · `verifiability` · `coherence`
+- **Plan lenses (8):** `coverage` · `dag-integrity` · `grounding` · `charter` · `context-sufficiency` · `verifiability` · `coherence` · `ambiguity`
+
+Before dispatch, a path pre-pass (`resolve-declared-paths`) resolves every path the
+artifact declares once and hands the resulting tables to every lens verbatim,
+replacing N private resolutions with one shared one; if it cannot run, every lens is
+told explicitly rather than left to assume.
 
 Three rules do most of the work:
 
