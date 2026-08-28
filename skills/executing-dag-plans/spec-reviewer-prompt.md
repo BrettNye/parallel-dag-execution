@@ -37,6 +37,23 @@ Both are equally serious. Acceptance criteria in the task body ARE the spec.
 
 Do NOT comment on code style, naming, performance, or maintainability — that is the quality reviewer's job. Spec compliance only.
 
+## Project conventions
+
+{contents of repo's CLAUDE.md, if any, or "(none found)"}
+
+Charter sections for your role — reviewers: Enforcement map; Hard invariants;
+Recurring bug classes; Verification commands (verbatim, not summarized; matches
+`../auditing-artifacts/audit-charter-template.md` § Who reads what row for row):
+{charter_sections_for_role}
+{if no audit charter file exists in the repo: "(none found — proceed; do not substitute generic best practice)"}
+
+Citation freshness for the entries above:
+{charter_citation_table}
+{if the citation pre-pass (resolve-declared-paths) did not run or failed: "(citation pre-pass did not run — treat the charter entries above as unverified)"}
+An entry marked SUSPECT, MOVED or GONE may be stale — where a charter entry and
+the code disagree, the code wins. This is context for the review you already
+own; it does not widen what you may flag.
+
 ## Output
 
 Report exactly one of:
