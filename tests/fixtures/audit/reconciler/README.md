@@ -21,6 +21,9 @@ expectations/
   artifact.md          the spec the lenses audited
   plan.md              a downstream plan (present when the case tests STALE)
   code/…               real files, so a contradiction can be adjudicated
+  ground-truth.md      a table of real repo facts, supplied to the reconciler
+                        alongside the lens reports (present when the case tests
+                        the D2 world-claim downgrade rule)
   lens-<name>.md       the inputs, in the shape dag-auditor emits
 ```
 
@@ -57,3 +60,8 @@ the case directory, not to `expectations/`.
   deliberately rigged so the **majority is wrong**: two lenses claim a symbol is
   absent, each from a single search; one cites it at `file:line`. A reconciler that
   counts votes fails.
+- **`unevidenced-world-claim/`** — a single lens report makes a world-claim (a
+  named path is absent) that both contradicts the supplied `ground-truth.md`
+  and carries no citation. Isolates the D2 downgrade rule: the claim must
+  downgrade to `UNVERIFIABLE`, logged, with the contradicting ground-truth row
+  carried in `### Unverifiable` instead of "what would be needed."

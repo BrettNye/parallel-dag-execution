@@ -100,8 +100,9 @@ decision, an already-listed empirical unknown, a defect another lens owns.
 | `verifiability` (plan) | ✅ | ✅ | — |
 | `context-sufficiency` (plan) | ✅ | — | — |
 | `dag-integrity` (plan) | ✅ | — | — |
+| `ambiguity` (plan) | ✅ | — | — |
 | frozen decisions (all lenses) | — | — | ✅ |
-| **`dag-audit-reconciler`** | ✅ `reconciler/merge-promote-downgrade/` | — | — |
+| **`dag-audit-reconciler`** | ✅ `reconciler/merge-promote-downgrade/`, `reconciler/unevidenced-world-claim/` | — | — |
 | `absence`, `ambiguity` (spec) | ❌ none yet | ❌ | ❌ |
 | `charter` (spec + plan) | **n/a — see below** | n/a | n/a |
 
