@@ -43,7 +43,7 @@ flowchart TD
     task-fixtures-audit --> task-release
     task-fixtures-plan --> task-release
 
-    class task-plan-quality-s16 pending
+
 
     class task-audit-prepass-wiring done
     class task-plan-quality-s16 done
