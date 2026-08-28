@@ -25,7 +25,6 @@ flowchart TD
     task-resolver-script --> task-reconciler-verdicts
     task-charter-template --> task-exec-prompts-charter
     task-resolver-script --> task-exec-prompts-charter
-    task-charter-template --> task-exec-preflight
     task-resolver-script --> task-exec-preflight
     task-plan-schema --> task-exec-preflight
     task-plan-schema --> task-authoring-enforcement
@@ -37,6 +36,7 @@ flowchart TD
     task-reconciler-verdicts --> task-fixtures-audit
     task-lens-ambiguity --> task-fixtures-audit
     task-authoring-enforcement --> task-fixtures-plan
+    task-exec-preflight --> task-fixtures-plan
     task-crossrefs --> task-release
     task-exec-evidence --> task-release
     task-exec-preflight --> task-release
@@ -64,8 +64,10 @@ was meant to prevent.
 
 **Why 15 tasks for 8 components.** A pre-DAG grep for `S1-S15` and for the gate-2
 lens roster found both duplicated across six files: `writing-dag-plans/SKILL.md`,
-`updating-dag-plans/SKILL.md`, `auditing-artifacts/SKILL.md`,
-`commands/audit-plan.md`, `README.md`, and `tests/fixtures/audit/README.md`.
+`writing-dag-plans/plan-quality.md`, `updating-dag-plans/SKILL.md`,
+`auditing-artifacts/SKILL.md`, `commands/audit-plan.md`, and `README.md`.
+(`tests/fixtures/audit/README.md` carries the lens *roster* but zero `S1-S15`
+hits — verified — so it is a roster site only.)
 Adding one soft rule and one lens therefore touches four subsystems. Rather than
 serialize the rule-authoring tasks behind each other, the cross-reference churn is
 isolated in `task-crossrefs`, which depends on every task that changes a rule
@@ -76,6 +78,27 @@ three shared dispatch templates.
 **This plan does not use the `spec:` frontmatter key it introduces.** The key does
 not exist in `plan-format.md` until `task-plan-schema` lands, and declaring it
 here would make the plan invalid against the format it is executed under.
+
+## Rollout gate — the controller's step, not a task's
+
+One release step cannot be an acceptance criterion, because no role the executor
+dispatches can discharge it. **After `task-fixtures-audit` reports done and
+before `task-release` commits**, the controller dispatches each new fixture once
+at its named lens, and reconciles its header against what actually came back —
+adding any undeclared defect under `ALSO PRESENT` with its expected severity.
+
+This is not fussiness. `tests/fixtures/audit/README.md:134` records that this
+repo has no fixture runner, and `:51-57` records that **six of eleven fixtures
+carried real undeclared defects on their first run** — an undeclared defect makes
+a lens unscoreable, and the natural reading of an unexpected finding is that the
+lens misfired, which is backwards.
+
+The reason it lives here rather than in a task: no agent in this repo's registry
+has a dispatch tool. `dag-implementer` carries `[Read, Write, Edit, Bash, Glob,
+Grep]`; every reviewer and auditor carries a subset. An implementer told to
+"dispatch the lens" can only fabricate a report, self-grade and destroy the
+blindness the fixture measures, or report BLOCKED. The controller has the tool;
+the task does not.
 
 ## Tasks
 
@@ -109,6 +132,16 @@ new table.
 
 Existing section headings are not renamed or restructured — consumer repos have
 copied them, and the role map addresses sections by name.
+
+**Where the two new sections land, and why the count moves by two.** The file
+has 8 `^## ` headings at HEAD, and they are not all in the same place: `## Grow
+it from audit records` (:7) and `## Notes` (:97) sit *outside* the fenced
+template body, while the six section headings a charter author copies sit
+*inside* the fence that opens at :42 and closes at :93. The role map is guidance
+for the charter author, so it goes outside the fence near the top. `##
+Verification commands` is part of what gets copied, so it goes inside. Both are
+`##`-level, so a whole-file `grep -c '^## '` — which is fence-blind — moves 8 →
+10. Do not "fix" that number by demoting or deleting a heading.
 
 ## Implementation
 
@@ -147,9 +180,10 @@ grep -q '^## Verification commands' "$f" \
 
 ## Acceptance criteria
 
-- `grep -c '^## ' skills/auditing-artifacts/audit-charter-template.md` returns exactly `8`, and all 7 heading strings present at HEAD (`Enforcement map`, `Hard invariants`, `Named reference implementations`, `Recurring bug classes`, `Frozen decisions`, `Verification gotchas`, plus the template's own intro heading) are still found by name — so the count rises by exactly the one new section rather than by a rename.
-- The role-map table has exactly 7 data rows, one per section the template defines, and its header row names exactly 3 role columns (`auditor`, `implementer`, `reviewers`). Blank cells are meaningful and expected — a blank means that role does not read that section.
-- The `## Verification commands` table contains only generic placeholder rows: `grep -icE 'nx|tsc|jest|vitest|pytest|npm run|localhost' <file>` returns `0`.
+- The heading count rises by exactly 2, **derived rather than asserted**: `A=$(git show HEAD:skills/auditing-artifacts/audit-charter-template.md | grep -c '^## ')` and `B=$(grep -c '^## ' skills/auditing-artifacts/audit-charter-template.md)`; require `B - A = 2`. (For reference, `A` is 8 today — but the check must not hardcode it.)
+- All 8 heading strings present at HEAD are still found by name after the edit — `Grow it from audit records`, `Enforcement map`, `Hard invariants`, `Named reference implementations`, `Recurring bug classes`, `Frozen decisions`, `Verification gotchas`, **and `Notes`**. `## Notes` carries the "where a charter entry and the code disagree, the code wins" rule that `task-exec-prompts-charter` requires the templates to restate, so losing it breaks a downstream task.
+- The role-map table has exactly 7 data rows, one per section a charter author copies, and its header row names exactly 3 role columns (`auditor`, `implementer`, `reviewers`). Blank cells are meaningful and expected — a blank means that role does not read that section.
+- The **new table alone** contains only generic placeholder rows: `sed -n '/^## Verification commands/,/^## /p' <file> | grep -icE 'nx|tsc|jest|vitest|pytest|npm run|localhost'` returns `0`. Scope matters — the same grep across the whole file returns `1` at HEAD and after a perfect edit, because the pre-existing Enforcement map ships `nx run <app>:check-migrations` at `:53` as an illustrative row. Do not delete that row to make a number move.
 - The template states in one sentence that gotchas holds the trap and the replacement command belongs in the new table.
 
 ## Task: resolve-declared-paths helper
@@ -191,6 +225,55 @@ of length 4 or more from the entry's label — against the cited line plus or mi
 take the leading bolded name, table sections take the row's first cell. An entry
 yielding no anchor reports `OK-UNANCHORED`, never `SUSPECT` — absence of an anchor
 is a property of the entry's phrasing, not evidence of drift.
+
+**The complete output contract, inlined because you will not see the spec.**
+Three consumers paste these tables verbatim and gloss them for other readers, so
+every value below is a cross-task contract, not an implementation detail.
+
+Table 1 columns: `| path | declared at | on disk |`. The `declared at` cell takes
+exactly one of two forms, and the consumers' interpretation rule partitions on
+it — emit the form, not a bare line number:
+
+- `task-<id> files:` — the path came from a task's `files:` list.
+- `prose L<n>` — the path came from a backticked token in prose at line `n`.
+
+That distinction is the whole point: an `ABSENT` path from a create-task's
+`files:` is expected, while an `ABSENT` path cited *in prose as already existing*
+is the false-absence case this release exists to kill. A table that reports line
+numbers for both cannot support that rule.
+
+Table 2 columns: `| entry | cite | status |`. The five statuses, with the exact
+condition that fires each:
+
+| Status | Fires when |
+|---|---|
+| `OK` | file resolves, line in range, an anchor token matched |
+| `OK-UNANCHORED` | file resolves, line in range, **no anchor could be extracted** from the entry |
+| `SUSPECT` | file resolves, line in range, an anchor **was** extracted, and no anchor token appears within the cited line ±2 |
+| `MOVED` | file exists, cited line number is past end of file |
+| `GONE` | file does not exist |
+
+`SUSPECT` is the citation-drift detector the release is built around. An
+implementation that never emits it — treating every anchor-present-but-mismatched
+citation as `OK` — is a no-op, so it is graded positively below rather than only
+by its absence.
+
+**Setting the executable bit requires a flag, not a `chmod`.** This repo has
+`core.filemode=false` (verified), so `chmod +x` followed by `git add` records
+mode `100644` — the working-tree bit is honoured on msys and the failure is
+invisible locally. Stage it as `git add --chmod=+x <path>`. `git-commit-safe` is
+the only `100755` entry in the entire index; match it. If this ships `100644`, a
+fresh clone on Linux or macOS gets `Permission denied` and **both** seams fall
+permanently into the "pre-pass did not run" branch with every check green.
+
+**One extraction rule beyond the tables above:** also resolve the plan-level
+`spec:` frontmatter key when present, emitting it as a table-1 row with
+`declared at` = `frontmatter spec:`. It is written unbackticked at plan level, so
+it matches neither the `files:` clause nor the prose-token clause and would
+otherwise be the one field the design most wanted resolved mechanically and the
+one field never resolved. No dependency edge to `task-plan-schema` is needed:
+this is a parsing rule stated in full here, and a script that extracts a key
+before the format documents it is inert, not wrong.
 
 ## Implementation
 
@@ -243,6 +326,9 @@ echo PASS
 - Run against a charter containing one bullet entry with a valid citation, one table-row entry with a valid citation, and one entry with no extractable label, table 2 reports `OK`, `OK`, and `OK-UNANCHORED` respectively — and reports `SUSPECT` zero times.
 - A citation whose file exists but whose line number exceeds the file length reads `MOVED`; a citation to a deleted file reads `GONE`.
 - Invoked with one argument the script exits `2`; invoked with an unreadable artifact it exits `1`; both print a message naming the problem to stderr.
+- **`SUSPECT` fires positively**, not merely "zero times elsewhere": given a charter entry whose cited line exists and is in range but contains none of the entry's anchor tokens within ±2 lines, table 2 reports `SUSPECT` for exactly that entry. Run alongside the `OK-UNANCHORED` case above so the two are demonstrably distinguished — an implementation that collapses both to `OK` fails this and passes if it is omitted.
+- Every table-1 row's `declared at` cell reads either `task-<id> files:`, `prose L<n>`, or `frontmatter spec:` — never a bare line number. Given a fixture plan declaring one `files:` path, one prose path, and a `spec:` key, the three rows carry the three distinct forms.
+- The helper is staged executable: `git ls-files -s skills/auditing-artifacts/resolve-declared-paths` reports mode `100755`. `chmod +x` alone does not achieve this under this repo's `core.filemode=false` — use `git add --chmod=+x`.
 
 ## Task: plan schema additions
 
@@ -271,6 +357,17 @@ This task documents the schema only. Enforcement lives in
 `task-authoring-enforcement` (authoring side) and `task-exec-preflight`
 (executor side), which own those files.
 
+**Scope decision on `spec:` consumption, stated so the coverage matrix does not
+read as covered.** The frozen spec names two consumers: `resolve-declared-paths`,
+and gate 2 as the parent-spec path. **Only the resolver half lands in v0.6.0** —
+`task-resolver-script` extracts the key and emits it as a table-1 row. Making
+`/audit-plan` prefer a declared `spec:` over its current filename search is a
+behaviour change to the audit entry point (`auditing-artifacts/SKILL.md` step 1
+and `commands/audit-plan.md`), and it does not belong as a rider on
+`task-crossrefs`, whose `is_wiring_task: true` marks it as pure enumeration sync.
+**The gate-2 consumption half is deferred to a follow-up release and is not
+claimed here.**
+
 ## Implementation
 
 ```yaml
@@ -294,7 +391,7 @@ grep -q '^spec:.*OPTIONAL' "$f" \
 
 ## Acceptance criteria
 
-- The frontmatter example block contains both `spec:` and `default_implementer:`, each marked `OPTIONAL`, and `grep -c 'OPTIONAL' <frontmatter block>` counts both new keys alongside the 4 that exist at HEAD.
+- The frontmatter example block contains both `spec:` and `default_implementer:`, each marked `OPTIONAL`. Scoped to the block rather than the file: `sed -n '/^title: my-feature/,/^---$/p' skills/writing-dag-plans/plan-format.md | grep -c 'OPTIONAL'` returns `5` — the **3** present at HEAD (`default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint`) plus the 2 new keys.
 - The `spec:` documentation states it is a single file and that a directory is rejected, giving the reason (a directory cannot be diffed against a claim).
 - The `default_implementer:` documentation states the exact three-step resolution order, naming `dag-implementer` as the final fallback.
 - The prose states that an unresolvable `spec:` refuses rather than warns.
@@ -330,7 +427,7 @@ range references in other files are owned by `task-crossrefs`.
 ## Implementation
 
 ```markdown
-| S16 | **Rendered-output change with no verification owner** | Trigger: some task's `files:` contains a rendered-surface file — by extension `.tsx`, `.jsx`, `.vue`, `.svelte`, `.component.html`, `.html`; style files (`.css`, `.scss`) count only when a task also carries one of the preceding — AND no task's acceptance criteria name a rendered-surface check (a surface, an entry point, and an actor). A gate no task owns is a gate nobody runs, and per-task gates structurally cannot cover a cross-task rendered result. **Suppressor:** any task already owns visual verification. **Fires once per plan**, not once per task — a missing owner is a plan-level gap. Suggested fix: add a task owning visual verification, naming the surface, the entry point, and the actor. |
+| S16 | **Rendered-output change with no verification owner** | Trigger: some task's `files:` contains a rendered-surface file — by extension `.tsx`, `.jsx`, `.vue`, `.svelte`, `.component.html`, `.html`; style files (`.css`, `.scss`) count only when a task also carries one of the preceding — AND no task's acceptance criteria name a rendered-surface check. A gate no task owns is a gate nobody runs, and per-task gates structurally cannot cover a cross-task rendered result. **Suppressor:** any task already owns visual verification — judged by whether a criterion checks rendered output at all, *not* by whether it names all three parts of the fix shape. **Fires once per plan**, not once per task — a missing owner is a plan-level gap. Suggested fix: add a task owning visual verification, naming the surface, the entry point, and the actor. |
 ```
 
 ```bash
@@ -379,9 +476,23 @@ Roster and coverage-table updates in other files belong to `task-crossrefs` and
 `task-fixtures-audit`.
 
 **Mirror the shape of the existing lens fragments in this same file** — a `##`
-heading naming the lens, a one-line italicised question, then the hunting
-bullets, closing with a `---` separator. Do not mirror `lenses-spec.md`'s
-`ambiguity`: it is the gate-1 lens this one deliberately differs from.
+heading naming the lens, a one-line **bolded** question (every existing fragment
+uses `**bold**`, e.g. `:26`, `:78`, `:110`), then the hunting bullets, closing
+with a `---` separator. Do not mirror `lenses-spec.md`'s `ambiguity`: it is the
+gate-1 lens this one deliberately differs from.
+
+**The fragment alone is not enough — this file has two other sites that must
+move with it, and both are load-bearing:**
+
+1. **The catalog table at `:12-20`** gains an `ambiguity` row with a concern
+   phrase and an **explicit default tier**. `SKILL.md:166` selects "all lenses
+   from the matching catalog" and `:193` says "Tier defaults come from the
+   catalog" — so a fragment with no catalog row has no declared tier for the
+   controller to resolve, and under the stricter reading of `:166` may not be
+   dispatched at all. Use `opus`: the three nearest concerns (`coverage`,
+   `context-sufficiency`, `verifiability`) are all `opus`.
+2. **The header at `:3`** reads "**Seven lenses**, dispatched concurrently". It
+   becomes "Eight".
 
 ## Implementation
 
@@ -422,6 +533,8 @@ grep -q '^## `ambiguity`' "$f" \
 - The lens body enumerates exactly 3 in-scope shapes and names each one.
 - The lens carries an explicit out-of-scope clause naming relitigation of a clear frozen spec decision as a non-finding.
 - The lens text distinguishes its question from gate 1's in one sentence, so a reader can tell the two apart without opening `lenses-spec.md`.
+- The catalog table has exactly `8` data rows, and its `ambiguity` row carries a non-empty concern phrase and a default tier drawn from `{cheap, standard, opus}`. A fragment without a catalog row ships a lens the controller cannot tier.
+- `grep -c 'Seven lenses' skills/auditing-artifacts/lenses-plan.md` returns `0`, and the header states eight. It returns `1` at HEAD, so this fails before and passes after.
 
 ## Task: audit pre-pass wiring
 
@@ -431,6 +544,7 @@ depends_on: [task-resolver-script]
 files:
   - skills/auditing-artifacts/SKILL.md
   - skills/auditing-artifacts/auditor-prompt.md
+  - skills/auditing-artifacts/reconciler-prompt.md
 status: pending
 ```
 
@@ -453,6 +567,28 @@ may not contradict an `EXISTS`.** That is the entire measured defect class and i
 needs no judgment to enforce. If the helper cannot run, the skill states "path
 pre-pass did not run" rather than omitting the block — the same "none found is not
 the same as omitted" rule already applied at `auditor-prompt.md:16-19`.
+
+**The status glossary you must write into the prompt, inlined because you will
+not see the spec or the helper's source.** Write these conditions, not a guess at
+what the names suggest — `MOVED` in particular reads naturally as "the content
+moved", when it means only that the cited line number is past end of file:
+
+| Status | Means |
+|---|---|
+| `EXISTS` / `ABSENT` / `DIR` | table 1: the declared path resolves to a file, to nothing, or to a directory |
+| `OK` | table 2: file resolves, line in range, an anchor token matched |
+| `OK-UNANCHORED` | file resolves, line in range, no anchor could be extracted from the entry — **not** evidence of drift |
+| `SUSPECT` | file resolves, line in range, an anchor was extracted and none of its tokens appear within the cited line ±2 |
+| `MOVED` | file exists, cited line number is past end of file |
+| `GONE` | file does not exist |
+
+**The reconciler needs table 1 too, and does not currently receive it.** D2's
+downgrade rule turns on "contradicts the ground-truth table", but
+`reconciler-prompt.md:7-14`'s MUST-receive list is lens-report paths, artifact
+and spec paths, repo root, and failed-lens names — no table — and step 7 passes
+the same list. Thread it through both: add the ground-truth tables to step 7's
+dispatch and to the reconciler prompt's MUST-receive list and template. Without
+this, half of D2 is a rule referencing an input its reader never gets.
 
 ## Implementation
 
@@ -486,12 +622,14 @@ grep -q '^2.6\.' skills/auditing-artifacts/SKILL.md \
 
 ## Acceptance criteria
 
-- `SKILL.md` contains a step numbered `2.6` positioned between `2.5` and `3`: `grep -n '^2\.5\.\|^2\.6\.\|^3\. ' <file>` returns three lines in ascending line-number order.
+- `SKILL.md` contains a step numbered `2.6` positioned strictly between `2.5` and `3`. Capture the three line numbers and compare them: `L25=$(grep -n '^2\.5\.' <file> | cut -d: -f1)`, `L26=$(grep -n '^2\.6\.' <file> | cut -d: -f1)`, `L3=$(grep -n '^3\. ' <file> | cut -d: -f1)`; require `L25 < L26 < L3`. Every three of those must exist. (A bare `grep -n` listing is ascending by construction and proves nothing.)
 - Step 2.6 names the helper by its relative path and states that it runs once, before dispatch.
 - Step 2.6 states the did-not-run fallback wording explicitly, so a failed helper produces a stated notice rather than an omitted block.
-- `auditor-prompt.md` places the ground-truth block before the `YOUR LENS:` line: the line number of `GROUND TRUTH` is less than the line number of `YOUR LENS:`.
+- `auditor-prompt.md` places the ground-truth block **inside the prompt template and before the lens**: the `GROUND TRUTH` line falls between the opening fence of `## Prompt template` and the `YOUR LENS:` line. A line-number comparison alone is satisfied by text placed anywhere above `YOUR LENS:`, including outside the template where no lens would ever read it.
 - The prompt block carries both interpretation lines and the sentence forbidding a lens from contradicting an `EXISTS`.
-- The prompt explains all 5 charter-citation statuses the helper can emit — `OK`, `OK-UNANCHORED`, `SUSPECT`, `MOVED`, `GONE` — and all 3 declared-path statuses — `EXISTS`, `ABSENT`, `DIR`. A status the helper emits and the prompt never explains is a status a lens will interpret by guessing.
+- The prompt explains all 5 charter-citation statuses the helper can emit — `OK`, `OK-UNANCHORED`, `SUSPECT`, `MOVED`, `GONE` — and all 3 declared-path statuses — `EXISTS`, `ABSENT`, `DIR`. Each gloss states the firing *condition* from the table in this task's body, not a paraphrase of the name: in particular `MOVED` must say "cited line is past end of file", not "the content moved".
+- `reconciler-prompt.md`'s "The reconciler MUST receive:" list names the ground-truth tables, and its prompt template carries a substitution slot for them. `grep -c 'ground.truth\|GROUND TRUTH' skills/auditing-artifacts/reconciler-prompt.md` returns at least `2` where it returns `0` at HEAD.
+- `SKILL.md` step 7's dispatch instruction passes the tables alongside the lens-report paths, so the reconciler's D2 rule has the input it turns on. Without this the rule references something its reader is never given.
 
 ## Task: reconciler verdict deltas
 
@@ -544,7 +682,7 @@ grep -q 'acceptance criterion on the task that owns' "$f" \
 
 - The `EMPIRICAL-UNKNOWN` severity line names an acceptance criterion on the owning task as the primary resolution and a probe task as the fallback, in that order.
 - The READY verdict rule reads consistently with it: it requires each `EMPIRICAL-UNKNOWN` to name either an owning task's criterion or a probe task, and `grep -c 'owning probe task' <file>` returns `0`, proving the old unconditional wording is gone.
-- The downgrade-rules block contains a world-claim clause naming both downgrade conditions (contradicts the table; carries neither command output nor citation) and the target severity `UNVERIFIABLE`.
+- The downgrade-rules block contains a world-claim clause naming both downgrade conditions (contradicts the table; carries neither command output nor citation) and the target severity `UNVERIFIABLE`. The second condition stands alone and needs no table; the first depends on the ground-truth tables reaching the reconciler, which `task-audit-prepass-wiring` wires into `reconciler-prompt.md` and `SKILL.md` step 7 — state that dependency in the rule text so a reader knows which input it turns on.
 - The world-claim clause states the downgrade is logged, and the surrounding "never silently delete" rule is still present in the file.
 
 ## Task: dispatch templates carry charter sections
@@ -617,18 +755,21 @@ echo PASS
 - The reviewer templates retain their existing remit boundaries: `grep -c 'Do NOT flag missing/extra requirements' quality-reviewer-prompt.md` returns `1`, and the added text states the charter does not widen what the role may flag.
 - The templates use exactly these two substitution placeholders, spelled identically in all 4 files: `{charter_sections_for_role}` and `{charter_citation_table}`. `task-exec-preflight` fills these by name and never sees this file, so a spelling difference breaks the seam silently — these two strings are the contract between the two tasks.
 - The stale-entry guidance names all 3 statuses that indicate possible drift — `SUSPECT`, `MOVED`, `GONE` — and states the existing rule that where a charter entry and the code disagree, the code wins.
+- Each of the 4 templates carries a "citation pre-pass did not run" line for the case where the helper fails, distinct from the "(none found)" line for an absent charter. The two conditions differ: a charter can exist while its freshness is unknown, and rendering its prose unflagged presents a possibly-stale entry as verified.
 
 ## Task: executor pre-flight
 
 ```yaml
 id: task-exec-preflight
-depends_on: [task-charter-template, task-resolver-script, task-plan-schema]
+depends_on: [task-resolver-script, task-plan-schema]
 files:
   - skills/executing-dag-plans/SKILL.md
 status: pending
 ```
 
-Spec components C (skill half) and F2. Both edit the same pre-flight paragraph —
+Spec component C (skill half) and the executor half of component F — F1's
+`spec:` and F2's `default_implementer`, whose schema `task-plan-schema`
+documents. Both edit the same pre-flight paragraph —
 the one already checking the agent registry and `*_hint` values — so they are one
 task by file scope and one concern by subject: what the executor resolves and
 validates before the first tick.
@@ -646,7 +787,23 @@ Three additions, all in that paragraph, all once-per-run rather than per-dispatc
   include the plan-level default, or a typo there escapes pre-flight and fails at
   dispatch — violating the no-silent-fallback rule the `*_hint` fields hold.
 
-Strictly additive: the tick loop is not restructured.
+Two further edits outside that paragraph, both in-sentence — the tick loop keeps
+its step count and order:
+
+- **Step 4's dispatch sentence currently encodes a two-step chain** and would
+  discard the field this task validates: *"The dispatched `subagent_type` is the
+  task's `implementer:` field, defaulting to `dag-implementer` when absent."*
+  Rewrite it as the three-step chain — `task.implementer`, then
+  `default_implementer`, then `dag-implementer`. Without this an author sets a
+  plan-level default, pre-flight resolves it in the registry and passes, and
+  every task lacking `implementer:` still dispatches to `dag-implementer` — the
+  exact silent fallback the no-silent-fallback rule exists to prevent.
+- **The helper-cannot-run notice.** If `resolve-declared-paths` fails on this
+  side, the four dispatch templates must say so rather than rendering an empty
+  `{charter_citation_table}` — which would present possibly-stale charter prose
+  as verified, the precise hazard the freshness mechanism exists to remove.
+
+Otherwise strictly additive: the tick loop is not restructured.
 
 ## Implementation
 
@@ -684,7 +841,9 @@ grep -q 'default_implementer' "$f" \
 - The pre-flight paragraph names the 3 charter sources (root/nested `CLAUDE.md`, `AGENTS.md`, `.claude/audit-charter.md`) and states that location happens once, before the first tick.
 - The helper invocation appears with its relative path from `executing-dag-plans`, and the text states that only the citation table is consumed here, giving the reason.
 - The text names the two substitution placeholders it fills in the dispatch templates, spelled exactly `{charter_sections_for_role}` and `{charter_citation_table}`. This task and `task-exec-prompts-charter` never see each other's file, so these two strings are the contract between them and must be inlined here rather than pointed at.
-- The tick-loop steps are unchanged in count and order: `grep -c '^[0-9]\+\. \*\*' <file>` returns the same value as at HEAD.
+- Step 4's dispatch sentence names all three resolution steps in order — the per-task `implementer:`, then `default_implementer`, then `dag-implementer`. `grep -c 'defaulting to `dag-implementer` when absent' <file>` returns `0`, retiring the two-step wording.
+- The four dispatch templates receive an explicit notice when the helper fails on this side; the pre-flight text names that branch rather than leaving the table silently empty.
+- The tick-loop steps are unchanged in **count and order**, checked by content anchor rather than line range: extract the numbered step markers between the `## Execution model` and `## Per-task review chain` headings and require the sequence `1 2 3 4 5 6 7`. A bare `grep -c` returns `1` here — it matches a single line — so it observes neither count nor order, and a line-range check would break the moment the additions above shift the file.
 
 ## Task: authoring-skill enforcement of the new contract
 
@@ -829,12 +988,22 @@ that produces one side.
 `writing-dag-plans/SKILL.md` is deliberately absent from `files:`: it is owned by
 `task-authoring-enforcement`, which updates its own ranges.
 
-Four sites: the `S1-S15` range in `updating-dag-plans` and `commands/audit-plan.md`
-and `README.md`; the gate-2 roster tables in `auditing-artifacts/SKILL.md` (the
-re-audit trigger table and the what-a-lens-adds table) and `commands/audit-plan.md`;
-and the `coverage` row of the what-a-lens-adds table, which currently reads
-"**Nothing.** No rule maps spec requirements to tasks" — no longer true once S16
-checks that a rendered-surface requirement has an owning task.
+Six sites, enumerated because a missed one is this task's own defect class:
+
+1. The `S1-S15` range in `skills/updating-dag-plans/SKILL.md:25`.
+2. The `S1-S15` range in `commands/audit-plan.md:19`.
+3. The `S1–S15` range in `README.md:11` (en-dash form).
+4. **The `S1–S15` range in `skills/auditing-artifacts/SKILL.md:202`** — "has
+   already passed H1–H11, S1–S15". This file is in this task's `files:`, and
+   missing it ships one file telling a gate-2 auditor that plans have passed
+   S1–S15 *eleven lines above* a table this same task edits to credit S16.
+5. **`README.md:25`** — "**Plan lenses (7):**" and its `·`-separated roster,
+   which must become 8 and name `ambiguity`.
+6. The gate-2 roster tables in `skills/auditing-artifacts/SKILL.md` — the
+   re-audit trigger table at `:173-179` **and** the what-a-lens-adds table at
+   `:207-215`. Both, not either. Also the `coverage` row of the latter, which
+   reads "**Nothing.** No rule maps spec requirements to tasks" — no longer true
+   once S16 checks that a rendered-surface requirement has an owning task.
 
 ## Implementation
 
@@ -857,12 +1026,13 @@ echo PASS
 
 ## Acceptance criteria
 
-- `grep -rc 'S1-S15\|S1–S15' skills/updating-dag-plans/SKILL.md commands/audit-plan.md README.md` returns `0` for all 3 files, and each instead reads `S1-S16`.
-- `auditing-artifacts/SKILL.md` names `ambiguity` in both gate-2 tables — the re-audit trigger table and the what-a-lens-adds table — so `grep -c 'ambiguity' <file>` returns at least `2` where it returns `0` for plan-context occurrences at HEAD.
+- `grep -rc 'S1-S15\|S1–S15' skills/updating-dag-plans/SKILL.md commands/audit-plan.md README.md skills/auditing-artifacts/SKILL.md` returns `0` for **all 4** files, and each instead reads the S16 form. All four have a hit at HEAD, so this fails before and passes after.
+- Both gate-2 roster tables name the new lens, checked **by region, not by whole-file count**: `sed -n '/| Diff touched |/,/^$/p' skills/auditing-artifacts/SKILL.md | grep -c 'ambiguity'` is at least `1`, **and** `sed -n '/| Lens | Already covered/,/^$/p' <file> | grep -c '`ambiguity`'` is `1`. A whole-file `grep -c 'ambiguity'` cannot serve here: it returns `1` at HEAD already (`:289`, a sample audit-record line listing the gate-1 roster), so a threshold of 2 is cleared by editing only one of the two tables — leaving the re-audit trigger table without the row, and the new lens never re-running on a diff-scoped audit.
 - The what-a-lens-adds table has exactly 8 lens rows, one per gate-2 lens after this release.
 - The `coverage` row no longer reads "**Nothing.**": `grep -c '| \`coverage\` | \*\*Nothing' <file>` returns `0`, and its replacement text names S16 as the partial coverage.
 - `commands/audit-plan.md` names the gate-2 lens count consistently with the roster: the number it states equals `8`.
 - `README.md` describes the rule set as `H1–H11 / S1–S16` and mentions the pre-pass in the audit section.
+- `README.md:25` reads `**Plan lenses (8):**` and its roster names `ambiguity`, so the README agrees with `commands/audit-plan.md` and the catalog rather than contradicting both.
 
 ## Task: audit conformance fixtures
 
@@ -892,20 +1062,45 @@ The reconciler fixture supplies a lens report asserting a path is absent while t
 ground-truth table says `EXISTS`, expecting a downgrade to `UNVERIFIABLE` with a
 logged reason rather than a merge into the verdict.
 
-**A fixture is not finished until it has been run.** `tests/fixtures/audit/README.md`
-makes this a hard rule because six of eleven fixtures carried undeclared defects
-on their first run. Each fixture here is dispatched once at its named lens and its
-header reconciled against what came back before commit.
+**A fixture is not finished until it has been run — but the run is not this
+task's to perform.** `tests/fixtures/audit/README.md:134` records that there is
+no runner: a fixture is scored by dispatching the lens at it and comparing the
+output to the header. **No agent in this repo's registry has a dispatch tool** —
+`dag-implementer` carries `[Read, Write, Edit, Bash, Glob, Grep]`, and every
+reviewer and auditor a subset of that. An implementer asked to "dispatch the
+lens" can only fabricate a report it never ran, self-grade in its own context and
+destroy the blindness the fixture exists to test, or report BLOCKED.
+
+So this task's criteria are **authored-artifact properties it can actually
+discharge**, and the blind run moves to the plan's rollout gate, where the
+controller performs it. That is also where the frozen spec already puts it:
+*"every new fixture is dispatched at its lens or rule once and its header
+reconciled before commit."*
+
+Note this is genuinely new ground rather than a rule this repo already had: the
+precedent at `docs/superpowers/plans/2026-06-24-closure-coherence-rules.md:17`
+makes verification a *trace* of a detection algorithm, which an implementer can
+self-perform. A lens dispatch cannot be self-performed without destroying what it
+measures. `task-fixtures-plan`'s S16 criteria are traces and are unaffected.
 
 ## Implementation
 
 ```markdown
 <!--
+FIXTURE: ambiguity-plan-unfalsifiable-requirement
 LENS: ambiguity (plan)
 EXPECTED: BLOCKING
 SHAPE: plan audit — parent spec in this file under `## Parent spec`, plan under `## Tasks`
-EXPECTED REPORT (substring match): "no observation would contradict"
-ALSO PRESENT: none declared until the blind run reconciles this header.
+COVERS: <one paragraph: the requirement, why no observation could contradict it,
+  and what a reader would build wrong>
+EXPECTED REPORT (substring match):
+  unfalsifiable
+  no observation
+MUST NOT REPORT: whether the frozen spec's decision was the right one (that is
+  relitigation, explicitly out of this lens's scope), or whether the named paths
+  exist (that is `grounding`).
+ASSUMES: nothing about the host repo.
+ALSO PRESENT: none declared until the gate run reconciles this header.
 -->
 ```
 
@@ -921,16 +1116,18 @@ echo PASS
 
 ## Acceptance criteria
 
-- The `ambiguity` fixture carries a complete header — `LENS:`, `EXPECTED:`, `SHAPE:`, and an `EXPECTED REPORT` substring — and dispatching the `ambiguity` lens at it once returns a `BLOCKING` finding containing that substring.
-- The same dispatch produces no finding that the header does not declare; any undeclared defect the run surfaces is added to the header under `ALSO PRESENT` with its expected severity before commit, per the README's rule.
-- The reconciler fixture's lens report asserts a path absent that the ground-truth table marks `EXISTS`, and running the reconciler against it yields that finding at `UNVERIFIABLE` with a downgrade-log entry naming the lens and the reason — not at its proposed severity, and not dropped.
-- `tests/fixtures/audit/README.md`'s coverage table gains an `ambiguity` (plan) row marked with a should-flag entry, and its run record names the date this suite was run.
+- The `ambiguity` fixture's header carries all 7 keys every sibling in `should-flag/` carries — `FIXTURE:`, `LENS:`, `EXPECTED:`, `COVERS:`, `EXPECTED REPORT (substring match):`, `MUST NOT REPORT:`, `ASSUMES:` — plus `SHAPE:`, which the two plan-lens siblings carry. Verify against `should-flag/coherence-superseded-no-marker.md`.
+- The declared substrings are root forms that appear in the lens fragment's own vocabulary (`unfalsifiable`, `no observation`), not a hand-written sentence. The lens says a requirement "cannot be false" and asks what state of the world "would violate this" — a five-word substring pinning one phrasing grades wording rather than detection, and repo convention is short roots like `supersed`.
+- The fixture's plan section contains a requirement no observation could contradict, and its `## Parent spec` section contains that requirement stated clearly — so the defect is demonstrably introduced at plan time and the lens is not being asked to relitigate the spec.
+- The reconciler fixture supplies a lens report asserting a path absent alongside a ground-truth table marking that same path `EXISTS`, laid out per `tests/fixtures/audit/reconciler/README.md`'s structure, with a stated slot for the ground-truth table that structure does not yet have.
+- `tests/fixtures/audit/README.md`'s coverage table gains an `ambiguity` (plan) row with a should-flag entry.
+- **Not an acceptance criterion — a rollout-gate step:** each fixture is dispatched once at its named lens by the controller, and its header reconciled against what actually came back, before the release commits. An undeclared defect the run surfaces is added under `ALSO PRESENT` with its expected severity. Six of eleven fixtures carried undeclared defects on their first run, so this step is not optional — it simply cannot be discharged by the role this task dispatches to.
 
 ## Task: plan-rule conformance fixtures
 
 ```yaml
 id: task-fixtures-plan
-depends_on: [task-authoring-enforcement]
+depends_on: [task-authoring-enforcement, task-exec-preflight]
 files:
   - tests/fixtures/schema/should-refuse/bad-spec-unresolvable.md
   - tests/fixtures/schema/should-refuse/bad-default-implementer-typo.md
@@ -958,6 +1155,18 @@ warnings too.
 Depends on `task-authoring-enforcement` rather than on the rule tasks directly,
 because a fixture grades the enforcement path — a rule documented but not wired
 into step 6 or step 7 would pass a fixture that only read `plan-quality.md`.
+
+**Also depends on `task-exec-preflight`, and that edge is load-bearing.** The
+`default_implementer` refusal this task builds a fixture for is split across two
+checks: the authoring side only requires a non-empty string, while *resolution
+against the agent registry* lives solely in the executor pre-flight. An
+unregistered-but-nonempty subagent name is syntactically valid and passes the
+authoring check. Without this edge the scheduler can dispatch this task the
+moment `task-authoring-enforcement` completes, and the implementer either
+authors a fixture asserting refusal behaviour that does not yet exist, or
+quietly rebuilds it around an empty string — mistesting the exact case the
+criterion names. (The sibling `bad-spec-unresolvable.md` case is enforced on
+both sides and was never exposed.)
 
 ## Implementation
 
@@ -1022,8 +1231,9 @@ mechanical, and it trips none of S9's risk signals.
 
 - `.claude-plugin/plugin.json` reads `"version": "0.6.0"`, and the file still parses as JSON (`node -e 'JSON.parse(require("fs").readFileSync(".claude-plugin/plugin.json"))'` exits `0`).
 - The parsed object still holds its 7 HEAD keys with their HEAD values — `name`, `description`, `author`, `license`, `homepage`, `repository`, `keywords` — with `keywords` still an array of exactly 5 entries. Only `version` reads differently.
-- `.gitattributes` contains a line pinning `skills/auditing-artifacts/resolve-declared-paths` to `text eol=lf`, alongside the existing `git-commit-safe` entry, and `git check-attr eol -- skills/auditing-artifacts/resolve-declared-paths` reports `eol: lf`.
-- The helper is executable in the index: `git ls-files -s skills/auditing-artifacts/resolve-declared-paths` reports mode `100755`.
+- `.gitattributes` contains an explicit line pinning `skills/auditing-artifacts/resolve-declared-paths` to `text eol=lf`, alongside the existing `git-commit-safe` entry. Note `git check-attr eol` already reports `lf` at HEAD via the blanket `* text=auto eol=lf` at `.gitattributes:17`, so that command is a **control that passes before and after** — it cannot demonstrate this task's work. The falsifiable check is the presence of the explicit path line.
+- **Re-assertion (read-only, deliberately duplicated):** `git ls-files -s skills/auditing-artifacts/resolve-declared-paths` reports mode `100755`. `task-resolver-script` owns setting this and asserts it too; this copy is kept on purpose as a terminal-node safety net, because that mode is set by a flag (`git add --chmod=+x`) rather than by file content, and is therefore the kind of thing an upstream implementer can report as done without it being true. Reading a path outside `files:` is fine — only edits are scoped.
+- Both substitution placeholders reach every consumer: `grep -l '{charter_sections_for_role}' skills/executing-dag-plans/*-prompt.md skills/executing-dag-plans/SKILL.md` lists 5 files, and the same for `{charter_citation_table}`. A spelling drift between producer and consumer breaks the charter seam silently, and this is the only place both ends are read together.
 
 ## Audit record
 
