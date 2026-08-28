@@ -8,6 +8,11 @@ artifact="$1"; root="$2"; shift 2
 if [ -d "$artifact" ] || [ ! -r "$artifact" ]; then
   echo "resolve-declared-paths: cannot read $artifact" >&2; exit 1
 fi
+# Guard the root as hard as the artifact. A mistyped or unexpanded <repo-root>
+# otherwise resolves every path against nothing and prints a whole table of
+# ABSENT/GONE at exit 0 with empty stderr -- ground truth, silently inverted,
+# for the three consumers that read this output as fact. Fail loudly instead.
+[ -d "$root" ] || { echo "resolve-declared-paths: repo root is not a directory: $root" >&2; exit 1; }
 
 TAB=$(printf '\t')
 
@@ -51,7 +56,7 @@ extract_declared() {
     # discussed a dozen times is one row, not a dozen.
     function prose(p, n,   k) { k = p SUBSEP "prose"; if (k in seen) return; seen[k] = 1
                                 printf "%s\tprose L%d\n", p, n }
-    BEGIN { task = "unknown"; infiles = 0; infm = 0; fence = 0; lang = "" }
+    BEGIN { task = "unknown"; infiles = 0; infm = 0; fence = 0; fchar = ""; lang = "" }
     {
       s = $0; sub(/\r$/, "", s); sub(/^[ \t]+/, "", s)
 
@@ -67,15 +72,18 @@ extract_declared() {
         next
       }
 
-      # Track the OPENING fence length and its info string, so a nested shorter
-      # fence cannot scramble the in-code/in-prose state and so a files: list
-      # can be told apart by the language it sits in.
-      if (s ~ /^```/) {
-        n = 0; while (substr(s, n + 1, 1) == "`") n++
-        if (fence == 0) { fence = n
+      # Track the OPENING fence CHARACTER and length plus its info string, so a
+      # nested shorter fence -- or a ``` example nested inside a ~~~ block, which
+      # is exactly what the CommonMark tilde form is for -- cannot scramble the
+      # in-code/in-prose state, and so a files: list can be told apart by the
+      # language it sits in. A fence closes only on its own delimiter.
+      if (s ~ /^```/ || s ~ /^~~~/) {
+        ch = substr(s, 1, 1)
+        n = 0; while (substr(s, n + 1, 1) == ch) n++
+        if (fence == 0) { fchar = ch; fence = n
                           lang = substr(s, n + 1)
                           sub(/[ \t{].*$/, "", lang); lang = tolower(lang) }
-        else if (n >= fence) { fence = 0; lang = "" }
+        else if (ch == fchar && n >= fence) { fence = 0; lang = "" }
         infiles = 0; next
       }
 
@@ -85,6 +93,9 @@ extract_declared() {
       # AND misattributes it to whichever task the fence happens to sit under.
       # The allowlist is deliberate. Skipping a real declaration only leaves a
       # gap; harvesting a fake one manufactures the false ABSENT this kills.
+      # KNOWN GAP: a four-space-indented code block is still harvested, because
+      # the leading-whitespace strip above is unconditional; closing it needs
+      # real markdown parsing, so the fence defense is not complete.
       taskyaml = (fence == 0 || lang == "yaml" || lang == "yml")
 
       if (taskyaml) {
@@ -145,14 +156,20 @@ extract_cites() {
 
       rest = s
       gsub(/[A-Za-z][A-Za-z0-9+.-]*:\/\/[^ \t`)>]*/, " ", rest)  # never cite a URL
-      while (match(rest, /[A-Za-z0-9_][A-Za-z0-9_.\/-]*:[0-9]+/)) {
+      # The start class admits a leading dot: without it .claude-plugin/plugin.json:1
+      # starts one character late, so a real file reads GONE AND the cite cell is
+      # printed truncated -- and these tables get pasted verbatim, propagating a
+      # path that was never written.
+      while (match(rest, /[A-Za-z0-9_.][A-Za-z0-9_.\/-]*:[0-9]+/)) {
         cite = substr(rest, RSTART, RLENGTH)
         rest = substr(rest, RSTART + RLENGTH)
         n = cite; sub(/^.*:/, "", n)
         f = cite; sub(/:[0-9]+$/, "", f)
-        # A bare word:12 ("step 10:30") is not a citation. Require a path shape,
-        # so the resolver can never invent a GONE for prose that names no file.
-        if (f !~ /\// && f !~ /\.[A-Za-z0-9]+$/) continue
+        # A bare word:12 ("step 10:30") is not a citation, and neither is a bare
+        # decimal ("from 3.14:30 to 3.9") -- the letter requirement is what stops
+        # the dot admitted above from fabricating a GONE row out of prose that
+        # names no file. Require a path shape too, for the same reason.
+        if (f !~ /[A-Za-z]/ || (f !~ /\// && f !~ /\.[A-Za-z0-9]+$/)) continue
         k = label SUBSEP f SUBSEP n
         if (k in seen) continue
         seen[k] = 1
@@ -167,6 +184,9 @@ extract_cites() {
 resolve_cite() {  # $1 = label ("-" = none), $2 = file, $3 = line
   f="$root/$2"
   [ -e "$f" ] || { echo GONE; return 0; }
+  # KNOWN GAP: a cited directory or unreadable file also reads MOVED, whose
+  # contract is "past end of file" -- not strictly true here, but none of the
+  # five statuses fits better, so this is a deliberate degradation, not a claim.
   if [ ! -f "$f" ] || [ ! -r "$f" ]; then echo MOVED; return 0; fi
   total=$(awk 'END { print NR }' "$f")
   # Range-test in awk, never in the shell. A cited line number can carry more
