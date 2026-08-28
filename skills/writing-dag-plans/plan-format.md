@@ -22,6 +22,8 @@ Example skeleton:
 ---
 title: my-feature
 created: 2026-05-02
+spec: docs/superpowers/specs/2026-05-02-my-feature-design.md  # OPTIONAL. Single file path to the design this plan implements. A superspec charter when the design spans files. Never a directory — a directory cannot be diffed against a claim. An unresolvable `spec:` refuses (does not warn).
+default_implementer: dag-implementer    # OPTIONAL. subagent_type fallback for tasks lacking `implementer:`. Resolution order: task.implementer, then default_implementer, then dag-implementer.
 default_model_hint: standard            # OPTIONAL. cheap | standard | opus. Default `standard`. Implementer tier.
 default_spec_reviewer_hint: standard    # OPTIONAL. cheap | standard | opus. Default `standard`.
 default_quality_reviewer_hint: standard # OPTIONAL. cheap | standard | opus. Default `standard`.
@@ -77,6 +79,10 @@ The mermaid block is REQUIRED at the top. It is regenerated from scratch on ever
 All three `default_model_hint` / `default_spec_reviewer_hint` / `default_quality_reviewer_hint` frontmatter keys are optional; omitting any (or all) keeps `standard` everywhere = today's behavior.
 
 `default_review_mode: split` (OPTIONAL, `merged | split`, default `split`) sets the review mode for tasks lacking a per-task `review_mode`. Omitting it keeps `split` (today's two-call spec→quality chain).
+
+`spec:` (OPTIONAL) names a single file path to the design this plan implements — a superspec charter when the design spans files. It must be a single file, never a directory: a directory cannot be diffed against a claim. An unresolvable `spec:` (path does not exist) refuses rather than warns.
+
+`default_implementer:` (OPTIONAL, default `dag-implementer`) is the subagent_type fallback for tasks lacking a per-task `implementer:`. Resolution order: `task.implementer`, then `default_implementer`, then `dag-implementer` — matching the `default_*_hint` pattern documented above.
 
 ## Per-task frontmatter schema
 
