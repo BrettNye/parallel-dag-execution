@@ -24,10 +24,7 @@ A broad "audit this spec" prompt draws **one** sample of which concern the audit
 - **Spec lenses (6):** `absence` · `ambiguity` · `grounding` · `charter` · `coherence` · `design`
 - **Plan lenses (8):** `coverage` · `dag-integrity` · `grounding` · `charter` · `context-sufficiency` · `verifiability` · `coherence` · `ambiguity`
 
-Before dispatch, a path pre-pass (`resolve-declared-paths`) resolves every path the
-artifact declares once and hands the resulting tables to every lens verbatim,
-replacing N private resolutions with one shared one; if it cannot run, every lens is
-told explicitly rather than left to assume.
+Before dispatch, a path pre-pass (`resolve-declared-paths`) resolves every path the artifact declares once and hands the resulting tables to every lens verbatim, replacing N private resolutions with one shared one; if it cannot run, every lens is told explicitly rather than left to assume.
 
 Three rules do most of the work:
 

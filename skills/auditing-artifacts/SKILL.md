@@ -133,10 +133,10 @@ digraph auditing_artifacts {
 2.6. **Resolve declared paths before dispatching.** Run
    `./resolve-declared-paths <artifact> <repo-root> <charter-paths...>` once and
    pass its tables verbatim to every lens. This replaces N private resolutions
-   with one shared one, before any lens runs — today each of 8 lenses
-   independently globs, greps and stats the same handful of paths, roughly 20–40
-   redundant tool calls per audit and 8 private inferences where one shared
-   resolution would do.
+   with one shared one, before any lens runs — today every lens independently
+   globs, greps and stats the same handful of paths, roughly 20–40 redundant
+   tool calls per audit and N private inferences where one shared resolution
+   would do.
 
    If the helper cannot run, say so explicitly to every lens — "path pre-pass did
    not run" — rather than omitting the block. A lens told nothing assumes nothing.
@@ -180,6 +180,7 @@ digraph auditing_artifacts {
    narrows what a lens reads; this narrows *which lenses run at all*. For each lens ask:
    **could this diff have changed anything my concern covers?** If not, it does not run —
    carry its prior verdict forward in the audit record instead, marked `carried`.
+   A diff matching several rows re-runs the **union** of their lenses.
 
    | Diff touched | Lenses that must re-run |
    |---|---|
@@ -192,9 +193,9 @@ digraph auditing_artifacts {
 
    `coherence` re-runs on almost any edit — that is correct, it is the lens that catches
    a fix contradicting an untouched section, which is the failure mode re-audits exist
-   for. A typical round 2 is **2–3 lenses, not 6.** Running all six on a two-section diff
-   is the cost the two-gate design was supposed to remove, and it is what the omission of
-   this step was producing.
+   for. A typical round 2 is **2–3 lenses, not the whole set (8 at gate 2, 6 at gate
+   1).** Running the whole set on a two-section diff is the cost the two-gate design
+   was supposed to remove, and it is what the omission of this step was producing.
 
    **Convergence — stop drawing.** A re-audit round whose findings are all DEFERRED, or
    all outside the diff, means the artifact has converged: record READY and stop. Do
@@ -218,14 +219,14 @@ digraph auditing_artifacts {
 
    | Lens | Already covered by plan-quality? | Additive? |
    |---|---|---|
-   | `coverage` | **S16 only**, and only for rendered-surface verification ownership. Nothing maps spec requirements to tasks in general. | **Largely** |
+   | `coverage` | **S16 only**, and only for rendered-surface verification ownership. Nothing maps spec requirements to tasks in general. | **Largely additive** |
    | `verifiability` | H4 (an AC *exists*), S4 (vague), and **S12–S15** — the falsifiability set: crash-passing absence, tautology, quantifier mismatch, diff-property. Those are the four *recurring* shapes. | Partly — for **novel** unfalsifiability the rules do not pattern-match: a spy blind to the real mechanism, an assertion a normalizing library defeats, a DOM binding left unpinned, a gate that reports success after its checker died |
    | `coherence` | **Nothing.** No rule compares a task's `## Implementation` sketch against its own ACs. | **Fully** |
+   | `ambiguity` | **Nothing at gate 2.** S12–S15 grade an AC's falsifiability, not a requirement's. | **Fully** |
    | `grounding` | Step 3.5's symbol-consumer grep; "do not fabricate file paths". | **Mostly** |
    | `charter` | Step 8's repo-convention pass, incl. the named per-layer reference implementation. | Partly |
    | `context-sufficiency` | H11 **is** the bare-spec-pointer rule; plus H2, S2/S3 sizing, step 8's elided-sibling completeness. | Largely covered |
    | `dag-integrity` | Structural validation (cycles, file-disjoint parallel branches) + H8 import resolution + H9 contract sequencing + H10 missing-producer index + step 5's file-scope conflict loop. | Largely covered |
-   | `ambiguity` | **Nothing at gate 2.** S12–S15 grade an AC's falsifiability, not a requirement's. | **Fully** |
 
    So if cost forces a subset, the top rows are where the un-checked risk lives — and
    `coverage` is first, because a plan that legitimately *selects* from a longer spec is
@@ -306,13 +307,13 @@ digraph auditing_artifacts {
      - Deferred, accepted: <one line each>
      - Empirical unknowns opened: <list, each with its probe task>
    - **2026-07-30** · rev `<normalized-hash>` · lenses: verifiability, coherence (2/2 ran;
-     carried: coverage, dag-integrity, grounding, charter, context-sufficiency — diff
-     touched acceptance criteria only) · **READY**
+     carried: coverage, dag-integrity, grounding, charter, context-sufficiency,
+     ambiguity — diff touched acceptance criteria only) · **READY**
    ```
 
    A diff-scoped round records **both** the lenses that ran and the ones `carried`, with
    the one-line reason. A carried lens is a live prior verdict, not a gap — but only if
-   the record says which and why, otherwise "2/2 ran" is indistinguishable from four
+   the record says which and why, otherwise "2/2 ran" is indistinguishable from six
    lenses silently skipped.
 
    State how many lenses ran out of how many dispatched — a run with an unrun lens is

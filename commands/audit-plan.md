@@ -17,11 +17,11 @@ a subset), dispatch them in one message, then reconcile.
 If the user asks which lenses are worth running — or is weighing the cost against just
 executing — show them the overlap table in `auditing-artifacts` step 4. A plan from
 `writing-dag-plans` has already passed H1–H11 and S1–S16, which largely cover
-`dag-integrity` and `context-sufficiency`, and since S12–S15 also cover the four
-recurring acceptance-criteria failure shapes and S16 covers rendered-surface
-verification ownership, but do **not** touch `coverage` beyond that, `coherence`,
-or `ambiguity` at all. Do not narrow the set on your own judgement; give them the
-table and let them choose.
+`dag-integrity` and `context-sufficiency`. S12–S15 also cover the four recurring
+acceptance-criteria failure shapes, and S16 covers rendered-surface verification
+ownership — but no rule touches `coverage` beyond S16, or `coherence` or `ambiguity`
+at all. Do not narrow the set on your own judgement; give them the table and let them
+choose.
 
 Pass `--full` through if present, to force a whole-artifact re-audit instead of a
 diff-scoped one.
