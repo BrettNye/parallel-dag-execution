@@ -17,12 +17,27 @@ COVERS: R2 requires that a flagged post escalate to a human moderator "whenever
   both would satisfy the criterion equally — the plan inherited an unfalsifiable
   ask and shipped it unresolved.
 EXPECTED REPORT (substring match):
-  unfalsifiable
+  falsif
   no observation
 MUST NOT REPORT: whether the frozen spec's decision to require human escalation
   at all was correct (that is relitigation, explicitly out of this lens's
   scope), or whether `task-escalate`'s named paths exist (that is `grounding`).
-ALSO PRESENT: none declared until the gate run reconciles this header.
+ALSO PRESENT: reconciled 2026-08-28 against a blind run of the `ambiguity`
+  lens (opus). All four are within this lens's concern and were correctly
+  found; they are declared here so the fixture stays scoreable.
+  - BLOCKING · `task-score`'s AC narrows R1's "hidden from public view" to
+    "excluded from the public feed". The criterion is weaker than the
+    requirement it stands for: a feed filter passes while the post remains
+    readable at its permalink, in profile, in search and over the API.
+  - DEFERRED · the effect verb. The body commits to "Enqueues", the AC
+    reverts to the spec's abstract "escalates", so the observable is
+    verified on the implementer's word.
+  - DEFERRED · "new posts" is introduced by the plan, defined nowhere, and
+    neither AC observes the scoring trigger — an edited post crossing `0.8`
+    is never rescored.
+  - DEFERRED · the score scale is never stated, so `0.8` is only
+    conditionally decidable; the implementer defines the scale and asserts
+    against it.
 ASSUMES: nothing about the host repo.
 -->
 
