@@ -99,11 +99,19 @@ S13 needs no such note — it is a judgment call by construction, with no list t
 
 Each warning is presented as a list with: rule number, affected task ids, specific concern, suggested fix. After the list: prompt "save anyway? (y/N)". Default = N. User must explicitly confirm to override.
 
+### S16: rendered-output change with no verification owner
+
+A gate no task owns is a gate nobody runs. Per-task gates structurally cannot cover a cross-task rendered result, and the defect class this targets — inferred columns, an empty async dropdown, an orphaned overlay, an invisible toast — is invisible to unit tests, spec review and quality review alike. Firing once per plan rather than once per task follows the same reasoning as S12–S15: the unit of the defect sets the unit of the warning, and a missing owner is a plan-level gap.
+
+| # | Heuristic | Detection |
+|---|---|---|
+| S16 | **Rendered-output change with no verification owner** | Trigger: some task's `files:` contains a rendered-surface file — by extension `.tsx`, `.jsx`, `.vue`, `.svelte`, `.component.html`, `.html`; style files (`.css`, `.scss`) count only when a task also carries one of the preceding — AND no task's acceptance criteria name a rendered-surface check. A gate no task owns is a gate nobody runs, and per-task gates structurally cannot cover a cross-task rendered result. **Suppressor:** any task already owns visual verification — judged by whether a criterion checks rendered output at all, *not* by whether it names all three parts of the fix shape. **Fires once per plan**, not once per task — a missing owner is a plan-level gap. Suggested fix: add a task owning visual verification, naming the surface, the entry point, and the actor. |
+
 ## Detection algorithm (run on every save)
 
 1. Run `plan-format.md` structural validation (cycles, undefined deps, required fields, file-disjoint parallel branches). Any failure → refuse, exit.
 2. Run hard rules H1-H11. Any failure → refuse, explain which rule and which task, exit. Note: H10 requires a member-level index extension over H9 — extend the definer index built in H9 to include methods/fields/properties within exported classes/objects before running H10's member-access scan.
-3. Run soft heuristics S1-S15. Collect warnings. S12-S15 read each task's `## Acceptance criteria` bullets and, for S12/S15, cross-check them against that task's own sibling bullets and `files:` list.
+3. Run soft heuristics S1-S16. Collect warnings. S12-S15 read each task's `## Acceptance criteria` bullets and, for S12/S15, cross-check them against that task's own sibling bullets and `files:` list.
 4. Run **decomposition-principles audit** (see `SKILL.md` step 8): re-read the plan against DRY / SRP / SoC / repo-convention adherence with fresh eyes. This is judgment-based, LLM-driven, and complements the mechanical rules above. Collect warnings.
 5. If warnings exist (from step 3 or step 4): present grouped list, ask "save anyway? (y/N)" (default N).
 6. On user confirm OR no warnings: save plan file.
