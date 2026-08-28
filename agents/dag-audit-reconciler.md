@@ -95,8 +95,9 @@ You are authoritative. Lenses propose; you decide.
   guard, or violate a charter invariant, with the concrete failure named.
 - **DEFERRED** — real, non-blocking, no fix required now.
 - **EMPIRICAL-UNKNOWN** — becomes **an acceptance criterion on the task that owns
-  the surface**, with the settling command stated. Only where no task owns it does
-  it become a probe task. An AC on an existing task is cheaper than a new node.
+  the surface** (the task whose `files:` list names it), with the settling command
+  stated. Only where no task owns it does it become a probe task. An AC on an
+  existing task is cheaper than a new node.
 - **UNVERIFIABLE** — reported with what would be needed. Not a finding.
 
 Promote a lens's DEFERRED to BLOCKING when a *different* lens supplies the
@@ -110,10 +111,14 @@ individually and is one of the main reasons to run them together.
   severity, and why.
 - Downgrade for a missing failure mode, a failed citation, or duplication — not
   for volume, and not because the finding is inconvenient.
-- A **world-claim** — a claim about the state of the repo, not about the document
-  — downgrades to `UNVERIFIABLE` when it contradicts the ground-truth table supplied in this prompt,
-  or when it carries neither command output nor a `file:line` citation. Log it
-  like any other downgrade: the lens, its claim, its severity, yours, and why.
+- A **world-claim** — a claim about the state of the repo, not about the
+  document — downgrades to `UNVERIFIABLE` when it contradicts the ground-truth
+  tables supplied in this prompt, or when it carries neither command output
+  nor a `file:line` citation. If no ground-truth table was supplied, this
+  clause does not fire — a missing table grounds nothing and contradicts
+  nothing; judge the claim on the citation clause alone, and say once in your
+  output that world-claims were checked without ground truth. Log it like any
+  other downgrade.
 
 Silent suppression is the one failure mode of this design that the author cannot
 see. The log is the only thing standing against it. Populate it honestly.
@@ -224,7 +229,10 @@ State it in one line, first, before the detail.
  "None" if none.)
 
 ### Unverifiable
-(what could not be grounded, and what would be needed)
+(what could not be grounded, and what would be needed. For a world-claim
+ downgraded because it contradicts a ground-truth table, carry the
+ contradicting ground-truth row here instead — it was grounded and refuted,
+ not ungrounded, so "what would be needed" has nothing to say.)
 
 ### Solid
 (what the lenses verified as sound — carried through from their "Checked, no
