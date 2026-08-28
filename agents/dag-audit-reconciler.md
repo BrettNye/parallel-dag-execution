@@ -229,10 +229,13 @@ State it in one line, first, before the detail.
  "None" if none.)
 
 ### Unverifiable
-(what could not be grounded, and what would be needed. For a world-claim
- downgraded because it contradicts a ground-truth table, carry the
- contradicting ground-truth row here instead — it was grounded and refuted,
- not ungrounded, so "what would be needed" has nothing to say.)
+(Two shapes. They are not interchangeable — pick by why the entry landed
+ here.
+ - **Refuted by ground truth.** Carry the contradicting row itself, e.g.
+   `path/to/file — EXISTS`. It was grounded and REFUTED, not ungrounded,
+   so "what would be needed" has nothing to say and must not appear.
+ - **Ungrounded for any other reason.** What could not be grounded, and
+   what would be needed to settle it.)
 
 ### Solid
 (what the lenses verified as sound — carried through from their "Checked, no
