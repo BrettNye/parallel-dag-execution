@@ -1,7 +1,11 @@
 <!--
 RULE: S16 (soft — warn and confirm)
 EXPECTED: WARN
-EXPECTED OUTPUT (substring match): "no task owns visual verification"
+EXPECTED OUTPUT (substring match): "verification owner"  — the root from S16's own
+  rule name ("rendered-output change with no verification owner"). Reconciled
+  2026-08-28 against a blind run: the rule fired correctly but emitted "no task's
+  acceptance criteria name a rendered-surface check", so the original invented
+  phrasing "no task owns visual verification" graded wording, not detection.
 PAIRED WITH: ../should-pass/s16-ui-task-with-owner.md — identical but for the owning task
 -->
 

@@ -111,6 +111,57 @@ the resolver's 91-assertion suite committed at
 the gate-2 `verifiability` lens named — that the repo shipped tests for
 `git-commit-safe` and none for its other executable.
 
+
+**2026-08-28, addendum — the four rule-consumer fixtures, run after the first
+gate pass missed them.** The gate's step 1 says "run each new fixture once, at
+its named consumer — a lens, a *rule*, or `dag-audit-reconciler`." The first
+pass ran only the lens and reconciler cases; the four whose consumer is a
+**rule** were skipped, so components F and G shipped with zero behavioural
+evidence until this run. Correcting the paragraph above: six new fixtures were
+dispatched in total, not two.
+
+**S16 matched pair — both correct, and the pair discriminates.**
+`should-warn` fired: `.tsx` in `task-ui-widget` triggers, and the run correctly
+declined to let the existing criteria suppress it — `StatusWidget({status:
+"idle"})` asserting on a returned string is a *return-value* check, not a
+rendered-output check. `should-pass` suppressed on
+`task-visual-verify-status-widget`, and the run articulated the bar itself: the
+criterion "doesn't just mention a UI file — it asserts that the *rendered*
+widget was checked *against the design*, per state, and names the actor."
+
+**Schema pair — both correct, and the split held.**
+`bad-spec-unresolvable` refused under rule 11, filesystem-checked rather than
+inferred, and was correctly identified as enforced on *both* sides.
+`bad-default-implementer-typo` is the load-bearing one: the authoring side
+**accepted** it (rule 12 is a type check; `dag-implementor` is a non-empty
+string) and the executor pre-flight **halted** on it against the real registry.
+The run stated the consequence unprompted — refusing it at authoring "would
+have been enforcing a check that belongs solely to the executor, collapsing the
+deliberate split between 'is this syntactically a string' (write-time) and
+'does this string name a real agent' (dispatch-time)." That is the empirical
+justification for `task-fixtures-plan`'s dependency edge on
+`task-exec-preflight`, which existed on reasoning alone until now.
+
+**A pattern worth making a rule.** Two of the three substring-matched fixtures
+declared a substring that did not match despite correct detection:
+
+| fixture | declared | what the consumer emitted |
+|---|---|---|
+| `ambiguity-plan-unfalsifiable-requirement` | `unfalsifiable` | "no observation can **falsify** it" |
+| `s16-ui-task-no-owner` | `"no task owns visual verification"` | "…no task's acceptance criteria name a rendered-surface check" |
+
+Both were reconciled to roots drawn from the consumer's own vocabulary —
+`falsif`, and `verification owner` (from S16's rule name). The generalisable
+rule: **a declared substring must be a token the consumer is structurally
+obliged to use — its rule name, its status vocabulary, its lens fragment — not
+a phrasing the fixture author found natural.** An author's paraphrase grades
+wording; the consumer's own name grades detection.
+
+`should-flag/` fixtures already carry a criterion close to this ("root forms
+that appear in the lens fragment's own vocabulary"). It was not enough on its
+own — `unfalsifiable` does appear in the fragment, as an inflection — and no
+equivalent criterion existed for plan-rule fixtures at all.
+
 ## A fixture is not finished until it has been run
 
 **Authoring and running are one step, not two.** Write the artifact, dispatch the
