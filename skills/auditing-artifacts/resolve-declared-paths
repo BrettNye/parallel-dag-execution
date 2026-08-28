@@ -1,0 +1,196 @@
+#!/usr/bin/env sh
+# resolve-declared-paths — ground-truth resolver for audit and execution seams.
+# Usage: resolve-declared-paths <artifact> <repo-root> [charter ...]
+set -eu
+
+[ "$#" -ge 2 ] || { echo "usage: resolve-declared-paths <artifact> <repo-root> [charter ...]" >&2; exit 2; }
+artifact="$1"; root="$2"; shift 2
+if [ -d "$artifact" ] || [ ! -r "$artifact" ]; then
+  echo "resolve-declared-paths: cannot read $artifact" >&2; exit 1
+fi
+
+TAB=$(printf '\t')
+
+# A ./ or ../ token is written relative to the document that carries it, so a
+# doc citing its own sibling resolves there too — otherwise every such mention
+# reads ABSENT, which is the false absence this exists to kill.
+here=$(dirname -- "$artifact")
+
+classify() {  # $1 = candidate path, relative to root
+  # Never report globs, URLs or <placeholder> templates: none of them name a
+  # file, so an ABSENT for one manufactures the false absence this exists to kill.
+  case "$1" in *[*?]*|*://*|*"<"*|*">"*) return 1 ;; esac
+  if   [ -d "$root/$1" ]; then echo DIR
+  elif [ -e "$root/$1" ]; then echo EXISTS
+  else
+    case "$1" in
+      ./*|../*) if   [ -d "$here/$1" ]; then echo DIR; return 0
+                elif [ -e "$here/$1" ]; then echo EXISTS; return 0
+                fi ;;
+    esac
+    echo ABSENT
+  fi
+}
+
+# Emits "<path>\t<declared at>" for every declared path in the artifact.
+extract_declared() {
+  awk '
+    function clean(v) {
+      sub(/\r$/, "", v); sub(/[ \t]+#.*$/, "", v)
+      sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v)
+      gsub(/^[\047"`]+/, "", v); gsub(/[\047"`]+$/, "", v)
+      return v
+    }
+    function tasklabel(t) { return (t ~ /^task-/) ? t : "task-" t }
+    function emit(p, w,   k) { k = p SUBSEP w; if (k in seen) return; seen[k] = 1
+                               printf "%s\t%s\n", p, w }
+    # Prose mentions dedupe on the path alone: the first line wins, so a path
+    # discussed a dozen times is one row, not a dozen.
+    function prose(p, n,   k) { k = p SUBSEP "prose"; if (k in seen) return; seen[k] = 1
+                                printf "%s\tprose L%d\n", p, n }
+    BEGIN { task = "unknown"; infiles = 0; infm = 0; fence = 0 }
+    {
+      s = $0; sub(/\r$/, "", s); sub(/^[ \t]+/, "", s)
+
+      if (NR == 1 && s ~ /^---[ \t]*$/) { infm = 1; next }
+      if (infm == 1) {
+        if (s ~ /^---[ \t]*$/ || s ~ /^\.\.\.[ \t]*$/) { infm = 0; next }
+        # The plan-level spec: key is unbackticked and outside any files: list,
+        # so it matches neither other clause and would never be resolved.
+        if (s ~ /^spec:[ \t]/) { v = clean(substr(s, 6))
+                                 if (v != "") emit(v, "frontmatter spec:") }
+        next
+      }
+
+      # Track the OPENING fence length so a nested shorter fence cannot
+      # scramble the in-code/in-prose state.
+      if (s ~ /^```/) {
+        n = 0; while (substr(s, n + 1, 1) == "`") n++
+        if (fence == 0) fence = n; else if (n >= fence) fence = 0
+        infiles = 0; next
+      }
+
+      if (s ~ /^id:[ \t]/ || s ~ /^id:$/) {
+        t = clean(substr(s, 4)); if (t != "") task = t
+        infiles = 0; next
+      }
+      if (s ~ /^files:[ \t]*$/) { infiles = 1; next }
+      if (infiles == 1) {
+        if (s ~ /^-[ \t]/) {
+          v = clean(substr(s, 2))
+          if (v != "") emit(v, tasklabel(task) " files:")
+          next
+        }
+        infiles = 0
+      }
+
+      if (fence == 0) {          # backticked path-shaped tokens in prose only
+        rest = s
+        while (match(rest, /`[^`]+`/)) {
+          tok = substr(rest, RSTART + 1, RLENGTH - 2)
+          rest = substr(rest, RSTART + RLENGTH)
+          sub(/:[0-9]+(-[0-9]+)?$/, "", tok)   # a file:line cite names a file
+          if (tok ~ /\// && tok ~ /\.[A-Za-z0-9_]+$/) prose(tok, NR)
+        }
+      }
+    }
+  ' "$1"
+}
+
+# Emits "<entry label>\t<file>\t<line>" for every file:line citation in a
+# charter. A "-" label means the entry yielded no name to anchor on.
+extract_cites() {
+  awk '
+    function trim(v) { sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v); return v }
+    BEGIN { label = "-" }
+    {
+      s = $0; sub(/\r$/, "", s); sub(/^[ \t]+/, "", s)
+
+      if (s == "" || s ~ /^#/) { label = "-" }                 # section break
+      else if (s ~ /^[-*+][ \t]/) {                            # bullet entry
+        if (match(s, /\*\*[^*]+\*\*/)) label = trim(substr(s, RSTART + 2, RLENGTH - 4))
+        else label = "-"
+      }
+      else if (s ~ /^\|/) {                                    # table entry
+        c = s; sub(/^\|[ \t]*/, "", c)
+        i = index(c, "|"); if (i > 0) c = substr(c, 1, i - 1)
+        gsub(/\*\*/, "", c); gsub(/`/, "", c); c = trim(c)
+        label = (c == "" || c ~ /^:?-+:?$/) ? "-" : c
+      }
+      # anything else continues the entry in progress
+
+      rest = s
+      gsub(/[A-Za-z][A-Za-z0-9+.-]*:\/\/[^ \t`)>]*/, " ", rest)  # never cite a URL
+      while (match(rest, /[A-Za-z0-9_][A-Za-z0-9_.\/-]*:[0-9]+/)) {
+        cite = substr(rest, RSTART, RLENGTH)
+        rest = substr(rest, RSTART + RLENGTH)
+        n = cite; sub(/^.*:/, "", n)
+        f = cite; sub(/:[0-9]+$/, "", f)
+        # A bare word:12 ("step 10:30") is not a citation. Require a path shape,
+        # so the resolver can never invent a GONE for prose that names no file.
+        if (f !~ /\// && f !~ /\.[A-Za-z0-9]+$/) continue
+        k = label SUBSEP f SUBSEP n
+        if (k in seen) continue
+        seen[k] = 1
+        printf "%s\t%s\t%s\n", label, f, n
+      }
+    }
+  ' "$1"
+}
+
+# Anchor tokens: alphanumeric runs of 4+ characters from the entry label,
+# matched case-insensitively against the cited line +/- 2.
+resolve_cite() {  # $1 = label ("-" = none), $2 = file, $3 = line
+  f="$root/$2"
+  [ -e "$f" ] || { echo GONE; return 0; }
+  if [ ! -f "$f" ] || [ ! -r "$f" ]; then echo MOVED; return 0; fi
+  total=$(awk 'END { print NR }' "$f")
+  if [ "$3" -lt 1 ] || [ "$3" -gt "$total" ]; then echo MOVED; return 0; fi
+
+  anchors=""
+  if [ "$1" != "-" ]; then
+    anchors=$(printf '%s\n' "$1" | tr -cs 'A-Za-z0-9' '\n' | tr 'A-Z' 'a-z' \
+              | awk 'length($0) >= 4' | sort -u)
+  fi
+  # No anchor is a property of the entry phrasing, never evidence of drift.
+  [ -n "$anchors" ] || { echo OK-UNANCHORED; return 0; }
+
+  lo=$(( $3 - 2 )); if [ "$lo" -lt 1 ]; then lo=1; fi
+  hi=$(( $3 + 2 ))
+  window=$(awk -v lo="$lo" -v hi="$hi" 'NR >= lo && NR <= hi' "$f" | tr 'A-Z' 'a-z')
+  for a in $anchors; do
+    case "$window" in *"$a"*) echo OK; return 0 ;; esac
+  done
+  echo SUSPECT
+}
+
+echo "DECLARED PATHS (resolved against the working tree, not inferred):"
+echo "| path | declared at | on disk |"
+echo "|---|---|---|"
+extract_declared "$artifact" | while IFS="$TAB" read -r p where; do
+  st=$(classify "$p") || continue
+  printf '| %s | %s | %s |\n' "$p" "$where" "$st"
+done
+
+echo
+if [ "$#" -eq 0 ]; then
+  echo "CHARTER CITATIONS (no charter supplied):"
+else
+  echo "CHARTER CITATIONS (resolved against the working tree, not inferred):"
+fi
+echo "| entry | cite | status |"
+echo "|---|---|---|"
+for charter in "$@"; do
+  if [ ! -r "$charter" ]; then
+    echo "resolve-declared-paths: cannot read charter $charter" >&2
+    continue
+  fi
+  extract_cites "$charter" | while IFS="$TAB" read -r label file line; do
+    st=$(resolve_cite "$label" "$file" "$line")
+    disp="$label"; if [ "$disp" = "-" ]; then disp="(unlabeled)"; fi
+    printf '| %s | %s:%s | %s |\n' "$disp" "$file" "$line" "$st"
+  done
+done
+
+# Findings are data, not failure: a completed run exits 0 whatever it found.
+exit 0
