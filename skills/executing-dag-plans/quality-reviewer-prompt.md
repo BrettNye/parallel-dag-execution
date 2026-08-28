@@ -102,6 +102,12 @@ When ISSUES are reported, the implementer fixes them and re-commits. Re-dispatch
 - Tests verify behavior at the public interface, not internal implementation.
 - No magic numbers, hardcoded paths, or hidden coupling that will surprise the next reader.
 - Code is at least as readable as it was before the diff.
+- **Red-to-green evidence present and coherent.** The implementer's report names a
+  failing assertion and its message. Confirm the named assertion exists in the diff
+  and could have failed as reported. Missing, or incoherent with the diff, is
+  ISSUES — a test that never failed proves nothing about what it guards.
+  **Escalation:** where the task's stated value IS the guard (a regression test, a
+  security assertion), run the mutation yourself rather than reading the report.
 
 Once the quality reviewer reports APPROVED, the executor:
 

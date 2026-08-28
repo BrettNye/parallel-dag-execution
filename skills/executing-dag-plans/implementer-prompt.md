@@ -65,6 +65,9 @@ Implement the task per your agent system prompt. Use TDD. Commit when green. Rep
 - DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED
 - Commit SHA (for DONE / DONE_WITH_CONCERNS)
 - One-line summary of what was implemented (for DONE / DONE_WITH_CONCERNS)
+- RED-THEN-GREEN (required when this task's acceptance criteria are test-bearing):
+  the assertion that failed before your fix, and its failure message, verbatim.
+  If the task carries no test, write "not test-bearing" and say why.
 - Concerns / questions / blocker explanation (for the other statuses)
 
 Modify ONLY the files in your task's `files:` list. If you discover you need another file, STOP and report BLOCKED.

@@ -88,5 +88,11 @@ When EITHER verdict reports ISSUES, the implementer fixes them and re-commits; r
 
 - Spec: every requirement implemented, no over-build, tests cover requirements.
 - Quality: no correctness bugs, no Important-severity issues open, tests verify behavior, no surprising coupling.
+- **Red-to-green evidence present and coherent.** The implementer's report names a
+  failing assertion and its message. Confirm the named assertion exists in the diff
+  and could have failed as reported. Missing, or incoherent with the diff, is
+  ISSUES — a test that never failed proves nothing about what it guards.
+  **Escalation:** where the task's stated value IS the guard (a regression test, a
+  security assertion), run the mutation yourself rather than reading the report.
 
 Once the merged reviewer reports BOTH verdicts APPROVED, the executor marks the task `done`, regenerates the mermaid block, re-renders the ASCII tree, and recomputes the `ready` set.
