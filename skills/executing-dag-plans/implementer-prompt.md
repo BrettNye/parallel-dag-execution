@@ -72,7 +72,10 @@ Implement the task per your agent system prompt. Use TDD. Commit when green. Rep
   acceptance criteria) and "failure message" is its output or observed state
   before your fix. Only write "not test-bearing" (and say why) when the task's
   acceptance criteria carry no verifiable check at all — e.g., pure prose with
-  nothing to run or inspect.
+  nothing to run or inspect. If some acceptance criteria are verifiable and
+  others are not, report the RED-THEN-GREEN pair for the verifiable ones and
+  note the non-verifiable ones separately rather than defaulting to "not
+  test-bearing".
 - Concerns / questions / blocker explanation (for the other statuses)
 
 Modify ONLY the files in your task's `files:` list. If you discover you need another file, STOP and report BLOCKED.

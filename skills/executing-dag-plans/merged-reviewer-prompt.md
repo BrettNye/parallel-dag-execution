@@ -56,9 +56,10 @@ Focus: correctness (subtle bugs, edge cases), clarity (names, intent), maintaina
 The implementer's red-to-green report (below) names a failing assertion — or,
 for tasks with no automated test framework, the exact acceptance check that
 failed — and its failure message or output. Confirm the named assertion/check
-exists in the diff and could have failed as reported. Missing, or incoherent
-with the diff, is ISSUES — a check that never failed proves nothing about
-what it guards.
+exists in the diff and could have failed as reported. Findings here are
+reported as ISSUES under the Code quality verdict above, not as a separate
+third verdict: missing, or incoherent with the diff, is ISSUES under Code
+quality — a check that never failed proves nothing about what it guards.
 
 **Escalation:** where the task's stated value IS the guard (a regression
 test, a security assertion), run the mutation yourself rather than reading
