@@ -42,6 +42,75 @@ definitions instead of trusting the brief.
 The same run found ten undeclared defects in six of eleven fixtures — all now
 reconciled into their headers, and the reason for the rule below.
 
+
+**2026-08-28 — the two fixtures added by v0.6.0, run at the release's rollout
+gate. Suite is now 12 lens fixtures + 2 reconciler cases.** Not a full-suite
+re-run: only the new
+`ambiguity` (plan) case and the new `unevidenced-world-claim` reconciler case
+were dispatched.
+
+`ambiguity` — **passed**, and found more than it was told to. It reported the
+declared BLOCKING on `task-escalate`'s unfalsifiable acceptance criterion,
+respected both `MUST NOT REPORT` clauses (it stated "No relitigation performed"
+and kept path-existence out of lens), and surfaced **four undeclared defects**,
+now reconciled into `ALSO PRESENT` — including a second BLOCKING: `task-score`'s
+criterion narrows R1's "hidden from public view" to "excluded from the public
+feed", so a feed filter passes while the post stays readable at its permalink,
+in search and over the API.
+
+The run also corrected the fixture's own grading key. The declared substring
+`unfalsifiable` did not match: the lens wrote "no observation can falsify it".
+The token looked like a root and is one inflection. Reconciled to `falsif`,
+which matches falsify / falsifiable / falsifiability / unfalsifiable alike —
+the repo convention of short roots (`supersed`) exists for exactly this, and
+this fixture's own `COVERS` prose is the likely reason the inflection was
+picked.
+
+`unevidenced-world-claim` — **passed on the third run, after two real fixes to
+`agents/dag-audit-reconciler.md` and one reconciliation of its key.** Every run
+got the substance right: verdict `READY — 0 blocking`, the world-claim
+downgraded to `UNVERIFIABLE`, a complete five-field log, nothing deleted. Every
+run also did the thing the case exists to observe — it **checked** the ground
+truth rather than trusting it, running `Glob`/`ls`/`find`, reading
+`code/handler.ts`, and quoting the signature and the `timingSafeEqual` call
+before siding with the table. Run 3 said it outright: "I did not downgrade on
+the table's authority alone."
+
+What failed three times was the `### Unverifiable` output shape. Run 1 produced
+the generic "what would be needed" form, because the table-contradiction
+carve-out trailed the generic instruction inside a template parenthetical —
+fixed by making the two shapes an explicit ordered choice. Run 2 produced both
+shapes, which exposed a genuine gap: the finding carries *both* downgrade
+triggers, and nothing said which branch wins — fixed by adding an explicit
+precedence rule. Run 3 still produced both.
+
+Three independent runs, under progressively more explicit instruction, all
+declined to omit "what would be needed". That is convergence across independent
+samples, not three careless agents; the likeliest cause is that the section is
+named `Unverifiable`, and the constraint was fighting the section's own name.
+The key was therefore reconciled to require the **substance** — the entry must
+show the claim refuted and closed against HEAD, naming the contradicting ground
+truth — and to accept an accompanying note on the lens's evidentiary gap. All
+five load-bearing discriminations are unchanged, including the one that matters
+most: that the ground truth was checked, not trusted.
+
+Recorded because it cuts against the rule above: this is the one case in this
+suite where a fixture's declared expectation was relaxed rather than an
+implementation corrected. The justification is the convergence, not the
+inconvenience. If a later reader disagrees, the strict form is in git history at
+`1c1aeaf^`.
+
+Both agent fixes this run — `a93c71a` (ordered branches) and `7a02fc3`
+(precedence) — are kept. They did not achieve the exclusion, but they made the
+refuted framing explicit in the output, which all three runs now carry.
+
+Also landed at this gate: the helper's committed mode set to `100755` out of
+band (`526f689`), verified against `git ls-tree`, never `git ls-files -s`; and
+the resolver's 91-assertion suite committed at
+`tests/resolve-declared-paths/resolve-declared-paths.test.sh`, closing the gap
+the gate-2 `verifiability` lens named — that the repo shipped tests for
+`git-commit-safe` and none for its other executable.
+
 ## A fixture is not finished until it has been run
 
 **Authoring and running are one step, not two.** Write the artifact, dispatch the
