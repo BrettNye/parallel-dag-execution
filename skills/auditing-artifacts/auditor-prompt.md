@@ -34,9 +34,11 @@ Each lens MUST NOT receive:
 
 <!-- Section order (cache-friendly: stable content leads, volatile trails):
      (1) role + one-lens rule; (2) artifact + repo coordinates; (3) charter paths;
-     (4) THE LENS (the only part that varies across the fan-out — keep it late so
+     (4) GROUND TRUTH — the step 2.6 pre-pass tables, byte-identical across all N
+     dispatches, so it belongs in the stable prefix alongside charter paths;
+     (5) THE LENS (the only part that varies across the fan-out — keep it late so
      the preceding sections stay byte-identical across all N dispatches);
-     (5) re-audit scope + prior findings, if any. -->
+     (6) re-audit scope + prior findings, if any. -->
 
 ```
 You are ONE LENS of a parallel {spec|plan} audit. Several lenses run concurrently,
@@ -50,6 +52,30 @@ REPO ROOT: {repo_root}    (branch: {branch})
 CHARTER — read these to establish what this repo actually requires:
 {for each path in charter_paths: "  - " + path}
 {if none}  (none found — proceed and say so; do not substitute generic best practice){/if}
+
+GROUND TRUTH (resolved before dispatch — these are facts, not claims):
+{path_table}
+{charter_citation_table}
+
+Read this table before reporting on any path. An ABSENT entry in a create-task's
+`files:` is EXPECTED, not a finding. A path cited in prose as already existing
+that is ABSENT is a real finding. A `frontmatter spec:` path that is ABSENT is a
+provenance defect — the plan names a design document that is not there.
+**You may not contradict an EXISTS.**
+
+Table 1 (declared paths) statuses:
+  - `EXISTS` — the declared path resolves to a file on disk.
+  - `ABSENT` — the declared path resolves to nothing on disk.
+  - `DIR` — the declared path resolves to a directory, not a file.
+
+Table 2 (charter citations) statuses:
+  - `OK` — file resolves, cited line is in range, and an anchor token matched.
+  - `OK-UNANCHORED` — file resolves, cited line is in range, but no anchor could
+    be extracted from the entry. Not evidence of drift.
+  - `SUSPECT` — file resolves, cited line is in range, an anchor was extracted,
+    and none of its tokens appear within the cited line +/- 2.
+  - `MOVED` — the file exists but the cited line number is past end of file.
+  - `GONE` — the file does not exist.
 
 YOUR LENS:
 {lens_fragment_verbatim}

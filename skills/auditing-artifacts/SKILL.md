@@ -130,6 +130,17 @@ digraph auditing_artifacts {
    already states correctly is STALE or DEFERRED, never BLOCKING** — nothing will
    be built wrong. It is still worth reporting as a provenance correction.
 
+2.6. **Resolve declared paths before dispatching.** Run
+   `./resolve-declared-paths <artifact> <repo-root> <charter-paths...>` once and
+   pass its tables verbatim to every lens. This replaces N private resolutions
+   with one shared one, before any lens runs — today each of 7 lenses
+   independently globs, greps and stats the same handful of paths, roughly 20–40
+   redundant tool calls per audit and 7 private inferences where one shared
+   resolution would do.
+
+   If the helper cannot run, say so explicitly to every lens — "path pre-pass did
+   not run" — rather than omitting the block. A lens told nothing assumes nothing.
+
 3. **Check for a prior audit.** Look for an `## Audit record` section in the
    artifact. **It is an append-only log — one entry per audit, newest last — and an
    entry may carry no verdict** (a placeholder written when the artifact changed but
@@ -269,10 +280,12 @@ digraph auditing_artifacts {
    finding gets quietly lost before the downgrade log can record it.
 
 7. **Dispatch the reconciler** with the lens-report **paths** (not their text), the
-   artifact, and the repo root. One call. Do not pre-merge, pre-filter, or drop
-   anything first — merging is its job, and quietly discarding a finding on the
-   way in defeats the downgrade log. See `./reconciler-prompt.md` for the
-   paths-vs-inline rule.
+   artifact, the repo root, and **the ground-truth tables from step 2.6**. Without
+   the tables, the reconciler's downgrade rule — a lens claim that contradicts a
+   resolved `EXISTS` is downgraded — references an input its reader was never
+   given. One call. Do not pre-merge, pre-filter, or drop anything first —
+   merging is its job, and quietly discarding a finding on the way in defeats the
+   downgrade log. See `./reconciler-prompt.md` for the paths-vs-inline rule.
 
 8. **Present the verdict** to the user: the one-line verdict, blocking findings,
    joint resolutions, contradictions, then the rest. Lead with the count.
