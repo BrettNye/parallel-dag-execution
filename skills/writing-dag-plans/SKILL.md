@@ -51,7 +51,7 @@ need a charter. But make the call here, instead of defaulting to one plan.
 ## Two reference docs you MUST read first
 
 - **`./plan-format.md`** — canonical *structural* contract: top-of-file layout, per-task frontmatter schema (`id`, `depends_on`, `files`, `status`, `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`, `single_threaded`, `is_wiring_task`, `review_mode`), plan-level defaults (`default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint`, `default_review_mode`), §Tier resolution, §Review-mode resolution, status semantics, structural validation rules, mermaid block spec, ASCII tree spec.
-- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H11, refuse on violation) and soft heuristics (S1-S15, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, best-practice signals, and — S12-S15 — whether each acceptance criterion can actually **fail**.
+- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H11, refuse on violation) and soft heuristics (S1-S16, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, best-practice signals, and — S12-S15 — whether each acceptance criterion can actually **fail**.
 
 Every plan you author must pass BOTH structural validation AND quality validation. Structural validation catches "the file is malformed"; quality validation catches "the decomposition is sloppy."
 
@@ -146,6 +146,10 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
    - Immutable history (only relevant for updates — N/A for fresh authoring).
    - Per-task hint enum: `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint` must be `cheap | standard | opus` when present.
    - Plan-level default enum: `default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint` must be `cheap | standard | opus` when present.
+   - Plan-level key resolution: `spec:`, when present, MUST resolve to a readable
+     file — refuse naming the unresolvable path. `default_implementer`, when
+     present, MUST be a non-empty string; the executor pre-flight resolves it
+     against the agent registry.
 
    Any failure → refuse, explain, exit. Do NOT write the file.
 
@@ -174,7 +178,7 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
 
 7. **Run quality validation** per `plan-quality.md`:
    - Hard rules H1-H11 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence, import resolution, contract-sequencing, missing-producer index, bare-spec-pointer). Any failure → refuse, name the rule + task + fix, exit.
-   - Soft heuristics S1-S15 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch, review-mode sense-check, unanchored cross-cut contract, **crash-passing absence criterion, tautological criterion, quantifier mismatch, diff-property criterion**). Collect as warnings.
+   - Soft heuristics S1-S16 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch, review-mode sense-check, unanchored cross-cut contract, **crash-passing absence criterion, tautological criterion, quantifier mismatch, diff-property criterion, rendered-output change with no verification owner**). Collect as warnings.
    - S12-S15 are the acceptance-criteria falsifiability set. H4 only checks that criteria *exist*; these ask whether they can **fail**. They are the cheapest place to catch the defect class that most often survives into rework, so do not skip them on the grounds that a lens will find it later — a rule here runs free, a `verifiability` lens dispatch does not.
 
 8. **Decomposition-principles audit (LLM-judgment pass).** Re-read the full plan with fresh eyes and check it against the seven principles below. This step is judgment-driven — the mechanical rules in step 7 catch structural violations; this step catches *holistic* decomposition smells across the whole plan. Surface concerns as warnings (not refusals); the user confirms or revises.
@@ -206,7 +210,7 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
 
 10. **Render the ASCII tree to terminal.** Print before writing the file so the user can sanity-check shape.
 
-11. **Write the plan file** to `docs/superpowers/plans/YYYY-MM-DD-<topic>-dag.md` (override per project preference). The mermaid block goes at the top, followed by `## Context`, `## Tasks`, then the task blocks.
+11. **Write the plan file** to `docs/superpowers/plans/YYYY-MM-DD-<topic>-dag.md` (override per project preference). The mermaid block goes at the top, followed by `## Context`, `## Tasks`, then the task blocks. Emit `spec:` in the frontmatter automatically, set to the path of the spec this skill was invoked from (step 1) — the author does not opt in explicitly. If the skill was invoked from conversational context with no file path (no spec file to point at), omit `spec:` entirely: its absence is not an error for a plan authored without one, and existing plans without the key keep working unchanged.
 
 12. **Hand off** to `executing-dag-plans` (don't invoke it automatically — the user should review the plan first).
 
