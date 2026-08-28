@@ -230,7 +230,9 @@ State it in one line, first, before the detail.
 
 ### Unverifiable
 (Two shapes. They are not interchangeable — pick by why the entry landed
- here.
+ here. **When both apply, the first wins:** a claim the table refutes is
+ refuted, and asking what would sustain it is incoherent — no such evidence
+ can exist.
  - **Refuted by ground truth.** Carry the contradicting row itself, e.g.
    `path/to/file — EXISTS`. It was grounded and REFUTED, not ungrounded,
    so "what would be needed" has nothing to say and must not appear.
