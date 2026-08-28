@@ -1349,3 +1349,12 @@ mechanical, and it trips none of S9's risk signals.
   - Accretion signal: 7 task bodies now exceed S2's 800-word threshold; none did
     at `7d51995`. `task-resolver-script` is 688 → 1305 words with no
     `spec_reviewer_hint`.
+- **2026-08-28** · rev `1c36d30f45c0` · commit `c5a2458` · lenses: none — NOT
+  RE-AUDITED, BY DECISION. Round 2's 4 blocking findings were closed by its own
+  joint resolutions (JR-1 through JR-4). The round-2 reconciler's explicit
+  recommendation was **"this is converged — fix the four in one pass and go
+  build. Do not run a round 3."** Round-over-round: 14 → 4 root causes, growth
+  +22% → +7.6%, two lenses at zero. A round 3 would find its material in the ~95
+  lines these fixes added, and most of it would be questions a test answers
+  against something that runs. **No verdict exists for this revision** — treat
+  the round-2 entry above as the last graded one.
