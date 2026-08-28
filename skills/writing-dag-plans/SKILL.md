@@ -137,7 +137,7 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
      b. Suggest splitting one task's scope so they no longer share files.
    - Loop until the validation passes.
 
-6. **Run structural validation** per `plan-format.md` rules 1-8:
+6. **Run structural validation** per `plan-format.md` rules 1-8, 11-12:
    - Unique ids.
    - No cycles (DFS-based check).
    - All `depends_on:` references resolve to existing task ids.
@@ -147,9 +147,9 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
    - Per-task hint enum: `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint` must be `cheap | standard | opus` when present.
    - Plan-level default enum: `default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint` must be `cheap | standard | opus` when present.
    - Plan-level key resolution: `spec:`, when present, MUST resolve to a readable
-     file — refuse naming the unresolvable path. `default_implementer`, when
-     present, MUST be a non-empty string; the executor pre-flight resolves it
-     against the agent registry.
+     single file, not a directory — refuse, naming the field and the offending
+     path. `default_implementer`, when present, MUST be a non-empty string; the
+     executor pre-flight resolves it against the agent registry.
 
    Any failure → refuse, explain, exit. Do NOT write the file.
 
