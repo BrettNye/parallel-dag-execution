@@ -48,6 +48,8 @@ expensive failure mode of a two-gate pipeline.
 - **`./lenses-spec.md`** — the 6 spec lenses, each with its concern, prompt
   fragment, and default tier.
 - **`./lenses-plan.md`** — the 8 plan lenses, same.
+- **`./resolve-declared-paths`** — path pre-pass helper; run once in step 2.6, its
+  tables passed verbatim to every lens and to the reconciler.
 - **`./auditor-prompt.md`** — dispatch template for `dag-auditor`.
 - **`./reconciler-prompt.md`** — dispatch template for `dag-audit-reconciler`.
 - **`./audit-charter-template.md`** — optional per-repo charter file.
@@ -220,10 +222,10 @@ digraph auditing_artifacts {
    | Lens | Already covered by plan-quality? | Additive? |
    |---|---|---|
    | `coverage` | **S16 only**, and only for rendered-surface verification ownership. Nothing maps spec requirements to tasks in general. | **Largely additive** |
-   | `verifiability` | H4 (an AC *exists*), S4 (vague), and **S12–S15** — the falsifiability set: crash-passing absence, tautology, quantifier mismatch, diff-property. Those are the four *recurring* shapes. | Partly — for **novel** unfalsifiability the rules do not pattern-match: a spy blind to the real mechanism, an assertion a normalizing library defeats, a DOM binding left unpinned, a gate that reports success after its checker died |
    | `coherence` | **Nothing.** No rule compares a task's `## Implementation` sketch against its own ACs. | **Fully** |
    | `ambiguity` | **Nothing at gate 2.** S12–S15 grade an AC's falsifiability, not a requirement's. | **Fully** |
    | `grounding` | Step 3.5's symbol-consumer grep; "do not fabricate file paths". | **Mostly** |
+   | `verifiability` | H4 (an AC *exists*), S4 (vague), and **S12–S15** — the falsifiability set: crash-passing absence, tautology, quantifier mismatch, diff-property. Those are the four *recurring* shapes. | Partly — for **novel** unfalsifiability the rules do not pattern-match: a spy blind to the real mechanism, an assertion a normalizing library defeats, a DOM binding left unpinned, a gate that reports success after its checker died |
    | `charter` | Step 8's repo-convention pass, incl. the named per-layer reference implementation. | Partly |
    | `context-sufficiency` | H11 **is** the bare-spec-pointer rule; plus H2, S2/S3 sizing, step 8's elided-sibling completeness. | Largely covered |
    | `dag-integrity` | Structural validation (cycles, file-disjoint parallel branches) + H8 import resolution + H9 contract sequencing + H10 missing-producer index + step 5's file-scope conflict loop. | Largely covered |
