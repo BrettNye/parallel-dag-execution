@@ -53,7 +53,10 @@ flowchart TD
 ## Context
 
 Implements `docs/superpowers/specs/2026-08-27-seams-and-ground-truth-design.md`
-(components A–H plus release), taking the plugin from v0.5.0 to v0.6.0.
+(components A–H plus release), taking the plugin from v0.5.0 to v0.6.0 — with
+one stated exception: **spec F1's second consumer, gate 2 reading `spec:` as the
+parent-spec path, is deferred to a follow-up release** and is not claimed here.
+See `task-plan-schema` for the reasoning.
 
 The spec's organizing principle: **a claim about repo state must be resolved
 mechanically at the moment of use; a judgment procedure may stay prose.** That
@@ -63,9 +66,11 @@ the proposed verdict-class taxonomy is reduced to two deltas — the rest restat
 was meant to prevent.
 
 **Why 15 tasks for 8 components.** A pre-DAG grep for `S1-S15` and for the gate-2
-lens roster found both duplicated across six files: `writing-dag-plans/SKILL.md`,
+lens roster found both duplicated across six files — `writing-dag-plans/SKILL.md`,
 `writing-dag-plans/plan-quality.md`, `updating-dag-plans/SKILL.md`,
-`auditing-artifacts/SKILL.md`, `commands/audit-plan.md`, and `README.md`.
+`auditing-artifacts/SKILL.md`, `commands/audit-plan.md`, and `README.md` — which
+`task-crossrefs` resolves into **eight distinct edit sites**, since two of those
+files carry the range and the roster in separate places.
 (`tests/fixtures/audit/README.md` carries the lens *roster* but zero `S1-S15`
 hits — verified — so it is a roster site only.)
 Adding one soft rule and one lens therefore touches four subsystems. Rather than
@@ -81,11 +86,47 @@ here would make the plan invalid against the format it is executed under.
 
 ## Rollout gate — the controller's step, not a task's
 
-One release step cannot be an acceptance criterion, because no role the executor
-dispatches can discharge it. **After `task-fixtures-audit` reports done and
-before `task-release` commits**, the controller dispatches each new fixture once
-at its named lens, and reconciles its header against what actually came back —
-adding any undeclared defect under `ALSO PRESENT` with its expected severity.
+Some release steps cannot be acceptance criteria, because no role the executor
+dispatches can discharge them. They run in the **quiescent window: after every
+one of `task-release`'s dependencies reports `done`, and before `task-release`
+dispatches.** That window matters — step 2 below needs a plain `git commit`
+against a clean index, so it is not safe while any task is still `running`.
+
+**Step 1 — run each new fixture once, at its named consumer.** That consumer is
+a lens, a *rule*, or `dag-audit-reconciler`; reconcile the fixture's header, or
+its `expectations/` key where the case has no header. Adding any undeclared
+defect under `ALSO PRESENT` with its expected severity.
+
+The reconciler case is easy to drop here and must not be: it has neither a named
+lens nor a header, because `tests/fixtures/audit/reconciler/README.md:15` keeps
+its grading key *outside* the case so the run cannot be contaminated. Dispatch
+`dag-audit-reconciler` with the lens-report paths, the artifact path, **the case
+directory as repo root, and the ground-truth table**, then score against
+`expectations/unevidenced-world-claim.md`. Passing the table explicitly is
+load-bearing: D2's rule turns on the table being *supplied*, so a reconciler that
+instead discovers the table by looking around its repo root would pass the
+fixture for the wrong reason — and a fixture that passes for the wrong reason is
+worse than one that fails.
+
+**Step 2 — set the helper's committed mode, out of band.**
+
+```
+git update-index --chmod=+x skills/auditing-artifacts/resolve-declared-paths
+git commit -m "chore: mark resolve-declared-paths executable"
+```
+
+This does not violate `executing-dag-plans/SKILL.md:112` ("all implementer
+commits go through `git-commit-safe`"): that rule binds *implementers*, and the
+controller is not one. It is necessary because no implementer can achieve it —
+`git-commit-safe:54` runs `git commit --only`, which records `100644` in the
+**tree** even when the index holds `100755`, and this repo has
+`core.filemode=false` so `chmod +x` is inert. The same thing happened to
+`git-commit-safe` itself: it shipped `100644` at `c66edd9` and was raised
+out-of-band at `4c61113`.
+
+**Step 3 — append this run to `tests/fixtures/audit/README.md`'s `## Run
+record`**, which otherwise ships attesting to a 10-fixture suite while 13 are
+present.
 
 This is not fussiness. `tests/fixtures/audit/README.md:134` records that this
 repo has no fixture runner, and `:51-57` records that **six of eleven fixtures
@@ -180,7 +221,8 @@ grep -q '^## Verification commands' "$f" \
 
 ## Acceptance criteria
 
-- The heading count rises by exactly 2, **derived rather than asserted**: `A=$(git show HEAD:skills/auditing-artifacts/audit-charter-template.md | grep -c '^## ')` and `B=$(grep -c '^## ' skills/auditing-artifacts/audit-charter-template.md)`; require `B - A = 2`. (For reference, `A` is 8 today — but the check must not hardcode it.)
+- The heading count rises by exactly 2, derived from a **pinned** revision: `A=$(git show 0e81fcb:skills/auditing-artifacts/audit-charter-template.md | grep -c '^## ')` and `B=$(grep -c '^## ' skills/auditing-artifacts/audit-charter-template.md)`; require `B - A = 2`. Pin the SHA — do **not** use `HEAD`. Acceptance criteria are evaluated after the implementer commits (`implementer-prompt.md:52`, `spec-reviewer-prompt.md:59`), so a `HEAD`-relative baseline moves with the very commit that satisfies it: the reviewer would re-run it, get `B - A = 0`, and fail a correct implementation with no way for the re-dispatched implementer to recover. If `0e81fcb` is unreachable after a rebase, the baseline is `8`.
+- The new section is actually present: `grep -c '^## Verification commands' <file>` returns exactly `1`. Without this the scoped placeholder grep below passes vacuously when the section was never written at all.
 - All 8 heading strings present at HEAD are still found by name after the edit — `Grow it from audit records`, `Enforcement map`, `Hard invariants`, `Named reference implementations`, `Recurring bug classes`, `Frozen decisions`, `Verification gotchas`, **and `Notes`**. `## Notes` carries the "where a charter entry and the code disagree, the code wins" rule that `task-exec-prompts-charter` requires the templates to restate, so losing it breaks a downstream task.
 - The role-map table has exactly 7 data rows, one per section a charter author copies, and its header row names exactly 3 role columns (`auditor`, `implementer`, `reviewers`). Blank cells are meaningful and expected — a blank means that role does not read that section.
 - The **new table alone** contains only generic placeholder rows: `sed -n '/^## Verification commands/,/^## /p' <file> | grep -icE 'nx|tsc|jest|vitest|pytest|npm run|localhost'` returns `0`. Scope matters — the same grep across the whole file returns `1` at HEAD and after a perfect edit, because the pre-existing Enforcement map ships `nx run <app>:check-migrations` at `:53` as an illustrative row. Do not delete that row to make a number move.
@@ -195,6 +237,7 @@ files:
   - skills/auditing-artifacts/resolve-declared-paths
 status: pending
 model_hint: opus
+spec_reviewer_hint: opus
 quality_reviewer_hint: opus
 ```
 
@@ -231,11 +274,12 @@ Three consumers paste these tables verbatim and gloss them for other readers, so
 every value below is a cross-task contract, not an implementation detail.
 
 Table 1 columns: `| path | declared at | on disk |`. The `declared at` cell takes
-exactly one of two forms, and the consumers' interpretation rule partitions on
-it — emit the form, not a bare line number:
+exactly one of **three** forms, and the consumers' interpretation rule partitions
+on it — emit the form, not a bare line number:
 
 - `task-<id> files:` — the path came from a task's `files:` list.
 - `prose L<n>` — the path came from a backticked token in prose at line `n`.
+- `frontmatter spec:` — the path came from the plan-level `spec:` key.
 
 That distinction is the whole point: an `ABSENT` path from a create-task's
 `files:` is expected, while an `ABSENT` path cited *in prose as already existing*
@@ -258,13 +302,18 @@ implementation that never emits it — treating every anchor-present-but-mismatc
 citation as `OK` — is a no-op, so it is graded positively below rather than only
 by its absence.
 
-**Setting the executable bit requires a flag, not a `chmod`.** This repo has
-`core.filemode=false` (verified), so `chmod +x` followed by `git add` records
-mode `100644` — the working-tree bit is honoured on msys and the failure is
-invisible locally. Stage it as `git add --chmod=+x <path>`. `git-commit-safe` is
-the only `100755` entry in the entire index; match it. If this ships `100644`, a
-fresh clone on Linux or macOS gets `Permission denied` and **both** seams fall
-permanently into the "pre-pass did not run" branch with every check green.
+**Do not try to set the executable bit, and do not assert it.** You cannot,
+and the check that looks like it works does not. This repo has
+`core.filemode=false`, so `chmod +x` is inert; and `git-commit-safe:54` commits
+via `git commit --only`, which records `100644` in the **tree** even when the
+index holds `100755`. `git ls-files -s` reads the index, so it reports `100755`
+and goes green while the shipped blob is non-executable. The same thing happened
+to `git-commit-safe` itself — it shipped `100644` at `c66edd9` and was raised
+out-of-band at `4c61113`.
+
+Setting the mode is therefore a **rollout-gate step performed by the
+controller**, outside the implementer path, and `task-release` verifies it with
+`git ls-tree HEAD`. Write the file; leave the mode alone.
 
 **One extraction rule beyond the tables above:** also resolve the plan-level
 `spec:` frontmatter key when present, emitting it as a table-1 row with
@@ -328,7 +377,7 @@ echo PASS
 - Invoked with one argument the script exits `2`; invoked with an unreadable artifact it exits `1`; both print a message naming the problem to stderr.
 - **`SUSPECT` fires positively**, not merely "zero times elsewhere": given a charter entry whose cited line exists and is in range but contains none of the entry's anchor tokens within ±2 lines, table 2 reports `SUSPECT` for exactly that entry. Run alongside the `OK-UNANCHORED` case above so the two are demonstrably distinguished — an implementation that collapses both to `OK` fails this and passes if it is omitted.
 - Every table-1 row's `declared at` cell reads either `task-<id> files:`, `prose L<n>`, or `frontmatter spec:` — never a bare line number. Given a fixture plan declaring one `files:` path, one prose path, and a `spec:` key, the three rows carry the three distinct forms.
-- The helper is staged executable: `git ls-files -s skills/auditing-artifacts/resolve-declared-paths` reports mode `100755`. `chmod +x` alone does not achieve this under this repo's `core.filemode=false` — use `git add --chmod=+x`.
+- Do **not** assert the executable bit here. `git-commit-safe:54` commits with `git commit --only`, which records `100644` in the tree even when the index holds `100755`, and this repo has `core.filemode=false` so `chmod +x` is inert. `git ls-files -s` reads the **index** and would report `100755` — green, while the shipped blob is `100644`. Setting the mode is a rollout-gate step performed by the controller (`git update-index --chmod=+x` + a plain commit), and `task-release` verifies it against the **tree**.
 
 ## Task: plan schema additions
 
@@ -609,7 +658,9 @@ GROUND TRUTH (resolved before dispatch — these are facts, not claims):
 
 Read this table before reporting on any path. An ABSENT entry in a create-task's
 `files:` is EXPECTED, not a finding. A path cited in prose as already existing
-that is ABSENT is a real finding. **You may not contradict an EXISTS.**
+that is ABSENT is a real finding. A `frontmatter spec:` path that is ABSENT is a
+provenance defect — the plan names a design document that is not there.
+**You may not contradict an EXISTS.**
 ```
 
 ```bash
@@ -682,7 +733,7 @@ grep -q 'acceptance criterion on the task that owns' "$f" \
 
 - The `EMPIRICAL-UNKNOWN` severity line names an acceptance criterion on the owning task as the primary resolution and a probe task as the fallback, in that order.
 - The READY verdict rule reads consistently with it: it requires each `EMPIRICAL-UNKNOWN` to name either an owning task's criterion or a probe task, and `grep -c 'owning probe task' <file>` returns `0`, proving the old unconditional wording is gone.
-- The downgrade-rules block contains a world-claim clause naming both downgrade conditions (contradicts the table; carries neither command output nor citation) and the target severity `UNVERIFIABLE`. The second condition stands alone and needs no table; the first depends on the ground-truth tables reaching the reconciler, which `task-audit-prepass-wiring` wires into `reconciler-prompt.md` and `SKILL.md` step 7 — state that dependency in the rule text so a reader knows which input it turns on.
+- The downgrade-rules block contains a world-claim clause naming both downgrade conditions (contradicts the table; carries neither command output nor citation) and the target severity `UNVERIFIABLE`. The second condition stands alone and needs no table; the first turns on **the ground-truth table supplied in this prompt**. Word the rule that way — name the *input*, never a task id. This file ships to consumer repos, where a reference like `task-audit-prepass-wiring` is meaningless.
 - The world-claim clause states the downgrade is logged, and the surrounding "never silently delete" rule is still present in the file.
 
 ## Task: dispatch templates carry charter sections
@@ -842,7 +893,7 @@ grep -q 'default_implementer' "$f" \
 - The helper invocation appears with its relative path from `executing-dag-plans`, and the text states that only the citation table is consumed here, giving the reason.
 - The text names the two substitution placeholders it fills in the dispatch templates, spelled exactly `{charter_sections_for_role}` and `{charter_citation_table}`. This task and `task-exec-prompts-charter` never see each other's file, so these two strings are the contract between them and must be inlined here rather than pointed at.
 - Step 4's dispatch sentence names all three resolution steps in order — the per-task `implementer:`, then `default_implementer`, then `dag-implementer`. `grep -c 'defaulting to `dag-implementer` when absent' <file>` returns `0`, retiring the two-step wording.
-- The four dispatch templates receive an explicit notice when the helper fails on this side; the pre-flight text names that branch rather than leaving the table silently empty.
+- The pre-flight text names the helper-failure branch and states the exact wording it substitutes — `citation pre-pass did not run` — rather than leaving the table silently empty. Scope this to what `SKILL.md` can carry: assert the pre-flight's own text, not a property of the four `*-prompt.md` files, which this task neither owns nor is ordered after. `task-exec-prompts-charter` owns the template side of that string.
 - The tick-loop steps are unchanged in **count and order**, checked by content anchor rather than line range: extract the numbered step markers between the `## Execution model` and `## Per-task review chain` headings and require the sequence `1 2 3 4 5 6 7`. A bare `grep -c` returns `1` here — it matches a single line — so it observes neither count nor order, and a line-range check would break the moment the additions above shift the file.
 
 ## Task: authoring-skill enforcement of the new contract
@@ -988,7 +1039,7 @@ that produces one side.
 `writing-dag-plans/SKILL.md` is deliberately absent from `files:`: it is owned by
 `task-authoring-enforcement`, which updates its own ranges.
 
-Six sites, enumerated because a missed one is this task's own defect class:
+Eight sites, enumerated because a missed one is this task's own defect class:
 
 1. The `S1-S15` range in `skills/updating-dag-plans/SKILL.md:25`.
 2. The `S1-S15` range in `commands/audit-plan.md:19`.
@@ -1004,6 +1055,13 @@ Six sites, enumerated because a missed one is this task's own defect class:
    `:207-215`. Both, not either. Also the `coverage` row of the latter, which
    reads "**Nothing.** No rule maps spec requirements to tasks" — no longer true
    once S16 checks that a rendered-surface requirement has an owning task.
+7. **`skills/auditing-artifacts/SKILL.md:50`** — the reference-doc line reads
+   "the **7** plan lenses". A seventh site, and the reason this list says six
+   until you count: round 1's sweep pattern searched for `seven lenses`, `(7)`
+   and `lens set`, none of which matches this phrasing.
+8. **`commands/audit-plan.md:19-22`** repeats the `S1–S15` range *and* the claim
+   that the rules "do **not** touch `coverage` or `coherence` at all" — which S16
+   partially falsifies, the same correction site 6 makes in `SKILL.md`.
 
 ## Implementation
 
@@ -1043,10 +1101,20 @@ files:
   - tests/fixtures/audit/should-flag/ambiguity-plan-unfalsifiable-requirement.md
   - tests/fixtures/audit/reconciler/unevidenced-world-claim/artifact.md
   - tests/fixtures/audit/reconciler/unevidenced-world-claim/lens-grounding.md
+  - tests/fixtures/audit/reconciler/unevidenced-world-claim/ground-truth.md
+  - tests/fixtures/audit/reconciler/unevidenced-world-claim/code/handler.ts
   - tests/fixtures/audit/reconciler/expectations/unevidenced-world-claim.md
+  - tests/fixtures/audit/reconciler/README.md
   - tests/fixtures/audit/README.md
 status: pending
 ```
+
+**S2 override, recorded deliberately.** This task declares 8 files, crossing
+S2's `>5` threshold. Accepted rather than split: all 8 sit under
+`tests/fixtures/audit/`, they are one concern (the conformance fixtures this
+release adds), and splitting the reconciler case into its own task would put the
+ground-truth table's shape on one side of a task boundary and its consumer on
+the other — the unanchored-contract shape S11 exists to prevent.
 
 Fixtures for components D and E, in their existing homes — no new top-level
 buckets. The reconciler case goes to `tests/fixtures/audit/reconciler/`, which
@@ -1116,10 +1184,11 @@ echo PASS
 
 ## Acceptance criteria
 
-- The `ambiguity` fixture's header carries all 7 keys every sibling in `should-flag/` carries — `FIXTURE:`, `LENS:`, `EXPECTED:`, `COVERS:`, `EXPECTED REPORT (substring match):`, `MUST NOT REPORT:`, `ASSUMES:` — plus `SHAPE:`, which the two plan-lens siblings carry. Verify against `should-flag/coherence-superseded-no-marker.md`.
+- The `ambiguity` fixture's header carries all 7 keys every sibling in `should-flag/` carries — `FIXTURE:`, `LENS:`, `EXPECTED:`, `COVERS:`, `EXPECTED REPORT (substring match):`, `MUST NOT REPORT:`, `ASSUMES:` — plus `SHAPE:`, which 2 of the 4 plan-lens siblings carry. Verify the 7 against any sibling; verify `SHAPE:` against `should-flag/coverage-requirement-no-owner.md`, which is a plan-lens fixture that actually has one. (`coherence-superseded-no-marker.md` is a *spec*-lens fixture and carries no `SHAPE:` — do not use it as the reference for that key.)
 - The declared substrings are root forms that appear in the lens fragment's own vocabulary (`unfalsifiable`, `no observation`), not a hand-written sentence. The lens says a requirement "cannot be false" and asks what state of the world "would violate this" — a five-word substring pinning one phrasing grades wording rather than detection, and repo convention is short roots like `supersed`.
 - The fixture's plan section contains a requirement no observation could contradict, and its `## Parent spec` section contains that requirement stated clearly — so the defect is demonstrably introduced at plan time and the lens is not being asked to relitigate the spec.
-- The reconciler fixture supplies a lens report asserting a path absent alongside a ground-truth table marking that same path `EXISTS`, laid out per `tests/fixtures/audit/reconciler/README.md`'s structure, with a stated slot for the ground-truth table that structure does not yet have.
+- The reconciler fixture's lens report asserts that a **named** path is absent, `ground-truth.md` marks that same path `EXISTS`, and **a real file exists at that path inside the case directory** (`code/handler.ts`). The `EXISTS` row must be *true*, not merely asserted: `reconciler/README.md:27-32` hands the reconciler the case directory as its repo root and expects it to look around, so a reconciler that checks and finds nothing there would correctly side with the lens, decline to downgrade, and be graded as failing — the fixture would punish the right answer.
+- `tests/fixtures/audit/reconciler/README.md` documents a `ground-truth.md` slot in its `## Layout` section and lists `unevidenced-world-claim` under `## Cases`. That structure has no such slot today, which is why the file is in this task's scope rather than assumed.
 - `tests/fixtures/audit/README.md`'s coverage table gains an `ambiguity` (plan) row with a should-flag entry.
 - **Not an acceptance criterion — a rollout-gate step:** each fixture is dispatched once at its named lens by the controller, and its header reconciled against what actually came back, before the release commits. An undeclared defect the run surfaces is added under `ALSO PRESENT` with its expected severity. Six of eleven fixtures carried undeclared defects on their first run, so this step is not optional — it simply cannot be discharged by the role this task dispatches to.
 
@@ -1232,7 +1301,8 @@ mechanical, and it trips none of S9's risk signals.
 - `.claude-plugin/plugin.json` reads `"version": "0.6.0"`, and the file still parses as JSON (`node -e 'JSON.parse(require("fs").readFileSync(".claude-plugin/plugin.json"))'` exits `0`).
 - The parsed object still holds its 7 HEAD keys with their HEAD values — `name`, `description`, `author`, `license`, `homepage`, `repository`, `keywords` — with `keywords` still an array of exactly 5 entries. Only `version` reads differently.
 - `.gitattributes` contains an explicit line pinning `skills/auditing-artifacts/resolve-declared-paths` to `text eol=lf`, alongside the existing `git-commit-safe` entry. Note `git check-attr eol` already reports `lf` at HEAD via the blanket `* text=auto eol=lf` at `.gitattributes:17`, so that command is a **control that passes before and after** — it cannot demonstrate this task's work. The falsifiable check is the presence of the explicit path line.
-- **Re-assertion (read-only, deliberately duplicated):** `git ls-files -s skills/auditing-artifacts/resolve-declared-paths` reports mode `100755`. `task-resolver-script` owns setting this and asserts it too; this copy is kept on purpose as a terminal-node safety net, because that mode is set by a flag (`git add --chmod=+x`) rather than by file content, and is therefore the kind of thing an upstream implementer can report as done without it being true. Reading a path outside `files:` is fine — only edits are scoped.
+- **The committed mode is `100755`, read from the tree:** `git ls-tree HEAD -- skills/auditing-artifacts/resolve-declared-paths` reports mode `100755`. Read the **tree**, never `git ls-files -s` — that reads the index, and `git commit --only` records `100644` in the tree while leaving `100755` in the index, so the index check is green on a broken release. This is the only place the shipped mode is observed at all; no implementer can set it (see the rollout gate).
+- **The rollout gate actually ran:** no fixture header still contains the string `none declared until the gate run reconciles this header`. That marker is written by `task-fixtures-audit` and removed only when a real dispatch reconciles the header, so its survival is direct evidence the gate was skipped. Reading paths outside `files:` is fine — only edits are scoped.
 - Both substitution placeholders reach every consumer: `grep -l '{charter_sections_for_role}' skills/executing-dag-plans/*-prompt.md skills/executing-dag-plans/SKILL.md` lists 5 files, and the same for `{charter_citation_table}`. A spelling drift between producer and consumer breaks the charter seam silently, and this is the only place both ends are read together.
 
 ## Audit record
@@ -1254,3 +1324,28 @@ mechanical, and it trips none of S9's risk signals.
     fixture design D5/D6/D13; scope D8/D10/D14/D15/D16).
   - Empirical unknowns opened: none. Every claim settled by reading the tree.
   - Two authoring rules found to under-cover — see the harvest note below.
+- **2026-08-28** · rev `91377505b7f8` · commit `0e81fcb` · lenses: coverage,
+  dag-integrity, grounding, charter, context-sufficiency, verifiability, coherence
+  (7/7 ran) · **NOT READY — 4 blocking** · **CONVERGED — do not run a round 3**
+  - 10 proposed BLOCKING merged to 4 distinct root causes, from round 1's 14 of 27.
+    `charter` and `coherence` both returned zero.
+  - Round 1's stop rule did not fire (count fell 71%), but its *content*
+    prediction held: 6 of 7 root causes live in text round 1's fixes created.
+  - **The durable lesson:** round 1's fixes that replaced an assertion with a
+    derivation all held — grounding re-ran 30+ new citations and baselines and
+    reproduced every one. Round 1's fixes that wrote new *mechanism prose*
+    produced three of round 2's four blocking findings.
+  - B1 overturns a round-1 three-lens convergence: all three probed the git index
+    only. `git-commit-safe`'s `git commit --only` records 100644 in the tree
+    regardless of `--chmod=+x`. Settled by four probes plus this repo's own
+    history — `git-commit-safe` shipped 100644 at `c66edd9` and was raised
+    out-of-band at `4c61113`.
+  - Growth if all resolutions applied: +0 tasks · +3 files newly in scope · +0
+    edges · ~+31 lines (1256 → ~1287, **+2.4%** vs round 1's +22%).
+  - Deferred, accepted: 13 findings, 2 downgraded from BLOCKING with logged
+    reasons (SKILL.md:50 unowned — nothing dispatches off it; the unpinned
+    did-not-run contract — its primary failure mode is foreclosed by AC :756).
+  - Empirical unknowns opened: none.
+  - Accretion signal: 7 task bodies now exceed S2's 800-word threshold; none did
+    at `7d51995`. `task-resolver-script` is 688 → 1305 words with no
+    `spec_reviewer_hint`.
