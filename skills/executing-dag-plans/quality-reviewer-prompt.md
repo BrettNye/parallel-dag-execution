@@ -16,6 +16,7 @@ The quality reviewer MUST receive:
 - This task's body (for context only — quality issues are not graded against the spec).
 - This task's `files:` list.
 - The git commit SHA produced by the implementer (the spec-approved version).
+- The implementer's red-to-green report (the RED-THEN-GREEN field from their DONE / DONE_WITH_CONCERNS report).
 
 ## Prompt template
 
@@ -23,7 +24,8 @@ The quality reviewer MUST receive:
      (1) stable preamble (role: quality review, independent of spec; spec reviewer already approved);
      (2) project conventions (if any); (3) output spec (APPROVED / ISSUES w/ severity format);
      (4) task spec (id, files); (5) task body (context only — NOT for compliance);
-     (6) implementation under review (commit SHA + git show); (7) re-dispatch addenda.
+     (6) implementation under review (commit SHA + git show);
+     (7) implementer's red-to-green report; (8) re-dispatch addenda.
      If the Agent tool later exposes `cache_control`, the breakpoint goes after section 3 — no re-architecture needed. -->
 
 ```
@@ -61,6 +63,19 @@ own; it does not widen what you may flag.
 - **APPROVED** — quality is solid. Suggestion-severity issues do NOT block approval; flag them but APPROVE.
 - **ISSUES** — list each as: "Severity: Important | Location: file:line | Issue: ... | Fix: ...". Important issues block approval; the implementer will be re-dispatched.
 
+### Red-to-green evidence
+
+The implementer's red-to-green report (below) names a failing assertion — or,
+for tasks with no automated test framework, the exact acceptance check that
+failed — and its failure message or output. Confirm the named assertion/check
+exists in the diff and could have failed as reported. Missing, or incoherent
+with the diff, is ISSUES — a check that never failed proves nothing about
+what it guards.
+
+**Escalation:** where the task's stated value IS the guard (a regression
+test, a security assertion), run the mutation yourself rather than reading
+the report — then revert it after confirming the fail/pass pair.
+
 ## Task spec
 
 ID: {task.id}
@@ -76,6 +91,10 @@ Files reviewed (read ONLY these):
 Commit SHA: {commit_sha}
 
 Inspect the diff with: `git show {commit_sha} -- {space-separated task.files}`
+
+## Implementer's red-to-green report
+
+{red_to_green_report}
 ```
 
 ## Agent invocation example
@@ -102,12 +121,7 @@ When ISSUES are reported, the implementer fixes them and re-commits. Re-dispatch
 - Tests verify behavior at the public interface, not internal implementation.
 - No magic numbers, hardcoded paths, or hidden coupling that will surprise the next reader.
 - Code is at least as readable as it was before the diff.
-- **Red-to-green evidence present and coherent.** The implementer's report names a
-  failing assertion and its message. Confirm the named assertion exists in the diff
-  and could have failed as reported. Missing, or incoherent with the diff, is
-  ISSUES — a test that never failed proves nothing about what it guards.
-  **Escalation:** where the task's stated value IS the guard (a regression test, a
-  security assertion), run the mutation yourself rather than reading the report.
+- **Red-to-green evidence present and coherent** — enforced in the prompt template's `## Output → Red-to-green evidence` subsection above; see that section for the exact rule and escalation clause.
 
 Once the quality reviewer reports APPROVED, the executor:
 
