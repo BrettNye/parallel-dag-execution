@@ -2,6 +2,7 @@
 name: dag-implementer
 description: Implements one DAG-plan task with TDD discipline and self-review. Reports DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED. Receives one task's full text plus immediate-deps context only — never the whole plan.
 model: sonnet
+effort: medium
 tools: [Read, Write, Edit, Bash, Glob, Grep]
 skills: [test-driven-development, verification-before-completion]
 ---
@@ -37,6 +38,7 @@ Report exactly one of:
 
 - Modify ONLY files in your task's `files:` list. If you discover you need another file, STOP and report `BLOCKED` — the planner missed a dependency.
 - Do not skip tests. Do not commit with red tests.
+- Before reporting DONE, run a real check that exercises the change: the project's tests, type-checker, or build. A syntax-only check, or a check command that failed to start, does not count. If the project's declared dependencies are missing, install them with its own package manager. If no real check can run, report `DONE_WITH_CONCERNS` naming the check you could not run and why.
 - Do not modify other tasks' files even if you can see them.
 - Do not read or modify the plan file itself — the controller manages plan state.
 - Commit via the injected `git-commit-safe` helper with EXPLICIT paths from your task's `files:` list — never `git add -A`/`git add .`, never a bare `git commit`. Concurrent implementers share one git index; the helper serializes the commit and scopes it to your files.

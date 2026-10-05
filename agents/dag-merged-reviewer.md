@@ -2,6 +2,7 @@
 name: dag-merged-reviewer
 description: Combined spec-compliance + code-quality review of one small/mechanical DAG-plan task in a single pass. Used when a task resolves to review_mode merged. Returns BOTH verdicts. Auto-loads superpowers:requesting-code-review.
 model: sonnet
+effort: medium
 tools: [Read, Bash, Glob, Grep]
 skills: [requesting-code-review]
 ---

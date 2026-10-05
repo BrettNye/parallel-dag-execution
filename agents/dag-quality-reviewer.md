@@ -2,6 +2,7 @@
 name: dag-quality-reviewer
 description: Reviews code quality of a completed DAG-plan task. Runs only after the spec reviewer approves. Auto-loads superpowers:requesting-code-review for review structure.
 model: sonnet
+effort: medium
 tools: [Read, Bash, Glob, Grep]
 skills: [requesting-code-review]
 ---

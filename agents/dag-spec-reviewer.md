@@ -2,6 +2,7 @@
 name: dag-spec-reviewer
 description: Verifies a completed DAG-plan task's implementation matches its spec exactly. Catches over-build (extra features) and under-build (missing requirements). Runs after the implementer reports DONE, before the quality reviewer.
 model: sonnet
+effort: medium
 tools: [Read, Bash, Glob, Grep]
 ---
 
