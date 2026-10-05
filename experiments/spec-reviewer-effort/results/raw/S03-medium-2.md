@@ -1,0 +1,7 @@
+**ISSUES**
+
+1. Requirement: Step 3 says to add reviewer tier resolution to §Per-task review chain. The text is "Dispatch the spec reviewer with `model: resolve_model(resolve_tier(task, 'spec_reviewer'))` and the quality reviewer with `model: resolve_model(resolve_tier(task, 'quality_reviewer'))`. Reviewer tiers fall back per-task → plan-level default → `standard`."
+   Actual: The diff adds only the sentence "Review-issue re-dispatch of the **implementer** uses the original resolved implementer tier (NOT the BLOCKED-upgraded one) — only BLOCKED upgrades." The spec reviewer and quality reviewer dispatch sentences are absent, and so is the fallback chain statement. The Step 4 grep would therefore find no `spec_reviewer')` or `quality_reviewer')` matches, and only one of the three dispatch sites resolves a tier.
+   Fix: In /home/user/parallel-dag-execution/skills/executing-dag-plans/SKILL.md, add the missing reviewer dispatch and fallback sentences after the chain diagram in §Per-task review chain. Put them just before the existing "Review-issue re-dispatch…" sentence, using the exact text above.
+
+Steps 1 and 2 are met. The implementer dispatch has `resolve_model(resolve_tier(task, 'model'))`, the `model_hint` → `default_model_hint` → `standard` fallback, and the BLOCKED-retry note. The pre-flight `*_hint` validation sentence is also present. The review-issue re-dispatch sentence from Step 3 is present and correct.
