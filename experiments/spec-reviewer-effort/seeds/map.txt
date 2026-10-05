@@ -1,0 +1,7 @@
+# seed  base-case
+S01 C03
+S02 C12
+S03 C08
+S04 C07
+S05 C01
+S06 C09

@@ -1,0 +1,12 @@
+diff --git a/skills/updating-dag-plans/SKILL.md b/skills/updating-dag-plans/SKILL.md
+index 457d90c..358ebc1 100644
+--- a/skills/updating-dag-plans/SKILL.md
++++ b/skills/updating-dag-plans/SKILL.md
+@@ -52,6 +52,7 @@ If the user genuinely needs to mutate immutable history, the answer is to author
+ | **Modify `files:`** | Target's status is `pending`. | Update the `files:` list in the YAML block. Re-run full file-scope conflict detection across the entire DAG. May surface new conflicts requiring additional `depends_on:` edges. |
+ | **Rewire `depends_on:`** | All affected tasks' statuses are `pending`. | Update `depends_on:` for the target. Re-run topo-sort + cycle detection + file-scope conflict detection. |
+ | **Modify tier hint** (`model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`) | Target's status is `pending` or `ready` | Update YAML field. Re-validate enum (`cheap | standard | opus`, rule #7). No mermaid re-render (label doesn't show tier). |
++| **Modify implementer** (`implementer:`) | Target's status is `pending` or `ready` | Update YAML field. Re-run the implementer-registry pre-flight on next execute. No mermaid re-render. |
+ | **Modify plan-level default hint** (`default_*_hint` in frontmatter) | At least one task is `pending` or `ready` | Update frontmatter field. Re-validate enum (rule #8). Affects all tasks lacking a per-task override and not yet `running`/`done`/`failed`/`skipped`. Refuse if every task is already immutable. |
+ 
+ > **Why `ready` is mutable for tier hints:** Unlike `files:` (mutable only on `pending`, because a `ready` task queues for the next tick and a file-scope change could conflict with a running sibling), tier hints don't interact with the parallelism contract — mutating a `ready` task's tier between ticks is safe; the next tick reads fresh state and dispatches at the new resolved tier.

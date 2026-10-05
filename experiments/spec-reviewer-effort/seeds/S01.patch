@@ -1,0 +1,13 @@
+diff --git a/skills/updating-dag-plans/SKILL.md b/skills/updating-dag-plans/SKILL.md
+index 47de006..25b7608 100644
+--- a/skills/updating-dag-plans/SKILL.md
++++ b/skills/updating-dag-plans/SKILL.md
+@@ -77,7 +77,7 @@ If the user genuinely needs to mutate immutable history, the answer is to author
+    - On **add task**: run hard rules H1-H9 (was H1-H6) on the new task. Run soft heuristics S1, S5, S8 on the updated DAG.
+    - On **modify body**: run H1, H2, H4, H5, H9 (was H1, H2, H4, H5) on the modified task. Run S2-S4, S6, S8 on it.
+    - On **modify `files:`**: run H3 on the modified task. Run S2 on it.
+-   - On **rewire `depends_on:`**: run S1, S5, H9 on the updated DAG.
++   - On **rewire `depends_on:`**: run S1, S5 on the updated DAG.
+    - On **remove task**: no quality re-validation needed (removing tasks doesn't introduce new quality issues).
+ 
+    Hard rule failure → refuse with rule + task + fix. Soft heuristic warnings → present and ask "save anyway? (y/N)" — default N.

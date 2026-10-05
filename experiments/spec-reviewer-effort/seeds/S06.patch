@@ -1,0 +1,13 @@
+diff --git a/skills/executing-dag-plans/spec-reviewer-prompt.md b/skills/executing-dag-plans/spec-reviewer-prompt.md
+index 1c30b34..c55240c 100644
+--- a/skills/executing-dag-plans/spec-reviewer-prompt.md
++++ b/skills/executing-dag-plans/spec-reviewer-prompt.md
+@@ -42,7 +42,7 @@ Do NOT comment on code style, naming, performance, or maintainability — that i
+ Report exactly one of:
+ 
+ - **APPROVED** — all requirements met, no over-build.
+-- **ISSUES** — list each as: "Requirement: ... | Actual: ... | Fix: ...". Be specific enough that the implementer can act without asking clarifying questions.
++- **ISSUES** — list each as: "Requirement: ... | Actual: ... | Fix: ... | Severity: LOW/MEDIUM/HIGH". Rate severity by how far the implementation diverges from the spec. Be specific enough that the implementer can act without asking clarifying questions.
+ 
+ ## Task spec (binding)
+ 

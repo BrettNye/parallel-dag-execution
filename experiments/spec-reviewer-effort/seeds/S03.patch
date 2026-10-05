@@ -1,0 +1,13 @@
+diff --git a/skills/executing-dag-plans/SKILL.md b/skills/executing-dag-plans/SKILL.md
+index f728823..606d41c 100644
+--- a/skills/executing-dag-plans/SKILL.md
++++ b/skills/executing-dag-plans/SKILL.md
+@@ -50,7 +50,7 @@ implementer DONE
+       → ISSUES → re-dispatch implementer with spec feedback → loop
+ ```
+ 
+-Dispatch the spec reviewer with `model: resolve_model(resolve_tier(task, 'spec_reviewer'))` and the quality reviewer with `model: resolve_model(resolve_tier(task, 'quality_reviewer'))`. Reviewer tiers fall back per-task → plan-level default → `standard`. Review-issue re-dispatch of the **implementer** uses the original resolved implementer tier (NOT the BLOCKED-upgraded one) — only BLOCKED upgrades.
++Review-issue re-dispatch of the **implementer** uses the original resolved implementer tier (NOT the BLOCKED-upgraded one) — only BLOCKED upgrades.
+ 
+ Spec review precedes quality review — fixing spec compliance often changes the code being quality-reviewed.
+ 
