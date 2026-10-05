@@ -1,0 +1,6 @@
+APPROVED. I checked commit d175cac against all three steps in skills/executing-dag-plans/SKILL.md. I did not run the Step 4 grep; this verdict comes from the diff alone.
+
+- **Step 1, implementer dispatch (step 4):** Met. The text passes `model: resolve_model(resolve_tier(task, 'model'))`. It cites plan-format.md §Tier resolution. It gives the fallback chain `model_hint`, then `default_model_hint`, then `standard`. It also says the BLOCKED-retry ladder still bumps one tier above the resolved tier.
+- **Step 2, pre-flight:** Met. The added sentences validate every `*_hint` and every plan-level `default_*_hint` against `{cheap, standard, opus}`. They halt with an error naming the offending field and value, and they state there is no silent fallback to `standard`.
+- **Step 3, review chain:** Met. After the diagram, the text dispatches both reviewers with the specified `resolve_model(resolve_tier(task, ...))` calls. It states the per-task, then plan-default, then `standard` fallback. It says review-issue re-dispatch of the implementer uses the original resolved tier, not the BLOCKED-upgraded one, and that only BLOCKED upgrades.
+- **Over-build:** None found. The only addition beyond the spec's literal text is the parenthetical "(cheap→standard, standard→opus)" on the BLOCKED ladder, which is a restatement and not a behavior change.

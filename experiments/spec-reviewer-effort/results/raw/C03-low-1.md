@@ -1,0 +1,3 @@
+APPROVED. Commit 251855a modifies only skills/updating-dag-plans/SKILL.md, in three places. (1) The H9 bullet is added to Hard rules, with text identical to the spec. (2) Step 6 is updated: add task gets H1-H9 and S1, S5, S8, modify body gets H1, H2, H4, H5, H9 and S2-S4, S6, S8, and rewire gets S1, S5, H9. (3) Required reading now cites H1-H9 and S1-S8, and the stale H1-H6/S1-S6 text is gone. All five grep verifications exit 0 against the content of commit 251855a. I found no over-build and no other lines changed.
+
+The checked-out working tree (branch claude/gracious-sagan-fby5pl, HEAD c725a09) does not contain this commit's content, so the greps fail there. I judged the commit itself, as instructed.
