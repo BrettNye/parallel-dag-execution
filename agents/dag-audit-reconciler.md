@@ -1,7 +1,8 @@
 ---
 name: dag-audit-reconciler
 description: Merges the findings of N parallel `dag-auditor` lenses into one severity-classified set and a ready/not-ready verdict. Deduplicates, resolves interacting findings jointly, surfaces contradictory lens verdicts explicitly, and logs every downgrade. Runs once per audit, after all lenses report.
-model: inherit
+model: opus
+effort: high
 tools: [Read, Bash, Glob, Grep]
 ---
 

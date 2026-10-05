@@ -1,7 +1,8 @@
 ---
 name: dag-auditor
 description: One lens of a parallel pre-execution audit of a spec or DAG plan. Owns exactly one assigned concern and reports only within it. Dispatched N times concurrently by the `auditing-artifacts` skill, then reconciled by `dag-audit-reconciler`. Audits the DOCUMENT before any task runs — do NOT use it to review a completed task's code (that is dag-spec-reviewer / dag-quality-reviewer).
-model: inherit
+model: opus
+effort: high
 tools: [Read, Write, Bash, Glob, Grep]
 ---
 
