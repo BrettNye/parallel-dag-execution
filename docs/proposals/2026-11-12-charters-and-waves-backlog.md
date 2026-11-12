@@ -153,18 +153,25 @@ Sonnet 5.5 changes, and pressure language is rare. What is left is mostly in the
   its own work with subagents, which doubles this plugin's required review chain.
 - **Proposal:** recommend Opus 5.5 for the controller session.
 
-## Not in this backlog: the v0.6.0 plan
+## v0.6.0 (merged 2026-11-12)
 
-`docs/superpowers/plans/2026-08-27-seams-and-ground-truth-dag.md` has 15 tasks, all `pending`;
-its gate-2 audit converged on 2026-08-28. It touches two items here. Its plan-level `spec:` field
-may point at a superspec charter, which is the child-to-charter link A4 asks for. Its
-`task-charter-template` adds a role map to the *audit* charter, which deepens A8's name clash.
+`docs/superpowers/plans/2026-08-27-seams-and-ground-truth-dag.md` was executed (15/15) on
+2026-08-28 in another clone, on branch `feat/seams-and-ground-truth`, and never pushed. It was
+merged here rather than run again. Two effects on this backlog:
+
+- **A4:** v0.6.0's `spec:` names the design the plan implements, which for a charter child is
+  the child's own spec. It cannot also name the superspec charter, so A4 still needs its own
+  fields.
+- **A8:** v0.6.0 puts the audit charter into the implementer and reviewer prompts. The
+  convention from A8 (bare "charter" means the repo's rules; the superspec charter is always
+  named in full) now covers those prompts too.
 
 ## Order suggested
 
 1. C1, A5, A6, A8 (small; A8 before v0.6.0 runs).
-2. Settle `spec:` as the child-to-charter link (A4), then execute v0.6.0.
+2. Merge v0.6.0 (done). A4 moves to step 5 with A1 and A3, since all three change the
+   superspec charter template.
 3. C3 and C2 (executor advances on completion; BLOCKED retries raise effort first).
 4. C4 (plan-state script; brings A7's checks).
-5. A1 with A3, then A2. C5 and C6 alongside any step.
+5. A1 with A3 and A4, then A2. C5 and C6 alongside any step.
 6. B after the trial, B1 to B3 before B4.

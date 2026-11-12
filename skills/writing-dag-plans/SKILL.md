@@ -51,8 +51,9 @@ Judgment, not a hard gate — a two-piece spec with no shared invariants may not
 need a superspec charter. But make the call here, instead of defaulting to one plan.
 
 "Superspec charter" is always written in full. A bare "charter" in this plugin
-means the repo's rules that the audit lenses read (`auditing-artifacts`), which
-is a different document.
+means the repo's own rules (`CLAUDE.md`, convention docs, `.claude/audit-charter.md`),
+which the audit lenses and the executor's dispatch prompts read. That is a
+different document.
 
 ## Two reference docs you MUST read first
 
