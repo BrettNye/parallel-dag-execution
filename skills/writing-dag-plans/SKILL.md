@@ -158,6 +158,12 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
      path. `default_implementer`, when present, MUST be a non-empty string; the
      executor pre-flight resolves it against the agent registry.
 
+   Run these checks with `./plan-state`, not by hand. Write the draft next to its
+   final path as `<plan>.draft.md`, run `sh ./plan-state render <draft>` (it adds the
+   mermaid block), then `sh ./plan-state check <draft>`. It prints one line per
+   violation and covers every rule above except immutable history. If it prints
+   anything, fix the draft or refuse; the final path is written only in step 11.
+
    Any failure → refuse, explain, exit. Do NOT write the file.
 
 6.5. **Identify contract surface.** Walk each task's `## Implementation` block and extract defined contract symbols (interfaces, types, exported function signatures, schema definitions) per the H9 detection patterns in `plan-quality.md`. For each consumer task, identify which other tasks define symbols it imports or references. If any consumer task references a contract from a non-dependency, surface as a planner-level decision: either add the `depends_on:` edge or refactor to remove the cross-task reference. Loop until clean. (This is the planner-side mirror of H9 — catch the issue before it becomes a refusal at validation time.) Note: capabilities referenced only in prose or acceptance criteria — not in code blocks — are not visible to this symbol-walk; H10 (missing-producer index) and the step-8 prose-consumption sweep together cover that blind spot.
@@ -213,11 +219,11 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
 
    Output format: same as soft heuristics — list with principle, affected task ids, specific concern, suggested fix. After the list (combined with step 7's soft warnings if any): "save anyway? (y/N)" — default N.
 
-9. **Render the mermaid block.** Per `plan-format.md`. Status defaults to `pending` for newly authored plans (no class applied). Status-driven coloring kicks in on update or during execution.
+9. **Render the mermaid block.** Per `plan-format.md`. Status defaults to `pending` for newly authored plans (no class applied). Status-driven coloring kicks in on update or during execution. `plan-state render <draft>` draws it; run it again if the draft changed after step 6.
 
-10. **Render the ASCII tree to terminal.** Print before writing the file so the user can sanity-check shape.
+10. **Render the ASCII tree to terminal** with `plan-state tree <draft>`. Print before writing the file so the user can sanity-check shape.
 
-11. **Write the plan file** to `docs/superpowers/plans/YYYY-MM-DD-<topic>-dag.md` (override per project preference). The mermaid block goes at the top, followed by `## Context`, `## Tasks`, then the task blocks. Emit `spec:` in the frontmatter automatically, set to the path of the spec this skill was invoked from (step 1) — the author does not opt in explicitly. If the skill was invoked from conversational context with no file path (no spec file to point at), omit `spec:` entirely: its absence is not an error for a plan authored without one, and existing plans without the key keep working unchanged.
+11. **Write the plan file** to `docs/superpowers/plans/YYYY-MM-DD-<topic>-dag.md` (override per project preference) by moving the checked draft there. The mermaid block goes at the top, followed by `## Context`, `## Tasks`, then the task blocks. Emit `spec:` in the frontmatter automatically, set to the path of the spec this skill was invoked from (step 1) — the author does not opt in explicitly. If the skill was invoked from conversational context with no file path (no spec file to point at), omit `spec:` entirely: its absence is not an error for a plan authored without one, and existing plans without the key keep working unchanged.
 
 12. **Hand off** to `executing-dag-plans` (don't invoke it automatically — the user should review the plan first).
 

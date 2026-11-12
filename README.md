@@ -112,6 +112,19 @@ checking the report against the header's declared severity and substrings. Start
 which lenses have no fixture yet. `dag-audit-reconciler` has a separate harness with
 its grading keys held outside the tree it reads.
 
+The three helper scripts have real test suites. Run each with bash:
+
+```sh
+bash tests/plan-state/plan-state.test.sh                    # plan validation, ready set, status changes, rendering
+bash tests/resolve-declared-paths/resolve-declared-paths.test.sh
+bash tests/commit-safe/concurrent-commit.test.sh && bash tests/commit-safe/stale-lock.test.sh
+```
+
+`skills/writing-dag-plans/plan-state` does the plan bookkeeping that has one right
+answer: structural validation, the ready set, status changes with the failure
+cascade, the mermaid block and the ASCII tree. The skills call it instead of doing
+that work in the model.
+
 ## Composition with superpowers
 
 This plugin assumes you've already invoked `superpowers:brainstorming` to produce the spec. Subagent definitions auto-load `superpowers:test-driven-development`, `superpowers:verification-before-completion`, and `superpowers:requesting-code-review` via the `skills:` frontmatter field — no copy-paste of TDD discipline into prompts.

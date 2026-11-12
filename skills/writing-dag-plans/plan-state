@@ -1,0 +1,274 @@
+#!/usr/bin/env sh
+# plan-state — the mechanical half of DAG-plan bookkeeping (see plan-format.md).
+# Usage:
+#   plan-state check  <plan>               validate rules 1-5 and 7-12, status values, mermaid block
+#   plan-state ready  <plan>               print the ids ready to dispatch, one per line
+#   plan-state set    <plan> <id> <status> change one status; failed cascades skipped; redraws mermaid
+#   plan-state render <plan>               redraw the mermaid block in place
+#   plan-state tree   <plan>               print the ASCII status tree
+# Exit: 0 ok, 1 validation failure (check), 2 usage error or refused change.
+#
+# Why a script: sorting the graph, computing the ready set, redrawing the
+# mermaid block and checking enum values each have exactly one right answer.
+# A model doing them by hand spends tokens on every tick and drifts (a stale
+# duplicate class line, a node label that no longer matches the spec).
+set -eu
+
+usage() { sed -n '3,9p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+[ "$#" -ge 2 ] || usage
+cmd="$1"; plan="$2"; shift 2
+if [ -d "$plan" ] || [ ! -r "$plan" ]; then echo "plan-state: cannot read $plan" >&2; exit 2; fi
+
+# One parser for every command. Pass 1 (NR==FNR) reads the plan into arrays;
+# MODE picks what END prints. MODE=emit reads the file a second time and
+# writes it back out with statuses changed and the mermaid block redrawn.
+PROG='
+function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t\r]+$/, "", s); return s }
+function unq(s) { s = trim(s); if (s ~ /^".*"$/ || s ~ /^\x27.*\x27$/) s = substr(s, 2, length(s) - 2); return s }
+function stripc(s) { sub(/[ \t]+#.*$/, "", s); return s }
+function runlen(s, c,   n) { n = 0; while (substr(s, n + 1, 1) == c) n++; return n }
+function addlist(key, item) {
+  item = unq(item); if (item == "") return
+  if (key == "depends_on") { nd[cur]++; dep[cur, nd[cur]] = item }
+  else { nf[cur]++; fil[cur, nf[cur]] = item }
+}
+function inl(key, v,   n, i, a) {
+  v = trim(v); sub(/^\[/, "", v); sub(/\]$/, "", v)
+  n = split(v, a, ","); for (i = 1; i <= n; i++) addlist(key, a[i])
+}
+function yamlline(l,   k, v) {
+  if (match(l, /^[ \t]+-[ \t]*/)) { if (ylist != "") addlist(ylist, stripc(substr(l, RLENGTH + 1))); return }
+  if (match(l, /^[A-Za-z_][A-Za-z0-9_]*:/)) {
+    k = substr(l, 1, RLENGTH - 1); v = trim(stripc(substr(l, RLENGTH + 1))); ylist = ""
+    has[cur, k] = 1
+    if (k == "depends_on" || k == "files") { if (v == "") ylist = k; else inl(k, v); return }
+    val[cur, k] = unq(v)
+    if (k == "status") stl[cur] = FNR
+  }
+}
+function err(msg) { print "plan-state: " msg | "cat 1>&2" }
+function viol(rule, msg) { print "plan-state: rule " rule ": " msg; bad = 1 }
+function inset(v, set) { return index(" " set " ", " " v " ") > 0 }
+function st(t) { return (t in newst) ? newst[t] : val[t, "status"] }
+
+# Index ids, children and topological order; sets cyclic when Kahn stalls.
+function graph(   t, j, d, q, h, n, u, k) {
+  for (t = 1; t <= nt; t++) if (!(val[t, "id"] in idx)) idx[val[t, "id"]] = t
+  for (t = 1; t <= nt; t++) { indeg[t] = 0; nch[t] = 0 }
+  for (t = 1; t <= nt; t++) for (j = 1; j <= nd[t]; j++) {
+    d = dep[t, j]; if (!(d in idx)) continue
+    u = idx[d]; indeg[t]++; nch[u]++; ch[u, nch[u]] = t
+  }
+  h = 1; n = 0
+  for (t = 1; t <= nt; t++) { deg[t] = indeg[t]; if (deg[t] == 0) q[++n] = t }
+  ntopo = 0
+  while (h <= n) { u = q[h++]; topo[++ntopo] = u
+    for (k = 1; k <= nch[u]; k++) if (--deg[ch[u, k]] == 0) q[++n] = ch[u, k] }
+  cyclic = (ntopo < nt)
+}
+# anc[t, u] = 1 when u is a transitive ancestor of t. Needs an acyclic graph.
+function ancestors(   i, t, j, d, u, a) {
+  for (i = 1; i <= ntopo; i++) { t = topo[i]
+    for (j = 1; j <= nd[t]; j++) { d = dep[t, j]; if (!(d in idx)) continue
+      u = idx[d]; anc[t, u] = 1
+      for (a = 1; a <= nt; a++) if ((u, a) in anc) anc[t, a] = 1 } }
+}
+
+function check(   t, k, i, j, f, a, b, list, seen, own, hint, n) {
+  if (nt == 0) viol(5, "no \"## Task:\" sections found")
+  if (!ms) print "plan-state: format: no mermaid block (run: plan-state render)"; if (!ms) bad = 1
+  for (t = 1; t <= nt; t++) {
+    k = has[t, "id"] ? val[t, "id"] : "\"" title[t] "\""
+    if (!has[t, "id"] || val[t, "id"] == "") viol(5, "task " k " has no id")
+    if (!has[t, "depends_on"]) viol(5, k " has no depends_on")
+    if (!has[t, "files"]) viol(5, k " has no files")
+    else if (nf[t] == 0 && val[t, "single_threaded"] != "true") viol(5, k " has empty files (allowed only with single_threaded: true)")
+    if (!has[t, "status"]) viol(5, k " has no status")
+    else if (!inset(val[t, "status"], "pending ready running done failed skipped")) viol(5, k " has status " val[t, "status"])
+    if (has[t, "id"]) { if (val[t, "id"] in seen) viol(1, "duplicate id " val[t, "id"]); seen[val[t, "id"]] = 1 }
+    for (j = 1; j <= nd[t]; j++) if (!(dep[t, j] in idx)) viol(3, k " depends on undefined " dep[t, j])
+    split("model_hint spec_reviewer_hint quality_reviewer_hint", hint, " ")
+    for (i = 1; i <= 3; i++) if (has[t, hint[i]] && !inset(val[t, hint[i]], "cheap standard opus")) viol(7, k " " hint[i] " is " val[t, hint[i]])
+    if (has[t, "review_mode"] && !inset(val[t, "review_mode"], "merged split")) viol(9, k " review_mode is " val[t, "review_mode"])
+  }
+  split("default_model_hint default_spec_reviewer_hint default_quality_reviewer_hint", hint, " ")
+  for (i = 1; i <= 3; i++) if ((hint[i] in fmset) && !inset(fm[hint[i]], "cheap standard opus")) viol(8, hint[i] " is " fm[hint[i]])
+  if (("default_review_mode" in fmset) && !inset(fm["default_review_mode"], "merged split")) viol(10, "default_review_mode is " fm["default_review_mode"])
+  if (("default_implementer" in fmset) && fm["default_implementer"] == "") viol(12, "default_implementer is empty")
+  if (cyclic) {
+    list = ""; for (t = 1; t <= nt; t++) if (deg[t] > 0) list = list (list == "" ? "" : ", ") val[t, "id"]
+    viol(2, "cycle among " list)
+    return
+  }
+  ancestors()
+  # Rule 4: tasks sharing a file need a dependency path between them.
+  for (t = 1; t <= nt; t++) for (j = 1; j <= nf[t]; j++) {
+    f = fil[t, j]
+    n = split(own[f], list, " ")
+    for (i = 1; i <= n; i++) { a = list[i] + 0
+      if (!((t, a) in anc) && !((a, t) in anc)) viol(4, val[a, "id"] " and " val[t, "id"] " both declare " f " with no depends_on path between them") }
+    own[f] = own[f] " " t
+  }
+}
+
+function ready(   t, j, ok) {
+  for (t = 1; t <= nt; t++) {
+    if (!inset(val[t, "status"], "pending ready")) continue
+    ok = 1; for (j = 1; j <= nd[t]; j++) if (!(dep[t, j] in idx) || val[idx[dep[t, j]], "status"] != "done") ok = 0
+    if (ok) print val[t, "id"]
+  }
+}
+
+function lbl(t,   s, n) {
+  s = val[t, "id"] ": " title[t]; n = nf[t]
+  if (n == 1) s = s "<br/>files: " fil[t, 1]
+  else if (n == 2) s = s "<br/>files: " fil[t, 1] ", " fil[t, 2]
+  else if (n > 2) s = s "<br/>files: " fil[t, 1] " +" (n - 1) " more"
+  gsub(/"/, "#quot;", s)
+  return s
+}
+function mermaid(   t, j, s) {
+  print "```mermaid" EOL
+  print "flowchart TD" EOL
+  for (t = 1; t <= nt; t++) {
+    s = st(t); s = (s == "pending" || s == "") ? "" : ":::" s
+    print "    " val[t, "id"] "[\"" lbl(t) "\"]" s EOL
+  }
+  for (t = 1; t <= nt; t++) for (j = 1; j <= nd[t]; j++) print "    " dep[t, j] " --> " val[t, "id"] EOL
+  print EOL
+  print "    classDef done fill:#90ee90,stroke:#333" EOL
+  print "    classDef running fill:#87ceeb,stroke:#333" EOL
+  print "    classDef ready fill:#fffacd,stroke:#333" EOL
+  print "    classDef failed fill:#ffb6c1,stroke:#333" EOL
+  print "    classDef skipped fill:#d3d3d3,stroke:#333,stroke-dasharray: 5 5" EOL
+  print "```" EOL
+}
+
+# Apply SETID -> SETST, refusing illegal moves; a failure cascades to skipped.
+function apply(   t, from, to, j, q, h, n, u, k, c, sk) {
+  if (SETID == "") return
+  n = 0; for (t = 1; t <= nt; t++) if (val[t, "id"] == SETID) { n++; u = t }
+  if (n == 0) { err("no task with id " SETID); exit 2 }
+  if (n > 1) { err("id " SETID " is not unique; run: plan-state check"); exit 2 }
+  if (!stl[u]) { err(SETID " has no status line to change"); exit 2 }
+  from = val[u, "status"]; to = SETST
+  if (!inset(from "->" to, "pending->ready ready->running running->done running->failed running->ready")) {
+    err("refused " SETID ": " from " -> " to ". Allowed: pending->ready, ready->running, running->done|failed|ready; skipped comes only from a failed ancestor"); exit 2
+  }
+  if (to == "ready") for (j = 1; j <= nd[u]; j++)
+    if (!(dep[u, j] in idx) || val[idx[dep[u, j]], "status"] != "done") { err("refused " SETID ": pending -> ready while " dep[u, j] " is not done"); exit 2 }
+  newst[u] = to
+  if (to != "failed") return
+  h = 1; n = 0; q[++n] = u; sk = ""
+  while (h <= n) { c = q[h++]
+    for (k = 1; k <= nch[c]; k++) { t = ch[c, k]
+      if (!(t in newst) && inset(val[t, "status"], "pending ready")) { newst[t] = "skipped"; q[++n] = t; sk = sk " " val[t, "id"] } } }
+  if (sk != "") err("skipped:" sk)
+}
+
+function pad(s, w) { while (length(s) < w) s = s " "; return s }
+function icon(s) { return s == "done" ? "✓" : s == "running" ? "⟳" : s == "failed" ? "✗" : s == "skipped" ? "⊘" : "·" }
+function row(t, lead) { print pad(lead "[" val[t, "id"] "] " title[t], 52) " " icon(val[t, "status"]) " " val[t, "status"] }
+function pnode(t, pre, last, depth,   k, nxt) {
+  row(t, depth == 0 ? "" : pre (last ? "└──→ " : "├──→ "))
+  nxt = depth == 0 ? "   " : pre (last ? "     " : "│    ")
+  if (nch[t] > 0) print nxt "│"
+  for (k = 1; k <= nch[t]; k++) pnode(ch[t, k], nxt, k == nch[t], depth + 1)
+}
+function tree(   t, i, j, s, c, lv, d, maxlv, wide, ids, n, tmp) {
+  for (t = 1; t <= nt; t++) { s = val[t, "status"]; c[(s == "ready") ? "pending" : s]++ }
+  print "DAG: " nt " tasks · " (c["done"] + 0) " done · " (c["running"] + 0) " running · " (c["failed"] + 0) " failed · " (c["skipped"] + 0) " skipped · " (c["pending"] + 0) " pending"
+  print ""
+  maxlv = 0; wide = 0
+  if (!cyclic) for (i = 1; i <= ntopo; i++) { t = topo[i]; lv[t] = 1
+    for (j = 1; j <= nd[t]; j++) if ((dep[t, j] in idx) && lv[idx[dep[t, j]]] + 1 > lv[t]) lv[t] = lv[idx[dep[t, j]]] + 1
+    if (lv[t] > maxlv) maxlv = lv[t]; if (++d[lv[t]] > 8) wide = 1 }
+  if (cyclic || maxlv > 3 || wide) {
+    n = 0; for (t = 1; t <= nt; t++) ids[++n] = t
+    for (i = 2; i <= n; i++) { tmp = ids[i]; j = i - 1
+      while (j > 0 && val[ids[j], "id"] > val[tmp, "id"]) { ids[j + 1] = ids[j]; j-- } ids[j + 1] = tmp }
+    for (i = 1; i <= n; i++) row(ids[i], "")
+    return
+  }
+  for (t = 1; t <= nt; t++) if (indeg[t] == 0) pnode(t, "", 1, 0)
+}
+
+NR == FNR {
+  line = $0
+  if (FNR == 1) EOL = (line ~ /\r$/) ? "\r" : ""
+  sub(/\r$/, "", line)
+  if (FNR == 1 && line == "---") { infm = 1; next }
+  if (infm) {
+    if (line == "---") { infm = 0; fmend = FNR; next }
+    if (match(line, /^[A-Za-z_][A-Za-z0-9_]*:/)) { k = substr(line, 1, RLENGTH - 1); fm[k] = unq(stripc(substr(line, RLENGTH + 1))); fmset[k] = 1 }
+    next
+  }
+  if (!fence && (line ~ /^```/ || line ~ /^~~~/)) {
+    fch = substr(line, 1, 1); flen = runlen(line, fch); fence = 1
+    info = trim(substr(line, flen + 1))
+    if (info == "mermaid" && !ms) { ms = FNR; inmer = 1 }
+    else if (info == "yaml" && pend) { inyaml = 1; pend = 0; ylist = "" }
+    next
+  }
+  if (fence) {
+    if (runlen(line, fch) >= flen && trim(substr(line, runlen(line, fch) + 1)) == "") {
+      fence = 0; if (inmer) { me = FNR; inmer = 0 }; inyaml = 0; next
+    }
+    if (inyaml) yamlline(line)
+    next
+  }
+  if (match(line, /^## Task:[ \t]*/)) { nt++; cur = nt; title[cur] = trim(substr(line, RLENGTH + 1)); pend = 1; next }
+  if (line ~ /^#{1,2} /) pend = 0
+  next
+}
+
+FNR == 1 && NR != FNR { apply(); emitting = 1; if (!fmend && !ms) { mermaid(); print EOL } }
+emitting {
+  if (FNR == ms) { mermaid(); skip = 1; if (ms == me) skip = 0; next }
+  if (skip) { if (FNR == me) skip = 0; next }
+  for (t = 1; t <= nt; t++) if (FNR == stl[t] && (t in newst)) { l = $0; sub(/status:[ \t]*[A-Za-z]+/, "status: " newst[t], l); print l; next }
+  print
+  if (FNR == fmend && !ms) { print EOL; mermaid() }
+  next
+}
+
+END {
+  if (MODE == "emit") exit
+  graph()
+  if (MODE == "check") { check(); exit bad }
+  if (MODE == "ready") { ready(); exit }
+  if (MODE == "tree") { tree(); exit }
+  if (MODE == "spec") { if ("spec" in fmset) print fm["spec"]; exit }
+}
+'
+# graph() must run before apply() in emit mode; do it at the start of pass 2.
+PROG=$(printf '%s' "$PROG" | sed 's/^FNR == 1 \&\& NR != FNR { apply();/FNR == 1 \&\& NR != FNR { graph(); apply();/')
+
+emit() {  # rewrite the plan in place; keep its mode by writing through it
+  tmpf=$(mktemp) || exit 2
+  if awk -v MODE=emit -v SETID="${1:-}" -v SETST="${2:-}" "$PROG" "$plan" "$plan" > "$tmpf"; then
+    cat "$tmpf" > "$plan"; rm -f "$tmpf"
+  else rc=$?; rm -f "$tmpf"; exit "$rc"; fi
+}
+
+case "$cmd" in
+  check)
+    rc=0; awk -v MODE=check "$PROG" "$plan" || rc=$?
+    spec=$(awk -v MODE=spec "$PROG" "$plan")
+    if [ -n "$spec" ]; then
+      root=$(git -C "$(dirname -- "$plan")" rev-parse --show-toplevel 2>/dev/null || pwd)
+      case "$spec" in /*) sp="$spec" ;; *) sp="$root/$spec" ;; esac
+      if [ -d "$sp" ] || [ ! -r "$sp" ]; then
+        echo "plan-state: rule 11: spec $spec does not resolve to a readable single file"; rc=1
+      fi
+    fi
+    exit "$rc" ;;
+  ready)  awk -v MODE=ready "$PROG" "$plan" ;;
+  tree)   awk -v MODE=tree "$PROG" "$plan" ;;
+  render) [ "$#" -eq 0 ] || usage; emit ;;
+  set)
+    [ "$#" -eq 2 ] || usage
+    case "$2" in pending|ready|running|done|failed|skipped) ;; *) echo "plan-state: unknown status $2" >&2; exit 2 ;; esac
+    emit "$1" "$2" ;;
+  *) usage ;;
+esac

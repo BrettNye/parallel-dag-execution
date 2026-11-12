@@ -244,6 +244,8 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
 
 Rules #7–#12 use the same refusal-message format as rules 1–6.
 
+`plan-state check <plan>` (the script beside this file) enforces rules 1–5 and 7–12 and prints one line per violation; rule 6 needs the previous version of the plan and stays with `updating-dag-plans`. `plan-state render` draws the mermaid block below and `plan-state tree` prints the ASCII tree, so both follow this spec exactly.
+
 ## Why `files:` is the load-bearing field
 
 The executor uses `files:` to verify at runtime that no two parallel implementers will clobber each other. Authoring-time validation (writing-dag-plans) ensures parallel branches are file-disjoint **by construction**. Runtime validation (executing-dag-plans) is a tripwire — if it fires, the planner has a bug, not a race condition.
@@ -286,7 +288,7 @@ classDef skipped fill:#d3d3d3,stroke:#333,stroke-dasharray: 5 5
 After every save, both writing/updating skills print an ASCII tree to the terminal. The format:
 
 ```
-DAG: <N> tasks · <D> done · <F> failed · <S> skipped · <P> pending
+DAG: <N> tasks · <D> done · <R> running · <F> failed · <S> skipped · <P> pending
 
 [task-id] short title              <icon> <status>
    │
