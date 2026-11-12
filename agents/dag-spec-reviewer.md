@@ -35,6 +35,8 @@ The task's `## Implementation` code blocks are a minimum-viable starting point, 
 - **APPROVED** — all requirements met, no over-build. Done.
 - **ISSUES** — list each issue with: requirement / actual / specific fix needed. The implementer subagent will be re-dispatched with this list.
 
+End the report with one line that holds the verdict and nothing else: `VERDICT: APPROVED` or `VERDICT: ISSUES`. The executor reads only that line. Decide before you write it. If you list an issue and then find it is not one, mark it `withdrawn:` where it stands. An APPROVED line must not follow an issue you have not withdrawn.
+
 Do NOT comment on code style, naming, performance, or maintainability. That is the next reviewer's job. Spec compliance only.
 
 ## Hard rules

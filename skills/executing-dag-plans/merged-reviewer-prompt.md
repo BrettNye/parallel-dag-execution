@@ -41,6 +41,8 @@ own; it does not widen what you may flag.
 
 Report TWO verdicts; the task passes only if BOTH are APPROVED.
 
+End the report with two lines and nothing after them: `SPEC: APPROVED` or `SPEC: ISSUES`, then `QUALITY: APPROVED` or `QUALITY: ISSUES`. The executor reads only those lines. Decide before you write them. If you list an issue and then find it is not one, mark it `withdrawn:` where it stands. An APPROVED line must not follow a blocking issue of its kind that you have not withdrawn.
+
 ### Spec compliance (bidirectional)
 - **APPROVED** — all requirements met, no over-build.
 - **ISSUES** — list each as: "Requirement: ... | Actual: ... | Fix: ...".

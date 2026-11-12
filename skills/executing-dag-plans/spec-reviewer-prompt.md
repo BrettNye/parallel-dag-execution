@@ -63,6 +63,8 @@ Report exactly one of:
 - **APPROVED** — all requirements met, no over-build.
 - **ISSUES** — list each as: "Requirement: ... | Actual: ... | Fix: ...". Be specific enough that the implementer can act without asking clarifying questions.
 
+End the report with one line that holds the verdict and nothing else: `VERDICT: APPROVED` or `VERDICT: ISSUES`. The executor reads only that line. Decide before you write it. If you list an issue and then find it is not one, mark it `withdrawn:` where it stands. An APPROVED line must not follow an issue you have not withdrawn.
+
 ## Task spec (binding)
 
 ID: {task.id}

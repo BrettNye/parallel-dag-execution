@@ -63,6 +63,8 @@ own; it does not widen what you may flag.
 - **APPROVED** — quality is solid. Suggestion-severity issues do NOT block approval; flag them but APPROVE.
 - **ISSUES** — list each as: "Severity: Important | Location: file:line | Issue: ... | Fix: ...". Important issues block approval; the implementer will be re-dispatched.
 
+End the report with one line that holds the verdict and nothing else: `VERDICT: APPROVED` or `VERDICT: ISSUES`. The executor reads only that line. Decide before you write it. If you list an issue and then find it is not one, mark it `withdrawn:` where it stands. An APPROVED line must not follow an Important issue you have not withdrawn.
+
 ### Red-to-green evidence
 
 The implementer's red-to-green report (below) names a failing assertion — or,

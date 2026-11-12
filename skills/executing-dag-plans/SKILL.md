@@ -67,6 +67,8 @@ implementer DONE
       → EITHER verdict ISSUES → re-dispatch implementer with the combined feedback → merged re-review → loop
 ```
 
+**Reading a verdict.** Take it from the report's closing line, `VERDICT: APPROVED` or `VERDICT: ISSUES` (a merged review closes with a `SPEC:` line and a `QUALITY:` line), not from the prose above it. A report is malformed when that line is missing, holds anything else, or appears more than once. Re-dispatch the reviewer once, fresh, on the same commit. If the second report is malformed too, mark the task `failed` with the reason "reviewer gave no single verdict". Do not settle it by checking the work yourself: a verdict the controller reaches is a skipped review.
+
 Reviewer tiers fall back per-task → plan-level default → `standard`. Review-issue re-dispatch of the **implementer** uses the original resolved implementer tier (NOT the BLOCKED-upgraded one). Spec-before-quality ordering only matters for `split`; `merged` is gated (by the writing-dag-plans validator / author choice) to small low-risk tasks where it doesn't.
 
 ## Implementer status handling
