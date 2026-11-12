@@ -371,5 +371,12 @@ out="$(ps charter "$tmp/c6.md" 2>&1)"
 has "duplicate contract id" "$out" "charter: duplicate contract id C1"
 
 echo
+echo "T20: an escaped pipe inside a table cell does not shift the columns"
+charter "$tmp/c7.md"; sed -i 's/^| C1 | Job type | core | api |$/| C1 | Job record: state is queued \\| running \\| done | core | api |/' "$tmp/c7.md"
+has "fixture carries the escaped pipes" "$(cat "$tmp/c7.md")" 'queued \| running \| done | core'
+out="$(ps charter "$tmp/c7.md" 2>&1)"; rc=$?
+chk "escaped pipes: clean charter exit 0" "$rc:$out" "0:"
+
+echo
 echo "RESULT: $passes passed, $fails failed"
 [ "$fails" -eq 0 ]

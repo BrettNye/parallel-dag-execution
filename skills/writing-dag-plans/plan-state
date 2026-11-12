@@ -269,7 +269,11 @@ infm {
 fence { if (runlen(line, fch) >= flen && trim(substr(line, runlen(line, fch) + 1)) == "") fence = 0; next }
 /^## / { sec = tolower(trim(substr(line, 4))); tab = (sec ~ /^children/) ? "ch" : (sec ~ /^contracts/) ? "ct" : ""; hdr = 0; next }
 tab != "" && line ~ /^\|/ {
+  # "\|" is a literal pipe inside a cell in GitHub Markdown; hide it from the
+  # column split, then put it back, so a cell like "queued \| running" stays one cell.
+  gsub(/\\\|/, "\001", line)
   n = split(line, c, "|")
+  for (i = 1; i <= n; i++) gsub(/\001/, "|", c[i])
   if (!hdr) { for (i = 2; i < n; i++) col[tab, tolower(trim(c[i]))] = i; hdr = 1; next }
   if (trim(c[2]) ~ /^:?-+:?$/) next
   id = trim(c[col[tab, "id"]]); if (id == "") next
