@@ -22,6 +22,27 @@ a two-gate pipeline.
 
 ---
 
+## Contracts-only plans (experimental)
+
+When the plan's frontmatter sets `implementation: contracts-only`, each task carries
+`## Contracts` (signatures, command usage, exit codes, output and file formats) instead
+of `## Implementation`. The missing implementation is deliberate. No lens reports its
+absence, and no lens asks for function bodies, test code, or a prescribed algorithm or
+idiom.
+
+What changes per lens:
+
+- `context-sufficiency` asks whether the acceptance criteria and contracts are enough for
+  an implementer to know *what* must hold, not *how* to build it.
+- `coherence` compares each task's acceptance criteria against its own contracts, and
+  contracts that two tasks share against each other.
+- `dag-integrity`, `coverage`, `grounding`, `charter`, `verifiability` and `ambiguity`
+  apply unchanged.
+
+A finding that can only be closed by prescribing how is still reported, tagged
+`needs-implementation`, so the plan's author can close it with an acceptance criterion
+instead.
+
 ## `coverage`
 
 **coverage** — does the plan deliver the spec, exactly?
