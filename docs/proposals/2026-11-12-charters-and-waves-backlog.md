@@ -168,7 +168,7 @@ merged here rather than run again. Two effects on this backlog:
 
 ## Order suggested
 
-1. C1, A5, A6, A8 (small; A8 before v0.6.0 runs).
+1. C1, A5, A6, A8 (small; A8 before v0.6.0 runs). Done.
 2. Merge v0.6.0 (done). A4 moves to step 5 with A1 and A3, since all three change the
    superspec charter template.
 3. C3 and C2 (executor advances on completion; BLOCKED retries raise effort first). Done for
@@ -176,6 +176,8 @@ merged here rather than run again. Two effects on this backlog:
    C2 were left out. An effort step below the top tier would add a second retry, which C5
    should price first. The `fable` tier waits for a plan that needs it; nothing measured says
    one does.
-4. C4 (plan-state script; brings A7's checks).
-5. A1 with A3 and A4, then A2. C5 alongside any step; C6 done (README).
+4. C4 (plan-state script). Done: `skills/writing-dag-plans/plan-state` does check, ready, set
+   (with the failure cascade), render and tree, and the three plan skills call it.
+5. A1 with A3 and A4, then A2. Done, with A7's structural half as `plan-state charter`.
+   Still open: A7's other half (whether a charter gets audit lenses) and C5. C6 done (README).
 6. B after the trial, B1 to B3 before B4.
