@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # plan-state — the mechanical half of DAG-plan bookkeeping (see plan-format.md).
 # Usage:
-#   plan-state check  <plan>               validate rules 1-5 and 7-13, status values, mermaid block
+#   plan-state check  <plan>               validate rules 1-5 and 7-14, status values, mermaid block
 #   plan-state ready  <plan>               print the ids ready to dispatch, one per line
 #   plan-state set    <plan> <id> <status> change one status; failed cascades skipped; redraws mermaid
 #   plan-state render <plan>               redraw the mermaid block in place
@@ -100,6 +100,15 @@ function check(   t, k, i, j, f, a, b, list, owners, seen, own, hint, n) {
   for (i = 1; i <= 3; i++) if ((hint[i] in fmset) && !inset(fm[hint[i]], "cheap standard opus")) viol(8, hint[i] " is " fm[hint[i]])
   if (("default_review_mode" in fmset) && !inset(fm["default_review_mode"], "merged split")) viol(10, "default_review_mode is " fm["default_review_mode"])
   if (("default_implementer" in fmset) && fm["default_implementer"] == "") viol(12, "default_implementer is empty")
+  if ("implementation" in fmset) {
+    if (!inset(fm["implementation"], "full contracts-only")) viol(14, "implementation is " fm["implementation"])
+    else if (fm["implementation"] == "contracts-only") for (t = 1; t <= nt; t++) {
+      if (val[t, "is_wiring_task"] == "true") continue
+      k = val[t, "id"]
+      if (!(t in seccon)) viol(14, k " has no ## Contracts section")
+      if (t in secimpl) viol(14, k " has an ## Implementation section")
+    }
+  }
   if (cyclic) {
     list = ""; for (t = 1; t <= nt; t++) if (deg[t] > 0) list = list (list == "" ? "" : ", ") val[t, "id"]
     viol(2, "cycle among " list)
@@ -223,6 +232,8 @@ NR == FNR {
     next
   }
   if (match(line, /^## Task:[ \t]*/)) { nt++; cur = nt; title[cur] = trim(substr(line, RLENGTH + 1)); pend = 1; next }
+  if (cur && line ~ /^## Implementation[ 	]*$/) secimpl[cur] = 1
+  if (cur && line ~ /^## Contracts[ 	]*$/) seccon[cur] = 1
   if (line ~ /^##? /) pend = 0
   next
 }

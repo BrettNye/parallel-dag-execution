@@ -378,5 +378,58 @@ out="$(ps charter "$tmp/c7.md" 2>&1)"; rc=$?
 chk "escaped pipes: clean charter exit 0" "$rc:$out" "0:"
 
 echo
+echo
+echo "T21: rule 14, contracts-only plans"
+# addsec FILE N SECTION [fenced]: put "## SECTION" after the yaml block of the Nth task
+addsec() {
+  awk -v n="$2" -v sec="$3" -v fenced="$4" '
+    /^## Task:/ { t++; inblk = 0 }
+    { print }
+    t == n && /^```yaml/ { inblk = 1; next }
+    t == n && inblk && /^```/ { inblk = 0
+      if (fenced != "") print "\n```\n## " sec "\n```"; else print "\n## " sec "\n\ntext"
+    }' "$1" > "$1.new" && mv "$1.new" "$1"
+}
+setimpl() { sed -i "s/^created: 2026-11-12\$/created: 2026-11-12\nimplementation: $2/" "$1"; }
+clean_plan "$tmp/r21.md"; setimpl "$tmp/r21.md" contracts-only
+out="$(ps check "$tmp/r21.md" 2>&1)"; rc=$?
+chk "contracts-only plan without Contracts sections exits 1" "$rc" "1"
+has "names the task" "$out" "plan-state: rule 14: task-a has no ## Contracts section"
+clean_plan "$tmp/r21b.md"; setimpl "$tmp/r21b.md" bogus
+out="$(ps check "$tmp/r21b.md" 2>&1)"; rc=$?
+chk "implementation: bogus exits 1" "$rc" "1"
+has "names the bad value" "$out" "plan-state: rule 14: implementation is bogus"
+clean_plan "$tmp/r21c.md"; setimpl "$tmp/r21c.md" contracts-only
+for n in 1 2 3; do addsec "$tmp/r21c.md" $n Contracts; done
+addsec "$tmp/r21c.md" 2 Implementation
+out="$(ps check "$tmp/r21c.md" 2>&1)"; rc=$?
+chk "both sections exits 1" "$rc" "1"
+has "flags the Implementation section" "$out" "plan-state: rule 14: task-b has an ## Implementation section"
+hasnt "task with both has Contracts" "$out" "task-b has no ## Contracts"
+hasnt "other tasks not flagged" "$out" "task-c has"
+clean_plan "$tmp/r21d.md"; setimpl "$tmp/r21d.md" contracts-only
+for n in 1 2 3; do addsec "$tmp/r21d.md" $n Contracts; done
+out="$(ps check "$tmp/r21d.md" 2>&1)"; rc=$?
+chk "all Contracts, no Implementation: clean" "$rc:$out" "0:"
+clean_plan "$tmp/r21e.md"; setimpl "$tmp/r21e.md" contracts-only
+addsec "$tmp/r21e.md" 1 Contracts; addsec "$tmp/r21e.md" 2 Contracts
+sed -i 's/^id: task-c$/id: task-c\nis_wiring_task: true/' "$tmp/r21e.md"
+out="$(ps check "$tmp/r21e.md" 2>&1)"; rc=$?
+chk "wiring task needs neither section" "$rc:$out" "0:"
+clean_plan "$tmp/r21f.md"; setimpl "$tmp/r21f.md" contracts-only
+addsec "$tmp/r21f.md" 1 Contracts fenced; addsec "$tmp/r21f.md" 2 Contracts; addsec "$tmp/r21f.md" 3 Contracts
+out="$(ps check "$tmp/r21f.md" 2>&1)"; rc=$?
+chk "fenced Contracts heading does not count" "$rc" "1"
+has "still reports task-a" "$out" "rule 14: task-a has no ## Contracts section"
+clean_plan "$tmp/r21g.md"; setimpl "$tmp/r21g.md" full
+addsec "$tmp/r21g.md" 1 Contracts
+out="$(ps check "$tmp/r21g.md" 2>&1)"; rc=$?
+chk "implementation: full with a Contracts section is clean" "$rc:$out" "0:"
+clean_plan "$tmp/r21h.md"; addsec "$tmp/r21h.md" 1 Contracts
+out="$(ps check "$tmp/r21h.md" 2>&1)"; rc=$?
+chk "no implementation key is clean" "$rc:$out" "0:"
+out="$($ALTSH "$SCRIPT" check "$tmp/r21.md" 2>&1)"; rc=$?
+chk "rule 14 under $ALTSH" "$rc" "1"
+
 echo "RESULT: $passes passed, $fails failed"
 [ "$fails" -eq 0 ]
