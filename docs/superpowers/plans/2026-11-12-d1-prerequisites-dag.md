@@ -7,12 +7,12 @@ default_review_mode: merged
 
 ```mermaid
 flowchart TD
-    task-format["task-format: document the contracts-only mode in the plan format<br/>files: skills/writing-dag-plans/plan-format.md"]
-    task-check["task-check: enforce rule 14 in plan-state<br/>files: skills/writing-dag-plans/plan-state, tests/plan-state/plan-state.test.sh"]
-    task-quality["task-quality: let the quality rules read Contracts sections<br/>files: skills/writing-dag-plans/plan-quality.md"]
-    task-authoring["task-authoring: point the authoring steps at the contracts-only mode<br/>files: skills/writing-dag-plans/SKILL.md"]
-    task-lenses["task-lenses: tell the plan-audit lenses the omission is deliberate<br/>files: skills/auditing-artifacts/lenses-plan.md"]
-    task-conventions["task-conventions: write the repo's conventions file<br/>files: CLAUDE.md"]
+    task-format["task-format: document the contracts-only mode in the plan format<br/>files: skills/writing-dag-plans/plan-format.md"]:::done
+    task-check["task-check: enforce rule 14 in plan-state<br/>files: skills/writing-dag-plans/plan-state, tests/plan-state/plan-state.test.sh"]:::done
+    task-quality["task-quality: let the quality rules read Contracts sections<br/>files: skills/writing-dag-plans/plan-quality.md"]:::done
+    task-authoring["task-authoring: point the authoring steps at the contracts-only mode<br/>files: skills/writing-dag-plans/SKILL.md"]:::done
+    task-lenses["task-lenses: tell the plan-audit lenses the omission is deliberate<br/>files: skills/auditing-artifacts/lenses-plan.md"]:::done
+    task-conventions["task-conventions: write the repo's conventions file<br/>files: CLAUDE.md"]:::done
 
     classDef done fill:#90ee90,stroke:#333
     classDef running fill:#87ceeb,stroke:#333
@@ -56,7 +56,7 @@ id: task-format
 depends_on: []
 files:
   - skills/writing-dag-plans/plan-format.md
-status: pending
+status: done
 ```
 
 Add the experimental `implementation:` frontmatter key, the `## Contracts` section and
@@ -117,7 +117,7 @@ depends_on: []
 files:
   - skills/writing-dag-plans/plan-state
   - tests/plan-state/plan-state.test.sh
-status: pending
+status: done
 review_mode: split
 ```
 
@@ -181,7 +181,7 @@ id: task-quality
 depends_on: []
 files:
   - skills/writing-dag-plans/plan-quality.md
-status: pending
+status: done
 ```
 
 Teach `skills/writing-dag-plans/plan-quality.md` the contracts-only mode, so H7 accepts
@@ -227,7 +227,7 @@ id: task-authoring
 depends_on: []
 files:
   - skills/writing-dag-plans/SKILL.md
-status: pending
+status: done
 ```
 
 Update `skills/writing-dag-plans/SKILL.md` so an author writing a contracts-only plan
@@ -275,7 +275,7 @@ id: task-lenses
 depends_on: []
 files:
   - skills/auditing-artifacts/lenses-plan.md
-status: pending
+status: done
 ```
 
 Add a section to `skills/auditing-artifacts/lenses-plan.md` so gate-2 lenses auditing a
@@ -334,7 +334,7 @@ id: task-conventions
 depends_on: []
 files:
   - CLAUDE.md
-status: pending
+status: done
 model_hint: cheap
 ```
 
