@@ -14,6 +14,9 @@ hasnt(){ if printf '%s\n' "$2" | grep -qF -- "$3"; then bad "$1 (unexpected [$3]
 
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 ps() { sh "$SCRIPT" "$@"; }
+# Replace (or, with an empty replacement, delete) the first "status: pending" line.
+# GNU sed spells this 0,/re/; busybox sed has no such address.
+first_status() { awk -v r="$2" '!d && /^status: pending$/ { d = 1; if (r != "") print r; next } { print }' "$1" > "$1.t" && mv "$1.t" "$1"; }
 
 # A clean three-task plan: a -> b, a -> c; b and c share nothing.
 clean_plan() {
@@ -113,7 +116,7 @@ chk "shared file WITH a path (a -> b) passes" "$rc" "0"
 
 echo
 echo "T6: required fields, empty files, status values (rule 5)"
-clean_plan "$tmp/p6.md"; sed -i '0,/^status: pending$/{//d}' "$tmp/p6.md"
+clean_plan "$tmp/p6.md"; first_status "$tmp/p6.md" ""
 out="$(ps check "$tmp/p6.md" 2>&1)"; rc=$?
 chk "exit 1" "$rc" "1"
 has "missing status named" "$out" "rule 5: task-b has no status"
@@ -123,7 +126,7 @@ has "empty files refused" "$out" "rule 5: task-b has empty files"
 printf 'single_threaded: true\n' > "$tmp/st"; sed -i "/^files: \[\]$/r $tmp/st" "$tmp/p6b.md"
 out="$(ps check "$tmp/p6b.md" 2>&1)"; rc=$?
 chk "empty files allowed when single_threaded" "$rc" "0"
-clean_plan "$tmp/p6c.md"; sed -i '0,/^status: pending$/s//status: finished/' "$tmp/p6c.md"
+clean_plan "$tmp/p6c.md"; first_status "$tmp/p6c.md" "status: finished"
 out="$(ps check "$tmp/p6c.md" 2>&1)"
 has "bad status value named" "$out" "rule 5: task-b has status finished"
 
