@@ -79,7 +79,7 @@ function ancestors(   i, t, j, d, u, a) {
       for (a = 1; a <= nt; a++) if ((u, a) in anc) anc[t, a] = 1 } }
 }
 
-function check(   t, k, i, j, f, a, b, list, seen, own, hint, n) {
+function check(   t, k, i, j, f, a, b, list, owners, seen, own, hint, n) {
   if (nt == 0) viol(5, "no \"## Task:\" sections found")
   if (!ms) print "plan-state: format: no mermaid block (run: plan-state render)"; if (!ms) bad = 1
   for (t = 1; t <= nt; t++) {
@@ -109,8 +109,8 @@ function check(   t, k, i, j, f, a, b, list, seen, own, hint, n) {
   # Rule 4: tasks sharing a file need a dependency path between them.
   for (t = 1; t <= nt; t++) for (j = 1; j <= nf[t]; j++) {
     f = fil[t, j]
-    n = split(own[f], list, " ")
-    for (i = 1; i <= n; i++) { a = list[i] + 0
+    n = split(own[f], owners, " ")
+    for (i = 1; i <= n; i++) { a = owners[i] + 0
       if (!((t, a) in anc) && !((a, t) in anc)) viol(4, val[a, "id"] " and " val[t, "id"] " both declare " f " with no depends_on path between them") }
     own[f] = own[f] " " t
   }
