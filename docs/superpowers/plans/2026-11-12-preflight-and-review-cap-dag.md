@@ -254,6 +254,17 @@ unique path once; the shell writes `path<TAB>file|dir|absent<TAB>lines` per path
 temp file (line count from `awk 'END { print NR }'`, so a last line without a newline
 counts); awk (`MODE=preflight -v PFTAB=<file>`) reads it with `getline` in END.
 
+**Names.** Every mode shares one `PROG`, and awk fails when a name used as a scalar is
+also used as an array, so new globals must not reuse a taken name. Taken: `ms`, `me`, `l`,
+`k`, `line`, `info`, `cur`, `nt`, `fence`, and the functions `st`, `inset`, `err`, `viol`,
+`graph`, `ancestors`, `check`, `ready`, `tree`. That is why the message array is `pfmsg`,
+not `ms` (the mermaid-start line). Later tasks check their new names against this list.
+
+**Match positions.** `addc` calls `norm`, whose `match()` overwrites `RSTART` and
+`RLENGTH`. So `cands` saves both in locals (`s`, `n`) right after its own `match()` and
+uses only those to take the substring and to advance; reading `RSTART` after `addc` makes
+the loop never advance.
+
 **P3.** Skip any path in the task's own `files:`. Otherwise:
 - absent and no task declares it: a line citation is an error, a bare citation a warning.
   Message: `<id> cites <citation>, which does not exist and no task creates`.
@@ -315,15 +326,16 @@ function ispath(p) {
 function addc(t, raw,   p) { p = norm(raw); if (!ispath(p)) return
   nc[t]++; cp[t, nc[t]] = p; cs[t, nc[t]] = SUF }
 function cite(t, i) { return cp[t, i] (cs[t, i] == "" ? "" : ":" cs[t, i]) }   # path as cited, suffix kept
-function cands(t,   i, l, rest, word) {
+function cands(t,   i, l, rest, word, s, n) {   # s, n: saved RSTART/RLENGTH; addc's norm() clobbers both
   word = "[^ \t\"\047`]+"              # "\047" is a quote; this program sits inside one
   for (i = 1; i <= ntx[t]; i++) { rest = txt[t, i]
-    if (code[t, i]) while (match(rest, word)) { addc(t, substr(rest, RSTART, RLENGTH)); rest = substr(rest, RSTART + RLENGTH) }
-    else while (match(rest, /`[^`]+`/)) { l = substr(rest, RSTART + 1, RLENGTH - 2)
-      if (l !~ /[ \t]/) addc(t, l); rest = substr(rest, RSTART + RLENGTH) } }
+    if (code[t, i]) while (match(rest, word)) { s = RSTART; n = RLENGTH
+      addc(t, substr(rest, s, n)); rest = substr(rest, s + n) }
+    else while (match(rest, /`[^`]+`/)) { s = RSTART; n = RLENGTH; l = substr(rest, s + 1, n - 2)
+      if (l !~ /[ \t]/) addc(t, l); rest = substr(rest, s + n) } }
 }
 # dcl[path] = " t1 t2 ..." (task indexes, file order), built from fil[] for every task.
-function note(t, p, c, level, msg) { if (level > lv[t, p, c]) { lv[t, p, c] = level; ms[t, p, c] = msg } }
+function note(t, p, c, level, msg) { if (level > lv[t, p, c]) { lv[t, p, c] = level; pfmsg[t, p, c] = msg } }
 function preflight(   t, i, j, c, p) {
   # read PFTAB into kind[path], nlines[path]; then, for each pending/ready task t:
   #   cands(t); for each citation i: record first appearance of cp[t, i] in pord[t, ...];
@@ -425,8 +437,12 @@ direction. Message: `<id> reads <citation> while <other id>, which can run at th
 naming the first such declarer in plan order.
 
 `<citation>` is the path with its line suffix when the first citation has one. Order
-within a path stays by check id, so a P2 line comes before a P3 or P4 line for the same
-path.
+within a path stays by check id. P2 never shares a path with P3 or P4: P2 needs an absent
+path that another task declares, P3's absent branch needs one that no task declares, and
+P4 needs an existing path. P3 and P4 can share an existing path, and P3 prints first.
+
+New global names must not clash with names `PROG` already uses (the list is in
+task-preflight-core; confirm with `rg -nw '<name>' skills/writing-dag-plans/plan-state`).
 
 ## Implementation
 
@@ -481,7 +497,10 @@ Fixtures run from a temp directory outside any git repo, as in T23:
   `plan-state: preflight: P4: warning: task-x reads lib/two.sh while task-w, which can run at the same time, changes it`.
   With `task-w` set to `done`, or with `task-x` depending on `task-w`, no P4 line is printed
   for that path; with `task-w` `running`, the P4 line is printed.
-- For one path that draws both P2 and P3 lines in a task, P2 prints first.
+- P3 before P4 on one path: the two-line `lib/two.sh` exists and root task `task-w`
+  (`pending`) declares it; root task `task-x` cites `lib/two.sh:5`. Exit 1, and the P3
+  error ending `past the end of the file (2 lines)` prints before the P4 warning for
+  `lib/two.sh`.
 - The P2 sibling case gives the same output under `$ALTSH`.
 - Every earlier test, including T23's real-plan cases, still passes; the file ends with
   `RESULT: N passed, 0 failed`.
@@ -520,13 +539,21 @@ append to, appends to, appended to, appending to. A verb directly preceded by `n
 count. A line where a negated verb is followed by a plain one still counts the plain one.
 
 To know what came before the path, `cands` records each citation's line prefix: the text
-of its line before the candidate starts (`cpre[t, i]`).
+of its line before the candidate starts (`cpre[t, i]`). `addc` gains a parameter for it.
+`cands` already saves each match's `RSTART` and `RLENGTH` in the locals `s` and `n`
+before calling `addc`, because `norm()`'s own `match()` overwrites them; compute the
+prefix and the offset from `s` and `n` too. Reading `RSTART` or `RLENGTH` after `addc`
+makes the loop never advance. New global names must not clash with names `PROG` already
+uses (confirm with `rg -nw '<name>' skills/writing-dag-plans/plan-state`).
 
 ## Implementation
 
 ```awk
-# in cands(): track the offset of each match so addc can store the prefix
-#   addc(t, raw, substr(txt[t, i], 1, off + RSTART - 1)); off += RSTART + RLENGTH - 1
+function addc(t, raw, pre,   p) { p = norm(raw); if (!ispath(p)) return
+  nc[t]++; cp[t, nc[t]] = p; cs[t, nc[t]] = SUF; cpre[t, nc[t]] = pre }
+# in cands(): off = characters of the line before rest (0 at each line's start), so for a
+# match at s with length n in rest (both saved before addc runs):
+#   addc(t, <candidate>, substr(txt[t, i], 1, off + s - 1)); off += s + n - 1; rest = substr(rest, s + n)
 function editverb(s,   re, rest, pre) {      # 1 when s holds a non-negated edit verb
   s = tolower(s); rest = s
   re = "(^|[^a-z])(edit(s|ed|ing)?|modif(y|ies|ied|ying)|chang(e|es|ed|ing)|updat(e|es|ed|ing)|renam(e|es|ed|ing)|delet(e|es|ed|ing)|remov(e|es|ed|ing)|replac(e|es|ed|ing)|rewr(ite|ites|ote|itten|iting)|(add(s|ed|ing)?|append(s|ed|ing)?)[ \t]+to)([^a-z]|$)"
@@ -569,6 +596,9 @@ there unless a bullet says otherwise:
 - Words that merely contain a verb (`changelog`, `editor`, `preupdate`) before the path
   print no P1 line.
 - The rename case gives the same output under `$ALTSH`.
+- When `mawk` or `busybox` is on PATH, the suite's `$ALTSH` cases also run with it as
+  `awk` and pass; when neither is present the suite prints one `NOTE:` line, as it does
+  for dash (tests/plan-state/plan-state.test.sh:7).
 - Every earlier test, including T23's real-plan cases, still passes; the file ends with
   `RESULT: N passed, 0 failed`.
 
@@ -930,3 +960,34 @@ rg -n 'preflight|fix rounds' README.md
   `` (`round`) ``.
 
 Test file: none (the `rg` checks above).
+
+## Audit record
+
+- **2026-11-12** · gate 2 · rev `250588bcd661` · commit `0c4eac5` · lenses: coverage,
+  dag-integrity, grounding, charter, context-sufficiency, verifiability, coherence,
+  ambiguity (8/8 ran) · **NOT READY — 3 blocking**
+  - B1 (task-preflight-core): `note()` stores messages in `ms[...]`, but `ms` is already
+    the mermaid-start scalar in the shared `PROG` (plan-state:84, :223, :241-247).
+    `preflight` dies with `fatal: attempt to use scalar 'ms' as an array` (exit 2) on the
+    first finding. Reproduced under gawk 5.4.1.
+  - B2 (task-preflight-core, repeated in task-preflight-edit): `cands()` reads
+    `RSTART`/`RLENGTH` after `addc()`, and `norm()`'s `match()` has overwritten them.
+    The loop never advances and `preflight` hangs on any fenced or backticked candidate
+    without a `:N` suffix. Reproduced under gawk 5.4.1.
+  - B3 (task-preflight-declared): the AC "for one path that draws both P2 and P3 lines in
+    a task, P2 prints first" cannot be met. P2 requires a declared absent path and P3's
+    absent branch requires an undeclared one, so the two never share a path.
+  - Joint resolutions proposed: A (awk fixes across core/declared/edit: rename the
+    message array, save match positions in locals, `addc` prefix parameter, negated-verb
+    resume, `run_check` returns, `-v CAP` on check), B (replace the P2/P3 ordering AC
+    with a reachable P3+P4 case; state the Mixed fixture's edge; assert exit 0 on
+    "prints no line" cases). Neither adds tasks, files or edges.
+  - Deferred, open: fixture strength in core/edit (strip, exclusions, no-final-newline,
+    `Exit:` line), the write-failure exit-2 mapping in `emit` and its dash-blind test,
+    no restart test for `review_rounds`, P2 message wording vs the spec table, the plan
+    failing its own preflight while the chain is unfinished, the stale "rules 1-8, 11-12"
+    line in writing-dag-plans SKILL.md.
+  - Empirical unknowns opened: EU-A, whether the new awk runs under mawk and busybox awk
+    (neither installed on the audit host). Owner: task-preflight-edit, settled by running
+    the plan-state suite with an `awk` shim for each.
+  - Lens reports: `.audit/2026-11-12-preflight-and-review-cap-dag.md/` (gitignored).
