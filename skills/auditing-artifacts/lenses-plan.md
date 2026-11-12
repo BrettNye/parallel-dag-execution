@@ -1,6 +1,6 @@
 # Plan-audit lens catalog
 
-Seven lenses, dispatched concurrently as `dag-auditor`, one per concern. Each
+Eight lenses, dispatched concurrently as `dag-auditor`, one per concern. Each
 fragment is pasted into the dispatch template as **YOUR LENS**.
 
 **The spec is APPROVED and FROZEN at this gate.** No lens here may reopen a spec
@@ -18,6 +18,7 @@ a two-gate pipeline.
 | `context-sufficiency` | can an implementer finish from its task body alone? | opus |
 | `verifiability` | observable completion checks that a crash would not pass | opus |
 | `coherence` | contradictions within the plan itself | standard |
+| `ambiguity` | inherited-but-unresolved and transcription-introduced ambiguity | opus |
 
 ---
 
@@ -214,3 +215,25 @@ Compare all of them. When you write "N tasks, all consistent", state the N and l
 them; a count with no list is unauditable, and the task you skipped is where it broke.
 If you cannot enumerate exhaustively, report the clearance as partial and say what you
 sampled.
+
+---
+
+## `ambiguity`
+
+**ambiguity** — did the plan resolve what it inherited, and did it introduce any?
+
+Gate 1 asks whether a requirement is ambiguous. You ask something narrower,
+because the parent spec is frozen and its design decisions are not yours to
+reopen:
+
+- **Introduced in transcription.** A spec requirement that was clear and became
+  ambiguous in the task body carrying it.
+- **Inherited and unresolved.** The plan's job is to make a requirement
+  executable. Transcribing an unfalsifiable ask faithfully is a *plan* defect,
+  even though the spec is its source. Name the resolution the plan owed it.
+- **Cannot be false.** A requirement no observation could contradict, so no test
+  can fail. Ask: what state of the world would violate this? If none, it is
+  unfalsifiable regardless of how precisely it is worded.
+
+**Out of scope — do not report:** a frozen spec decision that is clear but that
+you would have decided differently. That is relitigation, not ambiguity.

@@ -25,3 +25,4 @@
 
 # Extensionless shell script.
 skills/executing-dag-plans/git-commit-safe text eol=lf
+skills/auditing-artifacts/resolve-declared-paths text eol=lf

@@ -95,7 +95,10 @@ You are authoritative. Lenses propose; you decide.
 - **BLOCKING** — will fail, produce wrong behavior, corrupt state, bypass a
   guard, or violate a charter invariant, with the concrete failure named.
 - **DEFERRED** — real, non-blocking, no fix required now.
-- **EMPIRICAL-UNKNOWN** — becomes a probe task, with the settling command stated.
+- **EMPIRICAL-UNKNOWN** — becomes **an acceptance criterion on the task that owns
+  the surface** (the task whose `files:` list names it), with the settling command
+  stated. Only where no task owns it does it become a probe task. An AC on an
+  existing task is cheaper than a new node.
 - **UNVERIFIABLE** — reported with what would be needed. Not a finding.
 
 Promote a lens's DEFERRED to BLOCKING when a *different* lens supplies the
@@ -109,6 +112,14 @@ individually and is one of the main reasons to run them together.
   severity, and why.
 - Downgrade for a missing failure mode, a failed citation, or duplication — not
   for volume, and not because the finding is inconvenient.
+- A **world-claim** — a claim about the state of the repo, not about the
+  document — downgrades to `UNVERIFIABLE` when it contradicts the ground-truth
+  tables supplied in this prompt, or when it carries neither command output
+  nor a `file:line` citation. If no ground-truth table was supplied, this
+  clause does not fire — a missing table grounds nothing and contradicts
+  nothing; judge the claim on the citation clause alone, and say once in your
+  output that world-claims were checked without ground truth. Log it like any
+  other downgrade.
 
 Silent suppression is the one failure mode of this design that the author cannot
 see. The log is the only thing standing against it. Populate it honestly.
@@ -169,7 +180,8 @@ five-round one.
 ### 5. Verdict
 
 - **READY** — no BLOCKING findings. `EMPIRICAL-UNKNOWN` entries do not block, but
-  each must have an owning probe task named.
+  each must name either an acceptance criterion on the task that owns the
+  surface or, where no task owns it, a probe task.
 - **NOT READY** — one or more BLOCKING findings, with the count.
 
 State it in one line, first, before the detail.
@@ -210,14 +222,23 @@ State it in one line, first, before the detail.
 (one line each, grouped)
 
 ### Empirical unknowns
-(each with the command/query that settles it, and its owning probe task)
+(each with the command/query that settles it, and either the owning task's
+ acceptance criterion or its probe task)
 
 ### Downgrade log
 (every severity you lowered, with the lens, its claim, and your reason.
  "None" if none.)
 
 ### Unverifiable
-(what could not be grounded, and what would be needed)
+(Two shapes. They are not interchangeable — pick by why the entry landed
+ here. **When both apply, the first wins:** a claim the table refutes is
+ refuted, and asking what would sustain it is incoherent — no such evidence
+ can exist.
+ - **Refuted by ground truth.** Carry the contradicting row itself, e.g.
+   `path/to/file — EXISTS`. It was grounded and REFUTED, not ungrounded,
+   so "what would be needed" has nothing to say and must not appear.
+ - **Ungrounded for any other reason.** What could not be grounded, and
+   what would be needed to settle it.)
 
 ### Solid
 (what the lenses verified as sound — carried through from their "Checked, no

@@ -33,7 +33,18 @@ You are dispatched to implement one task in a DAG-aware execution plan.
 
 ## Project conventions
 
-{contents of repo's CLAUDE.md, if any}
+{contents of repo's CLAUDE.md, if any, or "(none found)"}
+
+Charter sections for your role — implementer: Hard invariants; Named reference implementations, per layer; Recurring bug classes; Verification gotchas; Verification commands (verbatim, not summarized — do not summarize these for the implementer; matches `../auditing-artifacts/audit-charter-template.md` § Who reads what row for row):
+{charter_sections_for_role}
+{if no audit charter file exists in the repo: "(none found — proceed; do not substitute generic best practice)"}
+
+Citation freshness for the entries above:
+{charter_citation_table}
+{if the citation pre-pass (resolve-declared-paths) did not run or failed: "(citation pre-pass did not run — treat the charter entries above as unverified)"}
+An entry marked SUSPECT, MOVED or GONE may be stale — where a charter entry and
+the code disagree, the code wins. This is context for implementing the task you
+already own to spec; it does not add new requirements beyond the task body.
 
 - Commit via the race-safe helper, NOT a bare `git commit`:
 
@@ -54,6 +65,17 @@ Implement the task per your agent system prompt. Use TDD. Commit when green. Rep
 - DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED
 - Commit SHA (for DONE / DONE_WITH_CONCERNS)
 - One-line summary of what was implemented (for DONE / DONE_WITH_CONCERNS)
+- RED-THEN-GREEN (required when this task's acceptance criteria are test-bearing):
+  the assertion that failed before your fix, and its failure message, verbatim.
+  A grep-based or manual acceptance check counts as a test here: "assertion" is
+  the exact check you ran (the command, or the manual step, drawn from the
+  acceptance criteria) and "failure message" is its output or observed state
+  before your fix. Only write "not test-bearing" (and say why) when the task's
+  acceptance criteria carry no verifiable check at all — e.g., pure prose with
+  nothing to run or inspect. If some acceptance criteria are verifiable and
+  others are not, report the RED-THEN-GREEN pair for the verifiable ones and
+  note the non-verifiable ones separately rather than defaulting to "not
+  test-bearing".
 - Concerns / questions / blocker explanation (for the other statuses)
 
 Modify ONLY the files in your task's `files:` list. If you discover you need another file, STOP and report BLOCKED.

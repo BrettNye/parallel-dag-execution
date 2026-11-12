@@ -22,6 +22,8 @@ Example skeleton:
 ---
 title: my-feature
 created: 2026-05-02
+spec: docs/superpowers/specs/2026-05-02-my-feature-design.md  # OPTIONAL. Single file path to the design this plan implements. A superspec charter when the design spans files. Never a directory — a directory cannot be diffed against a claim. An unresolvable `spec:` refuses (does not warn).
+default_implementer: dag-implementer    # OPTIONAL. subagent_type fallback for tasks lacking `implementer:`. Resolution order: task.implementer, then default_implementer, then dag-implementer.
 default_model_hint: standard            # OPTIONAL. cheap | standard | opus. Default `standard`. Implementer tier.
 default_spec_reviewer_hint: standard    # OPTIONAL. cheap | standard | opus. Default `standard`.
 default_quality_reviewer_hint: standard # OPTIONAL. cheap | standard | opus. Default `standard`.
@@ -78,6 +80,10 @@ All three `default_model_hint` / `default_spec_reviewer_hint` / `default_quality
 
 `default_review_mode: split` (OPTIONAL, `merged | split`, default `split`) sets the review mode for tasks lacking a per-task `review_mode`. Omitting it keeps `split` (today's two-call spec→quality chain).
 
+`spec:` (OPTIONAL) names a single file path to the design this plan implements — a superspec charter when the design spans files. It must be a single file, never a directory: a directory cannot be diffed against a claim. An unresolvable `spec:` (path does not exist) refuses rather than warns.
+
+`default_implementer:` (OPTIONAL, default `dag-implementer`) is the subagent_type fallback for tasks lacking a per-task `implementer:`. Resolution order: `task.implementer`, then `default_implementer`, then `dag-implementer` — matching the `default_*_hint` pattern documented above.
+
 ## Per-task frontmatter schema
 
 Every `## Task: ...` heading is immediately followed by a YAML block:
@@ -88,7 +94,7 @@ depends_on: []         # REQUIRED. List of task ids this task depends on. [] = r
 files:                 # REQUIRED. Files this task creates or modifies.
   - path/to/file.ts
 status: pending        # REQUIRED. pending | ready | running | done | failed | skipped
-implementer: dag-implementer  # OPTIONAL. subagent_type to dispatch for this task. Defaults to dag-implementer. Use to route specialized tasks to persona-typed subagents (e.g., profile-charmeleon for backend, profile-gastly for tests). The named subagent must be available in the harness's agent registry at dispatch time.
+implementer: dag-implementer  # OPTIONAL. subagent_type to dispatch for this task. Falls back to `default_implementer`, then `dag-implementer`. Use to route specialized tasks to persona-typed subagents (e.g., profile-charmeleon for backend, profile-gastly for tests). The named subagent must be available in the harness's agent registry at dispatch time.
 model_hint: cheap             # OPTIONAL. cheap | standard | opus. Implementer model selection hint. Falls back to `default_model_hint`, then `standard`.
 spec_reviewer_hint: standard    # OPTIONAL. Spec reviewer tier. cheap | standard | opus. Falls back to default_spec_reviewer_hint, then `standard`.
 quality_reviewer_hint: standard # OPTIONAL. Quality reviewer tier. cheap | standard | opus. Falls back to default_quality_reviewer_hint, then `standard`.
@@ -99,7 +105,7 @@ is_wiring_task: false  # OPTIONAL. If true, plan-quality.md H3 (single-subsystem
 
 ### Mixing implementers in a single plan
 
-When a plan has tasks for different specialized subagents, set `implementer:` per task. Example: a plan with backend tasks for `profile-charmeleon` and test-infrastructure tasks for `profile-gastly` declares each accordingly. The executor reads `implementer:` per dispatch and selects the subagent_type at runtime. Tasks without an `implementer:` field fall back to `dag-implementer`.
+When a plan has tasks for different specialized subagents, set `implementer:` per task. Example: a plan with backend tasks for `profile-charmeleon` and test-infrastructure tasks for `profile-gastly` declares each accordingly. The executor reads `implementer:` per dispatch and selects the subagent_type at runtime. Tasks without an `implementer:` field fall back to `default_implementer` (when set), then `dag-implementer`.
 
 The spec and quality reviewers (`dag-spec-reviewer`, `dag-quality-reviewer`) are persona-agnostic — they review the diff against the task spec and code quality regardless of which implementer wrote it. There's no per-task review override.
 
@@ -233,8 +239,10 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
 8. **Plan-level default enum** — `default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint`, when present in frontmatter, MUST be one of `cheap | standard | opus`. Any other value → refuse with the field name and the bad value.
 9. **Per-task review-mode enum** — `review_mode`, when present on any task, MUST be `merged | split`. Any other value → refuse naming the task id, field, and bad value.
 10. **Plan-level review-mode enum** — `default_review_mode`, when present in frontmatter, MUST be `merged | split`. Any other value → refuse naming the field and bad value.
+11. **`spec:` file validity** — `spec:`, when present, MUST resolve to a readable single file, not a directory. Any other case → refuse, naming the field and the offending path.
+12. **`default_implementer` type check** — `default_implementer`, when present in frontmatter, MUST be a non-empty string. Any other value → refuse with the field name and the bad value.
 
-Rules #7–#10 use the same refusal-message format as rules 1–6.
+Rules #7–#12 use the same refusal-message format as rules 1–6.
 
 ## Why `files:` is the load-bearing field
 
