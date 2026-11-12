@@ -32,21 +32,27 @@ pieces with separable review/lifecycles (e.g. a shared library + its first
 consumer; a core engine + N adapters)?
 
 - **No** → one deliverable → author one DAG plan (continue below).
-- **Yes** → author a **thin charter first**, then a child plan per piece:
-  1. Write the charter from the `./superspec-charter.md` template. It owns ONLY
-     the connective tissue no child plan can: the cross-plan **contract surface**
-     (shared types/enums/tokens), the **shared invariants** every child must
-     uphold, and the **build-order gate** between children.
-  2. Run THIS skill once per child plan, passing the charter as shared context.
-     Each child task's acceptance criteria must **inline the actual requirement**
-     (the invariant text, the concrete contract), citing the charter section as
-     provenance ("per Charter §3 I2: …") — never a bare pointer. The executor's
-     spec/quality reviewers treat the task body AS the binding spec and never see
-     the charter, so a bare "upholds Charter §3 I2" is unverifiable at review time.
-  3. Pull children one at a time; don't start them all at once.
+- **Yes** → author a **thin superspec charter first**, then a child plan per piece:
+  1. Write the superspec charter from the `./superspec-charter.md` template. It
+     owns ONLY the connective tissue no child plan can: the cross-plan **contract
+     surface** (shared types/enums/tokens), the **shared invariants** every child
+     must uphold, and the **build-order gate** between children.
+  2. Run THIS skill once per child plan, passing the superspec charter as shared
+     context. Each child task's acceptance criteria must **inline the actual
+     requirement** (the invariant text, the concrete contract), citing the
+     superspec charter section as provenance ("per superspec charter §3 I2: …") —
+     never a bare pointer. The executor's spec/quality reviewers treat the task
+     body AS the binding spec and never see the superspec charter, so a bare
+     "upholds superspec charter §3 I2" is unverifiable at review time.
+  3. Run children in parallel where the contracts allow: a child starts when the
+     contracts it consumes have merged.
 
 Judgment, not a hard gate — a two-piece spec with no shared invariants may not
-need a charter. But make the call here, instead of defaulting to one plan.
+need a superspec charter. But make the call here, instead of defaulting to one plan.
+
+"Superspec charter" is always written in full. A bare "charter" in this plugin
+means the repo's rules that the audit lenses read (`auditing-artifacts`), which
+is a different document.
 
 ## Two reference docs you MUST read first
 
@@ -60,7 +66,7 @@ Every plan you author must pass BOTH structural validation AND quality validatio
 ```dot
 digraph writing_dag_plans {
     "Fan-out checkpoint" [shape=diamond];
-    "Author charter, run this skill per child" [shape=box];
+    "Author superspec charter, run this skill per child" [shape=box];
     "Read spec" [shape=box];
     "Decompose into tasks" [shape=box];
     "For each task: elicit files: scope" [shape=box];
@@ -73,7 +79,7 @@ digraph writing_dag_plans {
     "Write plan file" [shape=box];
     "Done — handoff to executing-dag-plans" [shape=doublecircle];
 
-    "Fan-out checkpoint" -> "Author charter, run this skill per child" [label="fans out (~3+ pieces)"];
+    "Fan-out checkpoint" -> "Author superspec charter, run this skill per child" [label="fans out (~3+ pieces)"];
     "Fan-out checkpoint" -> "Read spec" [label="one deliverable"];
     "Read spec" -> "Decompose into tasks";
     "Decompose into tasks" -> "For each task: elicit files: scope";
@@ -97,7 +103,7 @@ digraph writing_dag_plans {
 
 ### Step-by-step
 
-> **Before step 1:** clear the [fan-out checkpoint](#first-the-fan-out-checkpoint-do-this-before-decomposing). If the spec fans out into multiple independently-executed plans, author the charter and run this skill once per child; the steps below then apply to each child plan. Otherwise continue straight through.
+> **Before step 1:** clear the [fan-out checkpoint](#first-the-fan-out-checkpoint-do-this-before-decomposing). If the spec fans out into multiple independently-executed plans, author the superspec charter and run this skill once per child; the steps below then apply to each child plan. Otherwise continue straight through.
 
 1. **Read the spec.** Either invoked from a brainstorming session (spec content is in conversation context) or from a file (read it).
 

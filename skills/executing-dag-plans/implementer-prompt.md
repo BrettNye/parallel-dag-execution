@@ -127,7 +127,7 @@ When the implementer reports BLOCKED, re-dispatch ONCE with a more capable model
 |---|---|
 | `cheap` | `standard` (sonnet) |
 | `standard` | `opus` |
-| `opus` | (no retry — go straight to `failed`) |
+| `opus` | (no retry — go straight to `failed`; there is no tier above `opus`) |
 
 The retry prompt includes the original BLOCKED report so the next-tier model can see what stuck the first attempt:
 

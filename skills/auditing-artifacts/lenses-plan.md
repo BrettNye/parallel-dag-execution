@@ -137,7 +137,7 @@ the charter, or the rest of the plan?
 
 That is the actual execution contract. Audit against it:
 
-- Requirements referenced by pointer ("per spec §4", "upholds Charter I2",
+- Requirements referenced by pointer ("per spec §4", "upholds superspec charter I2",
   "as described above") rather than **inlined**. The reviewers treat the task body
   as the binding spec and never see the referenced document, so a bare pointer is
   unverifiable at review time.

@@ -70,7 +70,7 @@ Reviewer tiers fall back per-task → plan-level default → `standard`. Review-
 | **DONE** | Proceed to review chain. |
 | **DONE_WITH_CONCERNS** | Read concerns. If correctness/scope, address before review. If observations only, log and proceed. |
 | **NEEDS_CONTEXT** | Provide missing context, re-dispatch. |
-| **BLOCKED** | Auto-retry-once with bumped `model:` (cheap→standard, standard→opus; an already-`opus` tier stays at `opus` — there is no tier above it). On second BLOCKED, mark task `failed`. |
+| **BLOCKED** | Auto-retry-once with bumped `model:` (cheap→standard, standard→opus). An `opus` task has no tier above it: mark it `failed` on the first BLOCKED. If the retry also reports BLOCKED, mark task `failed`. |
 
 ## Failure handling — D + B
 
@@ -108,7 +108,7 @@ Because all task statuses live in the plan file's frontmatter, re-invoking `/par
 - NEVER mutate `running` / `done` / `failed` / `skipped` tasks via this skill — those statuses are managed by the dispatch loop only.
 - NEVER dispatch the implementer subagent with the whole plan as context. Only the task's own text + immediate-deps context. Plan file is for the executor, not the workers.
 - Persist plan file changes after every status transition. The plan file is the source of truth — if the controller dies, the plan file's status field is what survives.
-- Do NOT skip either review stage. Spec compliance first, then code quality. No shortcuts.
+- Every task gets both verdicts, spec compliance and code quality, before it is `done`. In `split` mode spec review runs first and quality review only after it approves; in `merged` mode one reviewer returns both verdicts in one pass.
 - ALL implementer commits go through `git-commit-safe` (atomic-mutex + path-scoped commit). The dispatch MUST inject `{git_commit_safe_path}`. This is what prevents `index.lock` contention and cross-task stage-bundling when multiple implementers commit concurrently.
 
 ## Dispatch templates

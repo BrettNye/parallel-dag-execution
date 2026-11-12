@@ -36,7 +36,7 @@ Per-repo knowledge lives in an optional `.claude/audit-charter.md` (enforcement 
 
 ## Multi-plan superspecs (fan-out)
 
-When a spec fans out into ~3+ interlocking pieces with separate review/lifecycles (e.g. a shared library + its first consumer, or a core engine + N adapters), `writing-dag-plans` authors a thin **superspec-charter** first — the connective tissue no single plan owns: the cross-plan contract surface (shared types/schemas), shared invariants every child must uphold, and the build-order gate between children. You then run the skill once per child plan, pulling children one at a time. Single-deliverable specs skip the charter (one spec → one plan). You don't invoke this separately: run `/parallel-dag-execution:plan` as usual and the skill's fan-out checkpoint decides whether to charter first.
+When a spec fans out into ~3+ interlocking pieces with separate review/lifecycles (e.g. a shared library + its first consumer, or a core engine + N adapters), `writing-dag-plans` authors a thin **superspec-charter** first — the connective tissue no single plan owns: the cross-plan contract surface (shared types/schemas), shared invariants every child must uphold, and the build-order gate between children. You then run the skill once per child plan. Children run in parallel where the contracts allow: a child starts when the contracts it consumes have merged. Single-deliverable specs skip the charter (one spec → one plan). You don't invoke this separately: run `/parallel-dag-execution:plan` as usual and the skill's fan-out checkpoint decides whether to charter first.
 
 ## Slash commands
 

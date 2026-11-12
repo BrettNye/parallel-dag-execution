@@ -106,7 +106,10 @@ digraph auditing_artifacts {
 2. **Locate charter material.** Root and nested `CLAUDE.md`/`AGENTS.md`, the
    convention/boundary docs they point to, and `.claude/audit-charter.md` if
    present. Pass the list of paths to every lens; do not summarize it for them —
-   they read it themselves.
+   they read it themselves. ("Charter" in this skill always means this repo
+   material. The superspec charter from `writing-dag-plans` is a different
+   document; when it matters to an audit it is passed as a downstream or parent
+   artifact, by its full name.)
 
 2.5. **Locate downstream artifacts, and pass them to every lens.** An artifact is
    rarely audited in isolation — work may already be planned or landed. Find:
