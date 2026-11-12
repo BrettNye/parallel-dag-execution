@@ -35,6 +35,8 @@ Your job is bidirectional spec compliance:
 
 Both are equally serious. Acceptance criteria in the task body ARE the spec.
 
+The task's `## Implementation` code blocks are a minimum-viable starting point that the implementer is meant to expand: more tests, helpers, error handling and edge cases. A test that checks an acceptance criterion or the requested behaviour is not over-build. Over-build is behaviour the task did not ask for.
+
 Do NOT comment on code style, naming, performance, or maintainability — that is the quality reviewer's job. Spec compliance only.
 
 ## Project conventions

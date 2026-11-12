@@ -20,6 +20,7 @@ The implementer MUST receive:
 - An "upstream context" block: for each task id in `depends_on:`, a short summary of what that upstream task produced — paths created/modified, key types/contracts/exports, commit SHA. Pull these from the plan file's task body for `done` upstream tasks.
 - The repo's `CLAUDE.md` (if present) so it follows project conventions.
 - The absolute path to the `git-commit-safe` helper (`skills/executing-dag-plans/git-commit-safe`), substituted into the prompt as `{git_commit_safe_path}`. Implementers commit through it so concurrent implementers don't race on the shared git index.
+- The full name of the model this dispatch runs on, substituted as `{implementer_model}` (the model the resolved tier maps to, or the retry's model). A controller that adds its own attribution line to prompts would otherwise credit itself for commits a different model wrote.
 
 ## Prompt template
 
@@ -55,6 +56,10 @@ already own to spec; it does not add new requirements beyond the task body.
   name (so it cannot bundle another implementer's files). Pass EXPLICIT paths
   from your task's `files:` list. NEVER `git add -A` / `git add .`, and never a
   bare `git commit` — the shared index will lock-fail or bundle concurrent work.
+
+  Write the commit message in the repo's convention. If that convention adds a
+  co-author trailer for the model, name the model you run on, {implementer_model},
+  not the session that dispatched you.
 
   If `{git_commit_safe_path}` is missing/empty, STOP and report BLOCKED — the controller failed to inject the commit helper; do not hand-roll a commit (you would race other implementers on the shared index).
 

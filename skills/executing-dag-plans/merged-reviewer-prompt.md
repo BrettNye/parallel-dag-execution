@@ -44,7 +44,7 @@ Report TWO verdicts; the task passes only if BOTH are APPROVED.
 ### Spec compliance (bidirectional)
 - **APPROVED** — all requirements met, no over-build.
 - **ISSUES** — list each as: "Requirement: ... | Actual: ... | Fix: ...".
-Under-build (spec requires X, impl lacks X) and over-build (spec doesn't ask for Y, impl includes Y) are equally serious. Acceptance criteria in the task body ARE the spec.
+Under-build (spec requires X, impl lacks X) and over-build (spec doesn't ask for Y, impl includes Y) are equally serious. Acceptance criteria in the task body ARE the spec. The task's `## Implementation` code blocks are a minimum-viable starting point that the implementer is meant to expand: more tests, helpers, error handling and edge cases. A test that checks an acceptance criterion or the requested behaviour is not over-build. Over-build is behaviour the task did not ask for.
 
 ### Code quality
 - **APPROVED** — quality solid; suggestion-severity issues do NOT block, flag but APPROVE.

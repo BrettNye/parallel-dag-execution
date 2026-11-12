@@ -28,6 +28,8 @@ Spec compliance is bidirectional. "Close enough" is not approved.
 3. For each requirement, mark as: met / missing / partially met.
 4. Scan the diff for changes that don't trace back to a requirement — that's over-build.
 
+The task's `## Implementation` code blocks are a minimum-viable starting point, not the whole implementation: the implementer is expected to fill in helpers, error handling and edge cases, and to expand the failing test into a fuller suite. A test that checks an acceptance criterion or the requested behaviour, and code that behaviour needs, trace back to a requirement. Over-build is behaviour the task did not ask for: an extra flag, a feature, a change to unrelated code.
+
 ## Report format
 
 - **APPROVED** — all requirements met, no over-build. Done.
