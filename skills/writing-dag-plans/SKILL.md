@@ -165,6 +165,9 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
      single file, not a directory — refuse, naming the field and the offending
      path. `default_implementer`, when present, MUST be a non-empty string; the
      executor pre-flight resolves it against the agent registry.
+   - `implementation:`, when present, is `full` or `contracts-only`. Under
+     `contracts-only` (experimental), every non-wiring task has `## Contracts` and no
+     `## Implementation` (rule 14).
 
    Run these checks with `./plan-state`, not by hand. Write the draft next to its
    final path as `<plan>.draft.md`, run `sh ./plan-state render <draft>` (it adds the
@@ -174,7 +177,7 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
 
    Any failure → refuse, explain, exit. Do NOT write the file.
 
-6.5. **Identify contract surface.** Walk each task's `## Implementation` block and extract defined contract symbols (interfaces, types, exported function signatures, schema definitions) per the H9 detection patterns in `plan-quality.md`. For each consumer task, identify which other tasks define symbols it imports or references. If any consumer task references a contract from a non-dependency, surface as a planner-level decision: either add the `depends_on:` edge or refactor to remove the cross-task reference. Loop until clean. (This is the planner-side mirror of H9 — catch the issue before it becomes a refusal at validation time.) Note: capabilities referenced only in prose or acceptance criteria — not in code blocks — are not visible to this symbol-walk; H10 (missing-producer index) and the step-8 prose-consumption sweep together cover that blind spot.
+6.5. **Identify contract surface.** Walk each task's `## Implementation` block (`## Contracts` in a contracts-only plan) and extract defined contract symbols (interfaces, types, exported function signatures, schema definitions) per the H9 detection patterns in `plan-quality.md`. For each consumer task, identify which other tasks define symbols it imports or references. If any consumer task references a contract from a non-dependency, surface as a planner-level decision: either add the `depends_on:` edge or refactor to remove the cross-task reference. Loop until clean. (This is the planner-side mirror of H9 — catch the issue before it becomes a refusal at validation time.) Note: capabilities referenced only in prose or acceptance criteria — not in code blocks — are not visible to this symbol-walk; H10 (missing-producer index) and the step-8 prose-consumption sweep together cover that blind spot.
 
 6.6. **Optional plan-level tier prompt.** After the plan is structurally valid, scan every task's title, body, and `files:` for complexity signals to decide whether to suggest a plan-level reviewer default.
 
@@ -198,7 +201,7 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
    - Does not prompt per-task during decomposition — tier choice is a low-priority field.
 
 7. **Run quality validation** per `plan-quality.md`:
-   - Hard rules H1-H11 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence, import resolution, contract-sequencing, missing-producer index, bare-spec-pointer). Any failure → refuse, name the rule + task + fix, exit.
+   - Hard rules H1-H11 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence (`## Contracts` under `implementation: contracts-only`), import resolution, contract-sequencing, missing-producer index, bare-spec-pointer). Any failure → refuse, name the rule + task + fix, exit.
    - Soft heuristics S1-S16 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch, review-mode sense-check, unanchored cross-cut contract, **crash-passing absence criterion, tautological criterion, quantifier mismatch, diff-property criterion, rendered-output change with no verification owner**). Collect as warnings.
    - S12-S15 are the acceptance-criteria falsifiability set. H4 only checks that criteria *exist*; these ask whether they can **fail**. They are the cheapest place to catch the defect class that most often survives into rework, so do not skip them on the grounds that a lens will find it later — a rule here runs free, a `verifiability` lens dispatch does not.
 
