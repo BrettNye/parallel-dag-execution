@@ -303,6 +303,73 @@ chk "check exit 0 under $ALTSH" "$rc:$out" "0:"
 $ALTSH "$SCRIPT" set "$tmp/p17.md" task-b ready >/dev/null 2>&1; rc=$?
 chk "set exit 0 under $ALTSH" "$rc" "0"
 
+charter() {
+cat > "$1" <<'EOF'
+---
+id: superspec-charter-demo
+type: superspec-charter
+charter_kind: delivery
+children: [core, api, ui]
+---
+
+# Demo
+
+## Children
+| id | child | plan | owner | depends on | ships alone |
+|----|-------|------|-------|------------|-------------|
+| core | engine | docs/plans/core.md | Ana | | yes |
+| api | http api | | Bo | C1 | held until ui |
+| ui | screens | | Cy | api, C2 | dark |
+
+## Contracts between children
+| id | contract | owner | consumers |
+|----|----------|-------|-----------|
+| C1 | Job type | core | api |
+| C2 | Error shape | api | ui |
+
+## Shared invariants
+EOF
+}
+
+echo
+echo "T18: parent: and child: on a plan (rule 13)"
+mkdir -p "$tmp/r18/docs"; charter "$tmp/r18/docs/charter.md"
+clean_plan "$tmp/r18/p.md"; sed -i 's/^created: 2026-11-12$/created: 2026-11-12\nparent: docs\/charter.md\nchild: api/' "$tmp/r18/p.md"
+out="$(cd "$tmp/r18" && ps check p.md 2>&1)"; rc=$?
+chk "child listed in the charter passes" "$rc:$out" "0:"
+sed -i 's/^child: api$/child: billing/' "$tmp/r18/p.md"
+out="$(cd "$tmp/r18" && ps check p.md 2>&1)"
+has "child missing from charter" "$out" "rule 13: child billing is not in docs/charter.md children"
+sed -i 's/^child: billing$//' "$tmp/r18/p.md"
+out="$(cd "$tmp/r18" && ps check p.md 2>&1)"
+has "parent without child" "$out" "rule 13: parent and child must be set together"
+sed -i 's|^parent: docs/charter.md$|parent: docs/gone.md\nchild: api|' "$tmp/r18/p.md"
+out="$(cd "$tmp/r18" && ps check p.md 2>&1)"
+has "unreadable parent" "$out" "rule 13: parent docs/gone.md"
+
+echo
+echo "T19: charter checks its own graph"
+charter "$tmp/c1.md"
+out="$(ps charter "$tmp/c1.md" 2>&1)"; rc=$?
+chk "clean charter exit 0" "$rc:$out" "0:"
+charter "$tmp/c2.md"; sed -i 's/^| api | http api | | Bo | C1 |/| api | http api | | Bo | C9, nobody |/' "$tmp/c2.md"
+out="$(ps charter "$tmp/c2.md" 2>&1)"; rc=$?
+chk "exit 1" "$rc" "1"
+has "unknown contract dependency" "$out" "charter: api depends on C9, which is neither a child nor a contract"
+has "unknown child dependency" "$out" "charter: api depends on nobody"
+charter "$tmp/c3.md"; sed -i 's/^| C2 | Error shape | api | ui |$/| C2 | Error shape | | ui |/' "$tmp/c3.md"
+out="$(ps charter "$tmp/c3.md" 2>&1)"
+has "contract with no owner" "$out" "charter: contract C2 has no owner"
+charter "$tmp/c4.md"; sed -i 's/^| C1 | Job type | core | api |$/| C1 | Job type | ui | api |/' "$tmp/c4.md"
+out="$(ps charter "$tmp/c4.md" 2>&1)"
+has "cycle through a contract owner" "$out" "charter: cycle among children"
+charter "$tmp/c5.md"; sed -i 's/^children: \[core, api, ui\]$/children: [core, api]/' "$tmp/c5.md"
+out="$(ps charter "$tmp/c5.md" 2>&1)"
+has "frontmatter and table disagree" "$out" "charter: ui is in the Children table but not in children:"
+charter "$tmp/c6.md"; sed -i 's/^| C2 | Error shape | api | ui |$/| C1 | Error shape | api | ui |/' "$tmp/c6.md"
+out="$(ps charter "$tmp/c6.md" 2>&1)"
+has "duplicate contract id" "$out" "charter: duplicate contract id C1"
+
 echo
 echo "RESULT: $passes passed, $fails failed"
 [ "$fails" -eq 0 ]

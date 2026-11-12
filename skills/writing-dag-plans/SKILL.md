@@ -33,12 +33,20 @@ consumer; a core engine + N adapters)?
 
 - **No** → one deliverable → author one DAG plan (continue below).
 - **Yes** → author a **thin superspec charter first**, then a child plan per piece:
-  1. Write the superspec charter from the `./superspec-charter.md` template. It
-     owns ONLY the connective tissue no child plan can: the cross-plan **contract
-     surface** (shared types/enums/tokens), the **shared invariants** every child
-     must uphold, and the **build-order gate** between children.
+  1. Write the superspec charter from the `./superspec-charter.md` template, as a
+     *delivery* charter (`charter_kind: delivery`). It owns ONLY the connective
+     tissue no child plan can: the cross-plan **contract surface** (shared
+     types/enums/tokens, each with one owning child), the **shared invariants**
+     every child must uphold, and the **build-order gate** between children. Run
+     `sh ./plan-state charter <charter>`: it checks that every dependency names a
+     child or a contract, that every contract has one owning child, and that the
+     children have no cycle. Fix anything it prints before writing child plans.
+     (A *design* charter is the other kind: written during design, before any
+     spec, by `/parallel-dag-execution:charter`. If one already exists for this
+     work, use it instead of writing a new one.)
   2. Run THIS skill once per child plan, passing the superspec charter as shared
-     context. Each child task's acceptance criteria must **inline the actual
+     context. Give each child plan `parent:` (the charter's path) and `child:`
+     (its id in the charter), and fill that child's `plan` cell in the charter. Each child task's acceptance criteria must **inline the actual
      requirement** (the invariant text, the concrete contract), citing the
      superspec charter section as provenance ("per superspec charter §3 I2: …") —
      never a bare pointer. The executor's spec/quality reviewers treat the task

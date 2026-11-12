@@ -40,8 +40,13 @@ Per-repo knowledge lives in an optional `.claude/audit-charter.md` (enforcement 
 
 When a spec fans out into ~3+ interlocking pieces with separate review/lifecycles (e.g. a shared library + its first consumer, or a core engine + N adapters), `writing-dag-plans` authors a thin **superspec-charter** first — the connective tissue no single plan owns: the cross-plan contract surface (shared types/schemas), shared invariants every child must uphold, and the build-order gate between children. You then run the skill once per child plan. Children run in parallel where the contracts allow: a child starts when the contracts it consumes have merged. Single-deliverable specs skip the charter (one spec → one plan). You don't invoke this separately: run `/parallel-dag-execution:plan` as usual and the skill's fan-out checkpoint decides whether to charter first.
 
+That is a *delivery* charter, written over one approved spec. A *design* charter is written earlier, when a brainstorm finds several projects before any spec exists: `/parallel-dag-execution:charter` writes one, and each child then gets its own spec and gates. Both kinds use one template (`charter_kind: delivery | design`). Its Children table holds `plan`, `owner`, `depends on` (a child or a single contract, for a partial dependency) and `ships alone`, but no status: status comes from the child plans. Each contract names the one child that owns it. Child plans point back with `parent:` and `child:`. `plan-state charter <file>` checks that every dependency names a child or a contract, that every contract has one owner, and that the children have no cycle.
+
+The field names are this plugin's: `charter_kind`, `children`, and `parent` / `child` on plans. A repo whose status board uses other names maps them there.
+
 ## Slash commands
 
+- `/parallel-dag-execution:charter [brainstorm]` — write a design superspec charter when a brainstorm finds several projects
 - `/parallel-dag-execution:audit-spec <spec>` — gate 1: audit a spec before planning
 - `/parallel-dag-execution:plan <spec>` — author a DAG plan
 - `/parallel-dag-execution:audit-plan <plan>` — gate 2: audit a plan before execution

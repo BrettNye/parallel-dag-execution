@@ -24,6 +24,8 @@ title: my-feature
 created: 2026-05-02
 spec: docs/superpowers/specs/2026-05-02-my-feature-design.md  # OPTIONAL. Single file path to the design this plan implements. A superspec charter when the design spans files. Never a directory — a directory cannot be diffed against a claim. An unresolvable `spec:` refuses (does not warn).
 default_implementer: dag-implementer    # OPTIONAL. subagent_type fallback for tasks lacking `implementer:`. Resolution order: task.implementer, then default_implementer, then dag-implementer.
+parent: docs/superpowers/specs/2026-05-01-platform-charter.md  # OPTIONAL. The superspec charter this plan is a child of. Set together with `child:`.
+child: api                              # OPTIONAL. This plan's id in the parent charter's `children:` list.
 default_model_hint: standard            # OPTIONAL. cheap | standard | opus. Default `standard`. Implementer tier.
 default_spec_reviewer_hint: standard    # OPTIONAL. cheap | standard | opus. Default `standard`.
 default_quality_reviewer_hint: standard # OPTIONAL. cheap | standard | opus. Default `standard`.
@@ -83,6 +85,8 @@ All three `default_model_hint` / `default_spec_reviewer_hint` / `default_quality
 `spec:` (OPTIONAL) names a single file path to the design this plan implements — a superspec charter when the design spans files. It must be a single file, never a directory: a directory cannot be diffed against a claim. An unresolvable `spec:` (path does not exist) refuses rather than warns.
 
 `default_implementer:` (OPTIONAL, default `dag-implementer`) is the subagent_type fallback for tasks lacking a per-task `implementer:`. Resolution order: `task.implementer`, then `default_implementer`, then `dag-implementer` — matching the `default_*_hint` pattern documented above.
+
+`parent:` and `child:` (OPTIONAL, set together) place a plan inside a superspec charter: `parent:` is the charter's path and `child:` is this plan's id in the charter's `children:` frontmatter list. They are separate from `spec:`, which names the design this plan implements; for a charter child that is the child's own spec. A status board or a reader goes from charter to plans through `children:` and the Children table's `plan` column, and from a plan back to its charter through `parent:`.
 
 ## Per-task frontmatter schema
 
@@ -241,10 +245,11 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
 10. **Plan-level review-mode enum** — `default_review_mode`, when present in frontmatter, MUST be `merged | split`. Any other value → refuse naming the field and bad value.
 11. **`spec:` file validity** — `spec:`, when present, MUST resolve to a readable single file, not a directory. Any other case → refuse, naming the field and the offending path.
 12. **`default_implementer` type check** — `default_implementer`, when present in frontmatter, MUST be a non-empty string. Any other value → refuse with the field name and the bad value.
+13. **`parent:` / `child:` placement** — when either is present, both MUST be present; `parent:` MUST resolve to a readable single file, and `child:` MUST appear in that file's `children:` frontmatter list. Any other case → refuse, naming the field and the offending value.
 
-Rules #7–#12 use the same refusal-message format as rules 1–6.
+Rules #7–#13 use the same refusal-message format as rules 1–6.
 
-`plan-state check <plan>` (the script beside this file) enforces rules 1–5 and 7–12 and prints one line per violation; rule 6 needs the previous version of the plan and stays with `updating-dag-plans`. `plan-state render` draws the mermaid block below and `plan-state tree` prints the ASCII tree, so both follow this spec exactly.
+`plan-state check <plan>` (the script beside this file) enforces rules 1–5 and 7–13 and prints one line per violation; rule 6 needs the previous version of the plan and stays with `updating-dag-plans`. `plan-state render` draws the mermaid block below and `plan-state tree` prints the ASCII tree, so both follow this spec exactly.
 
 ## Why `files:` is the load-bearing field
 

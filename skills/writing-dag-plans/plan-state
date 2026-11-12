@@ -1,12 +1,13 @@
 #!/usr/bin/env sh
 # plan-state — the mechanical half of DAG-plan bookkeeping (see plan-format.md).
 # Usage:
-#   plan-state check  <plan>               validate rules 1-5 and 7-12, status values, mermaid block
+#   plan-state check  <plan>               validate rules 1-5 and 7-13, status values, mermaid block
 #   plan-state ready  <plan>               print the ids ready to dispatch, one per line
 #   plan-state set    <plan> <id> <status> change one status; failed cascades skipped; redraws mermaid
 #   plan-state render <plan>               redraw the mermaid block in place
 #   plan-state tree   <plan>               print the ASCII status tree
-# Exit: 0 ok, 1 validation failure (check), 2 usage error or refused change.
+#   plan-state charter <charter>           check a superspec charter's children and contracts
+# Exit: 0 ok, 1 validation failure (check, charter), 2 usage error or refused change.
 #
 # Why a script: sorting the graph, computing the ready set, redrawing the
 # mermaid block and checking enum values each have exactly one right answer.
@@ -14,7 +15,7 @@
 # duplicate class line, a node label that no longer matches the spec).
 set -eu
 
-usage() { sed -n '3,9p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '3,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ "$#" -ge 2 ] || usage
 cmd="$1"; plan="$2"; shift 2
 if [ -d "$plan" ] || [ ! -r "$plan" ]; then echo "plan-state: cannot read $plan" >&2; exit 2; fi
@@ -24,7 +25,11 @@ if [ -d "$plan" ] || [ ! -r "$plan" ]; then echo "plan-state: cannot read $plan"
 # writes it back out with statuses changed and the mermaid block redrawn.
 PROG='
 function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t\r]+$/, "", s); return s }
-function unq(s) { s = trim(s); if (s ~ /^".*"$/ || s ~ /^\x27.*\x27$/) s = substr(s, 2, length(s) - 2); return s }
+function unq(s,   c) {  # "\047" is a single quote; this program sits inside one
+  s = trim(s); c = substr(s, 1, 1)
+  if (length(s) >= 2 && (c == "\"" || c == "\047") && substr(s, length(s), 1) == c) s = substr(s, 2, length(s) - 2)
+  return s
+}
 function stripc(s) { sub(/[ \t]+#.*$/, "", s); return s }
 function runlen(s, c,   n) { n = 0; while (substr(s, n + 1, 1) == c) n++; return n }
 function addlist(key, item) {
@@ -218,11 +223,11 @@ NR == FNR {
     next
   }
   if (match(line, /^## Task:[ \t]*/)) { nt++; cur = nt; title[cur] = trim(substr(line, RLENGTH + 1)); pend = 1; next }
-  if (line ~ /^#{1,2} /) pend = 0
+  if (line ~ /^##? /) pend = 0
   next
 }
 
-FNR == 1 && NR != FNR { apply(); emitting = 1; if (!fmend && !ms) { mermaid(); print EOL } }
+FNR == 1 && NR != FNR { graph(); apply(); emitting = 1; if (!fmend && !ms) { mermaid(); print EOL } }
 emitting {
   if (FNR == ms) { mermaid(); skip = 1; if (ms == me) skip = 0; next }
   if (skip) { if (FNR == me) skip = 0; next }
@@ -239,10 +244,67 @@ END {
   if (MODE == "ready") { ready(); exit }
   if (MODE == "tree") { tree(); exit }
   if (MODE == "spec") { if ("spec" in fmset) print fm["spec"]; exit }
+  if (MODE == "pc") { if ("parent" in fmset) print "parent=" fm["parent"]; if ("child" in fmset) print "child=" fm["child"]; exit }
 }
 '
-# graph() must run before apply() in emit mode; do it at the start of pass 2.
-PROG=$(printf '%s' "$PROG" | sed 's/^FNR == 1 \&\& NR != FNR { apply();/FNR == 1 \&\& NR != FNR { graph(); apply();/')
+
+# Superspec charter: frontmatter children:, the Children table and the
+# Contracts table. MODE=children prints the frontmatter ids; MODE=check
+# validates the graph between children (A7 in the 2026-11-12 backlog).
+CPROG='
+function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t\r]+$/, "", s); return s }
+function viol(msg) { print "charter: " msg; bad = 1 }
+function runlen(s, c,   n) { n = 0; while (substr(s, n + 1, 1) == c) n++; return n }
+{ line = $0; sub(/\r$/, "", line) }
+NR == 1 && line == "---" { infm = 1; next }
+infm {
+  if (line == "---") { infm = 0; next }
+  if (match(line, /^children:[ \t]*/)) {
+    v = substr(line, RLENGTH + 1); sub(/[ \t]+#.*$/, "", v); v = trim(v); sub(/^\[/, "", v); sub(/\]$/, "", v)
+    n = split(v, a, ","); for (i = 1; i <= n; i++) { x = trim(a[i]); if (x != "") { nfc++; fc[nfc] = x; infc[x] = 1 } }
+  }
+  next
+}
+!fence && (line ~ /^```/ || line ~ /^~~~/) { fch = substr(line, 1, 1); flen = runlen(line, fch); fence = 1; next }
+fence { if (runlen(line, fch) >= flen && trim(substr(line, runlen(line, fch) + 1)) == "") fence = 0; next }
+/^## / { sec = tolower(trim(substr(line, 4))); tab = (sec ~ /^children/) ? "ch" : (sec ~ /^contracts/) ? "ct" : ""; hdr = 0; next }
+tab != "" && line ~ /^\|/ {
+  n = split(line, c, "|")
+  if (!hdr) { for (i = 2; i < n; i++) col[tab, tolower(trim(c[i]))] = i; hdr = 1; next }
+  if (trim(c[2]) ~ /^:?-+:?$/) next
+  id = trim(c[col[tab, "id"]]); if (id == "") next
+  if (tab == "ch") {
+    if (id in isch) viol("duplicate child id " id); isch[id] = 1; nch++; chid[nch] = id
+    deps[id] = (tab SUBSEP "depends on") in col ? trim(c[col[tab, "depends on"]]) : ""
+  } else {
+    if (id in isct) viol("duplicate contract id " id); isct[id] = 1; nct++; ctid[nct] = id
+    owner[id] = (tab SUBSEP "owner") in col ? trim(c[col[tab, "owner"]]) : ""
+  }
+}
+END {
+  if (MODE == "children") { for (i = 1; i <= nfc; i++) print fc[i]; exit }
+  if (nch == 0) viol("no rows in the Children table")
+  for (i = 1; i <= nch; i++) if (!(chid[i] in infc)) viol(chid[i] " is in the Children table but not in children:")
+  for (i = 1; i <= nfc; i++) if (!(fc[i] in isch)) viol(fc[i] " is in children: but not in the Children table")
+  for (i = 1; i <= nct; i++) { k = ctid[i]
+    if (k in isch) viol("contract id " k " is also a child id")
+    if (owner[k] == "") viol("contract " k " has no owner")
+    else if (!(owner[k] in isch)) viol("contract " k " owner " owner[k] " is not a child") }
+  for (i = 1; i <= nch; i++) { t = chid[i]; indeg[t] += 0
+    n = split(deps[t], d, ","); for (j = 1; j <= n; j++) { x = trim(d[j]); if (x == "" || x == "-" || x == "—") continue
+      if (x in isch) u = x
+      else if (x in isct) { u = owner[x]; if (!(u in isch)) continue }
+      else { viol(t " depends on " x ", which is neither a child nor a contract"); continue }
+      if (u == t) continue
+      ne++; ea[ne] = u; eb[ne] = t; indeg[t]++ } }
+  h = 1; q = 0; for (i = 1; i <= nch; i++) if (indeg[chid[i]] == 0) qq[++q] = chid[i]
+  done = 0
+  while (h <= q) { u = qq[h++]; done++; for (e = 1; e <= ne; e++) if (ea[e] == u && --indeg[eb[e]] == 0) qq[++q] = eb[e] }
+  if (done < nch) { list = ""; for (i = 1; i <= nch; i++) if (indeg[chid[i]] > 0) list = list (list == "" ? "" : ", ") chid[i]
+    viol("cycle among children " list) }
+  exit bad
+}
+'
 
 emit() {  # rewrite the plan in place; keep its mode by writing through it
   tmpf=$(mktemp) || exit 2
@@ -262,7 +324,26 @@ case "$cmd" in
         echo "plan-state: rule 11: spec $spec does not resolve to a readable single file"; rc=1
       fi
     fi
+    # Rule 13: parent: names the superspec charter, child: this plan's id in it.
+    pc=$(awk -v MODE=pc "$PROG" "$plan")
+    parent=$(printf '%s
+' "$pc" | sed -n 's/^parent=//p'); child=$(printf '%s
+' "$pc" | sed -n 's/^child=//p')
+    if [ -n "$parent" ] || [ -n "$child" ]; then
+      if [ -z "$parent" ] || [ -z "$child" ]; then
+        echo "plan-state: rule 13: parent and child must be set together"; rc=1
+      else
+        root=$(git -C "$(dirname -- "$plan")" rev-parse --show-toplevel 2>/dev/null || pwd)
+        case "$parent" in /*) pp="$parent" ;; *) pp="$root/$parent" ;; esac
+        if [ -d "$pp" ] || [ ! -r "$pp" ]; then
+          echo "plan-state: rule 13: parent $parent does not resolve to a readable single file"; rc=1
+        elif ! awk -v MODE=children "$CPROG" "$pp" | grep -qxF -- "$child"; then
+          echo "plan-state: rule 13: child $child is not in $parent children"; rc=1
+        fi
+      fi
+    fi
     exit "$rc" ;;
+  charter) [ "$#" -eq 0 ] || usage; awk -v MODE=check "$CPROG" "$plan" ;;
   ready)  awk -v MODE=ready "$PROG" "$plan" ;;
   tree)   awk -v MODE=tree "$PROG" "$plan" ;;
   render) [ "$#" -eq 0 ] || usage; emit ;;
