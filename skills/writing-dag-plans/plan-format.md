@@ -26,6 +26,7 @@ spec: docs/superpowers/specs/2026-05-02-my-feature-design.md  # OPTIONAL. Single
 default_implementer: dag-implementer    # OPTIONAL. subagent_type fallback for tasks lacking `implementer:`. Resolution order: task.implementer, then default_implementer, then dag-implementer.
 parent: docs/superpowers/specs/2026-05-01-platform-charter.md  # OPTIONAL. The superspec charter this plan is a child of. Set together with `child:`.
 child: api                              # OPTIONAL. This plan's id in the parent charter's `children:` list.
+implementation: full                    # OPTIONAL. full | contracts-only. Default full. EXPERIMENTAL (D1 experiment): contracts-only replaces each task's ## Implementation with ## Contracts. See "Contracts-only plans".
 default_model_hint: standard            # OPTIONAL. cheap | standard | opus. Default `standard`. Implementer tier.
 default_spec_reviewer_hint: standard    # OPTIONAL. cheap | standard | opus. Default `standard`.
 default_quality_reviewer_hint: standard # OPTIONAL. cheap | standard | opus. Default `standard`.
@@ -178,6 +179,15 @@ Tasks with `is_wiring_task: true` skip the `## Implementation` subsection. Their
 
 Wiring tasks MAY include a code block showing the import/registration shape but it is optional.
 
+### Contracts-only plans (experimental)
+
+A plan whose frontmatter sets `implementation: contracts-only` replaces each task's
+`## Implementation` with a `## Contracts` section. Contracts hold signatures only:
+function names and arguments, command usage, exit codes, output and file formats. No
+function bodies, no test code. Fenced code blocks are allowed for the signatures. The
+implementer decides how; the task states what must hold. Wiring tasks stay exempt.
+The mode exists for the D1 experiment and is not a default.
+
 ### Example task body (canonical structure)
 
 ````markdown
@@ -246,10 +256,11 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
 11. **`spec:` file validity** — `spec:`, when present, MUST resolve to a readable single file, not a directory. Any other case → refuse, naming the field and the offending path.
 12. **`default_implementer` type check** — `default_implementer`, when present in frontmatter, MUST be a non-empty string. Any other value → refuse with the field name and the bad value.
 13. **`parent:` / `child:` placement** — when either is present, both MUST be present; `parent:` MUST resolve to a readable single file, and `child:` MUST appear in that file's `children:` frontmatter list. Any other case → refuse, naming the field and the offending value.
+14. **`implementation:` mode** — `implementation:`, when present in frontmatter, MUST be `full` or `contracts-only`. Under `contracts-only`, every task without `is_wiring_task: true` MUST have a `## Contracts` section and MUST NOT have a `## Implementation` section. Any other case → refuse, naming the field and its value, or the task and the section.
 
-Rules #7–#13 use the same refusal-message format as rules 1–6.
+Rules #7–#14 use the same refusal-message format as rules 1–6.
 
-`plan-state check <plan>` (the script beside this file) enforces rules 1–5 and 7–13 and prints one line per violation; rule 6 needs the previous version of the plan and stays with `updating-dag-plans`. `plan-state render` draws the mermaid block below and `plan-state tree` prints the ASCII tree, so both follow this spec exactly.
+`plan-state check <plan>` (the script beside this file) enforces rules 1–5 and 7–14 and prints one line per violation; rule 6 needs the previous version of the plan and stays with `updating-dag-plans`. `plan-state render` draws the mermaid block below and `plan-state tree` prints the ASCII tree, so both follow this spec exactly.
 
 ## Why `files:` is the load-bearing field
 
