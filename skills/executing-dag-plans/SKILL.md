@@ -1,6 +1,6 @@
 ---
 name: executing-dag-plans
-description: Use when you have a DAG plan authored by `writing-dag-plans` and want to execute it with continuous parallel subagent dispatch. Maintains a ready queue, dispatches multiple implementer subagents per tick, runs spec+quality review per task, auto-retries-once on BLOCKED with model upgrade, and halts only the failed branch's downstream lineage on hard failure (parallel branches keep going). Resumable — re-invoke on a partially-executed plan to pick up where it left off.
+description: Use when you have a DAG plan authored by `writing-dag-plans` and want to execute it with continuous parallel subagent dispatch. Maintains a ready queue, dispatches multiple implementer subagents per tick, runs spec+quality review per task, auto-retries-once on BLOCKED one step up (next model tier, or higher effort at the top tier), and halts only the failed branch's downstream lineage on hard failure (parallel branches keep going). Resumable — re-invoke on a partially-executed plan to pick up where it left off.
 ---
 
 # Executing DAG Plans
@@ -25,12 +25,12 @@ Run a DAG plan with continuous parallel subagent dispatch. Where `superpowers:su
 
 ## Execution model
 
-The executor is a **synchronous controller-turn loop**, not a background process. Each "tick" is one turn of the controller LLM. Within a tick:
+The executor is a controller loop that moves forward on events, not on user prompts. A **tick** is one pass through the steps below. The first tick runs when the skill starts. After that a tick runs each time a dispatched subagent finishes: in Claude Code, subagents run in the background and the controller is woken when each one completes, so the run advances without anyone saying "continue". Within a tick:
 
 1. Read the plan file (fresh — picks up any `/update` mutations applied between ticks).
 2. Topo-sort. Compute `ready` set: tasks with all `depends_on:` in `done` and current status `pending` or `ready`.
 3. Promote those tasks from `pending` to `ready` in the plan file.
-4. **Dispatch in parallel:** for each ready task, verify file-scope tripwire (no overlap with currently `running` tasks), then dispatch a fresh implementer subagent via the Agent tool. Pass `model: resolve_model(resolve_tier(task, 'model'))` (resolver defined in `../writing-dag-plans/plan-format.md` §Tier resolution). The implementer's per-task field is `model_hint`; absent that, `default_model_hint`; absent that, `standard`. The dispatched `subagent_type` resolves in order: the task's `implementer:` field, then the plan-level `default_implementer`, then `dag-implementer` (see `../writing-dag-plans/plan-format.md` §Per-task frontmatter schema). Mark task `running`. **All ready tasks dispatch in the same tick — that's the parallelism.** The BLOCKED-retry ladder still bumps one tier above the resolved tier (cheap→standard, standard→opus) — the BLOCKED upgrade is one step above the original resolved tier, not a fixed override.
+4. **Dispatch in parallel:** for each ready task, verify file-scope tripwire (no overlap with currently `running` tasks), then dispatch a fresh implementer subagent via the Agent tool. Pass `model: resolve_model(resolve_tier(task, 'model'))` (resolver defined in `../writing-dag-plans/plan-format.md` §Tier resolution). The implementer's per-task field is `model_hint`; absent that, `default_model_hint`; absent that, `standard`. The dispatched `subagent_type` resolves in order: the task's `implementer:` field, then the plan-level `default_implementer`, then `dag-implementer` (see `../writing-dag-plans/plan-format.md` §Per-task frontmatter schema). Mark task `running`. **All ready tasks dispatch in the same tick — that's the parallelism.** The BLOCKED retry is one step above the original resolved tier (cheap→standard, standard→opus), not a fixed override; for an `opus` task the step is effort, not model (see Implementer status handling).
 
    When constructing each implementer dispatch, substitute the absolute path to `skills/executing-dag-plans/git-commit-safe` into the prompt's `{git_commit_safe_path}` placeholder (resolve it from the plugin root). Implementers commit through this helper so concurrent dispatches in the same tick never race on the shared git index.
 
@@ -39,7 +39,9 @@ The executor is a **synchronous controller-turn loop**, not a background process
    Also locate charter material once, before the first tick — root and nested `CLAUDE.md`/`AGENTS.md`, and `.claude/audit-charter.md` if present — and run `../auditing-artifacts/resolve-declared-paths <plan> <repo-root> <charter...>` for its charter citation table; only the citation table is consumed here, because an executor's plan describes files that do not exist yet by design, so the declared-paths table carries no signal on this side. Substitute the located charter sections into every dispatch's `{charter_sections_for_role}` placeholder, and the resulting table into `{charter_citation_table}` (see the four prompt templates). If the helper cannot run, substitute `citation pre-pass did not run` into `{charter_citation_table}` rather than rendering it empty — an empty table would present possibly-stale charter prose as verified, the exact hazard the freshness mechanism exists to remove.
 5. Continue per-task review chains (one per running task — they progress in parallel across the DAG).
 6. As tasks reach terminal states (`done` / `failed`), update plan file frontmatter and re-render visualization.
-7. Tick ends. The controller awaits next user prompt; the user can `/update` or just say "continue."
+7. **Advance, don't stop.** Process every result that has arrived (status handling, the next review stage, status persistence). If that made tasks ready, run the next tick in the same turn. End the turn only to wait for running subagents, and print the ASCII tree when you do. The run ends when the `ready` set is empty and nothing is `running` (see Failure handling); then print the final report. Do not end a turn to ask whether to continue. The user can interrupt at any time, and an `/update` made between ticks is read by the next tick's step 1.
+
+   If the harness runs subagents in the foreground (each Agent call blocks until it returns), dispatch all ready tasks in one message, handle the results when they return, and start the next tick in the same turn.
 
 ## Per-task review chain
 
@@ -72,7 +74,7 @@ Reviewer tiers fall back per-task → plan-level default → `standard`. Review-
 | **DONE** | Proceed to review chain. |
 | **DONE_WITH_CONCERNS** | Read concerns. If correctness/scope, address before review. If observations only, log and proceed. |
 | **NEEDS_CONTEXT** | Provide missing context, re-dispatch. |
-| **BLOCKED** | Auto-retry-once with bumped `model:` (cheap→standard, standard→opus). An `opus` task has no tier above it: mark it `failed` on the first BLOCKED. If the retry also reports BLOCKED, mark task `failed`. |
+| **BLOCKED** | Auto-retry once, one step up. `cheap` and `standard` tasks retry on the next model tier (cheap→standard, standard→opus). An `opus` task has no tier above it, so it retries on `opus` with `effort: "high"` on the Agent call. If the agent's pinned effort is already `high` or above, or the harness's Agent tool has no `effort` parameter, an `opus` task gets no retry and is marked `failed`. If the retry also reports BLOCKED, mark task `failed`. Table and retry prompt: `./implementer-prompt.md` §Re-dispatch on BLOCKED. |
 
 ## Failure handling — D + B
 
@@ -93,7 +95,7 @@ The semantic is `make -k --keep-going`: extract maximum useful work from the DAG
 Per the shared visualization contract (see `../writing-dag-plans/plan-format.md` §Mermaid block specification and §ASCII tree rendering):
 
 - After each task's status transition (`ready` → `running`, `running` → `done`/`failed`), regenerate the mermaid block in the plan file. Status drives node coloring.
-- After each tick, print the ASCII tree to the terminal with current status icons. This gives the user real-time progress without opening the plan file.
+- Whenever the controller ends a turn to wait for subagents, print the ASCII tree to the terminal with current status icons. This gives the user progress without opening the plan file, without printing the tree on every tick.
 
 ## Resumability
 

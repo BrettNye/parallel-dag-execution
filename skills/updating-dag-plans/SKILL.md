@@ -5,7 +5,7 @@ description: Use to mutate a DAG plan mid-flight — add tasks, remove tasks, mo
 
 # Updating DAG Plans
 
-Mutate an in-flight or partially-executed DAG plan without breaking resumability. Apply between executor ticks (the executor naturally pauses awaiting the next user prompt — there's no concurrency to manage).
+Mutate an in-flight or partially-executed DAG plan without breaking resumability. Apply between executor ticks. The controller handles one turn at a time, so an update runs while no tick is in progress, and the next tick reads the updated plan. Subagents may still be working while you update, but their tasks are `running` and therefore immutable, so an update cannot change work under a running subagent.
 
 ## When to use
 

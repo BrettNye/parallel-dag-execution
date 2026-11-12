@@ -171,7 +171,11 @@ merged here rather than run again. Two effects on this backlog:
 1. C1, A5, A6, A8 (small; A8 before v0.6.0 runs).
 2. Merge v0.6.0 (done). A4 moves to step 5 with A1 and A3, since all three change the
    superspec charter template.
-3. C3 and C2 (executor advances on completion; BLOCKED retries raise effort first).
+3. C3 and C2 (executor advances on completion; BLOCKED retries raise effort first). Done for
+   C3, and for C2's gap at the top tier: an `opus` task retries at `effort: high`. Two parts of
+   C2 were left out. An effort step below the top tier would add a second retry, which C5
+   should price first. The `fable` tier waits for a plan that needs it; nothing measured says
+   one does.
 4. C4 (plan-state script; brings A7's checks).
-5. A1 with A3 and A4, then A2. C5 and C6 alongside any step.
+5. A1 with A3 and A4, then A2. C5 alongside any step; C6 done (README).
 6. B after the trial, B1 to B3 before B4.

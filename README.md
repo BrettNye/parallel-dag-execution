@@ -9,7 +9,7 @@ Where `superpowers:subagent-driven-development` dispatches one implementer subag
 ## Skills
 
 - **`writing-dag-plans`** — author a plan with explicit `depends_on` and `files` per task. Enforces file-disjoint parallel branches **and contract coherence** at authoring time via a hard/soft rule set (H1–H11 / S1–S16): refuses compound tasks, missing or absent producers for consumed contracts, and bare spec-pointer acceptance criteria; warns on unanchored cross-cut interfaces and decomposition smells. **S12–S15 ask whether each acceptance criterion can actually fail** — flagging absence assertions that pass on a crash, tautologies, universal claims proved by existential assertions, and criteria that assert a property of the commit rather than of behaviour. **S16 flags a rendered-output change with no task owning its visual verification.**
-- **`executing-dag-plans`** — read a DAG plan, topo-sort, dispatch ready tasks in parallel. Per-task review (two-stage spec→quality, or a merged single-pass review for small/mechanical tasks). Auto-retry-once on `BLOCKED` with model upgrade. Halt-downstream on failure; let parallel branches finish.
+- **`executing-dag-plans`** — read a DAG plan, topo-sort, dispatch ready tasks in parallel. Per-task review (two-stage spec→quality, or a merged single-pass review for small/mechanical tasks). Auto-retry-once on `BLOCKED`, one step up: the next model tier, or higher effort for a task already on `opus`. Advances as subagents finish, without waiting for "continue". Halt-downstream on failure; let parallel branches finish.
 - **`updating-dag-plans`** — mutate `pending`/`ready` tasks mid-flight. `running`/`done`/`failed`/`skipped` are immutable history.
 - **`auditing-artifacts`** — audit a spec (gate 1) or a plan (gate 2) by fanning out independent single-concern **lenses in parallel**, then reconciling them into one severity-classified verdict. See below.
 
@@ -58,6 +58,12 @@ Both audit commands accept `--full` to force a whole-artifact re-audit instead o
 - `dag-merged-reviewer` — combined spec + quality review in one pass for small/mechanical tasks (opt-in via `review_mode: merged`).
 - `dag-auditor` — one lens of a parallel pre-execution audit. Dispatched N times concurrently with a different lens each time; the lens arrives in the prompt, so adding a lens is a catalog row, not a new agent.
 - `dag-audit-reconciler` — merges the lens reports into one verdict. Distinct from `dag-spec-reviewer`: the auditors read the **document before any task runs**; the reviewers read **committed code** during execution.
+
+Each agent pins its model and effort in its frontmatter: Sonnet at `medium` for the implementer and reviewers, Opus at `high` for the auditor and reconciler. The plan's tier hints override the model per dispatch.
+
+### Which model runs the controller
+
+The session you run `/parallel-dag-execution:execute` in is the controller. It does bookkeeping and dispatch; the subagents do the work. Opus 5.5 is the recommended controller. Fable 5.2 also works, but it costs twice as much per token and delegates readily. At high effort it tends to start its own subagents to review work that this plugin's review chain already reviews.
 
 ## Install
 

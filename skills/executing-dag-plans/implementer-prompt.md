@@ -141,20 +141,36 @@ You previously implemented {task.id} but the {spec / quality} reviewer found iss
 Report DONE / BLOCKED as before.
 ```
 
-## Re-dispatch on BLOCKED with model upgrade
+## Re-dispatch on BLOCKED
 
-When the implementer reports BLOCKED, re-dispatch ONCE with a more capable model:
+When the implementer reports BLOCKED, re-dispatch ONCE, one step up:
 
-| Resolved implementer tier | Retry model |
+| Resolved implementer tier | Retry dispatch |
 |---|---|
-| `cheap` | `standard` (sonnet) |
-| `standard` | `opus` |
-| `opus` | (no retry — go straight to `failed`; there is no tier above `opus`) |
+| `cheap` | `model: "sonnet"` (the `standard` tier), agent's pinned effort |
+| `standard` | `model: "opus"`, agent's pinned effort |
+| `opus` | `model: "opus"`, `effort: "high"` |
 
-The retry prompt includes the original BLOCKED report so the next-tier model can see what stuck the first attempt:
+There is no model tier above `opus`, so its step is effort. `dag-implementer` pins `effort: medium`, so `high` is one level up. No retry for an `opus` task, straight to `failed`, when either of these holds:
+
+- the dispatched agent already pins `high` or above;
+- the harness's Agent tool has no `effort` parameter. In that case, without the parameter, the retry would only repeat the first attempt.
+
+```javascript
+// opus-tier retry
+Agent({
+  description: "Retry task-3 (BLOCKED)",
+  subagent_type: task.implementer ?? plan.default_implementer ?? "dag-implementer",
+  model: "opus",
+  effort: "high",
+  prompt: <retry prompt below + original task prompt>
+})
+```
+
+The retry prompt includes the original BLOCKED report so the retry can see what stuck the first attempt:
 
 ```
-Previous attempt by a {original-tier} model reported BLOCKED:
+Previous attempt by a {original-tier} model at {original-effort} effort reported BLOCKED:
 
 {original BLOCKED explanation}
 
