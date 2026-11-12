@@ -991,3 +991,34 @@ Test file: none (the `rg` checks above).
     (neither installed on the audit host). Owner: task-preflight-edit, settled by running
     the plan-state suite with an `awk` shim for each.
   - Lens reports: `.audit/2026-11-12-preflight-and-review-cap-dag.md/` (gitignored).
+- **2026-11-12** · gate 2 round 2 · rev `715f04941246` · commit `24ae3ce` · lenses: coverage,
+  dag-integrity, grounding, charter, context-sufficiency, verifiability, coherence,
+  ambiguity (8/8 ran; full scope by request, not diff-scoped) · **NOT READY — 1 blocking**
+  - R2-B1 (task-round): the CRLF acceptance case cannot pass on this machine. MSYS gawk
+    5.4.1 drops `\r` on input, so the prescribed emit path writes LF and the inserted line
+    copies its ending from a `$0` that already lost the `\r`. The suite's `has` (grep) and
+    the plain-awk extraction drop `\r` as well. Reproduced: `plan-state render` on a CRLF
+    plan, 382 `\r` in, 0 out; with `-v BINMODE=3` on the emit awk, 382 out. task-round is
+    the only root, so a BLOCKED there skips the other nine tasks.
+  - Joint resolutions proposed: R (required: `-v BINMODE=3` on the emit awk only; the CRLF
+    case checks bytes with `tr -cd`/`wc`/`head|tail`/`awk -v BINMODE=3`, never grep, sed,
+    plain awk or `has`; recommended: rewrite the whole `review_rounds` line, `-v CAP` on
+    check). P, D, E, F recommended (preflight awk fixes incl. `preflight()` calling
+    `ancestors()`; AC edges and exit codes; an EU-A criterion that cannot pass unsettled;
+    this record naming what landed). No resolution adds tasks, files or edges.
+  - Downgraded: the `editverb` negated-verb resume (grounding, coherence proposed BLOCKING)
+    to DEFERRED, carried as round-1 D2, same evidence and a loud in-task failure.
+  - Deferred, open: round-1 D1, D2, D4, D6, D7, D13, D14 (resolution A.1-A.4 and B.1
+    landed in 24ae3ce; these did not); new R2-D3 quoted `review_rounds` never rewritten,
+    R2-D5 `preflight()` omits `ancestors()`, R2-D6 partial "Taken" names list, R2-D7 cap
+    exit rule stated three times, R2-D8 no test separates check-id order from errors-first,
+    R2-D9 the EU-A criterion can pass without settling EU-A, R2-D10 round-1 record omits
+    what landed, R2-D11 reviewer prompts silent on the cap (no defect vs spec), R2-D12
+    exec-preflight "change no task's status" next to the `running` reset.
+  - Empirical unknowns: EU-A (carried, owner task-preflight-edit) now also covers whether
+    mawk and busybox accept `-v BINMODE=3` and whether busybox exits 1 on a runtime fatal.
+    EU1 carried, unchanged.
+  - Growth: blocking 3 → 1; the blocker is in original task-round text, not round-1 fix
+    text. Fix ~+5 lines blocking only, ~+30 with all clusters; +0 tasks, files, edges.
+  - Lens reports and reconciliation: `.audit/2026-11-12-preflight-and-review-cap-dag.md/`
+    (gitignored; round 1 moved to `round-1/`).
