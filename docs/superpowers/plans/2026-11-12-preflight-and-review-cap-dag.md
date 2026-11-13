@@ -1040,3 +1040,28 @@ Test file: none (the `rg` checks above).
     text. Fix ~+5 lines blocking only, ~+30 with all clusters; +0 tasks, files, edges.
   - Lens reports and reconciliation: `.audit/2026-11-12-preflight-and-review-cap-dag.md/`
     (gitignored; round 1 moved to `round-1/`).
+- **2026-11-12** · gate 2 round 3 · rev `d1d876ad01c9` · commit `a08ec8d` · lenses: coverage,
+  dag-integrity, grounding, charter, context-sufficiency, verifiability, coherence,
+  ambiguity (8/8 ran; full scope by request, not diff-scoped) · **READY — 0 blocking**
+  - Converged: no lens proposed BLOCKING; every finding is DEFERRED, carried, or an
+    empirical unknown. Stop gate-2 rounds here.
+  - Landed in a08ec8d and closed: R2-B1, round-1 D6, D7, R2-D8, and the per-awk `NOTE:` and
+    whole-suite parts of R2-D9.
+  - Deferred, new: R3-D1 the CRLF case's line K moves when `emit` redraws the stale mermaid
+    block (say how K is found); R3-D2 apostrophes in the `PROG` sketch at L320, L339, L566;
+    R3-D3 "the one case" in task-preflight-edit is false as worded; R3-D4 the cycle fixture
+    proves nothing; R3-D5 no exit-0 check on "prints nothing" cases in core and edit; R3-D6
+    the ordering case can pass by chance; R3-D7 format edit 4 has no `rg` check.
+  - Deferred, carried and still open: D1, D2, D4, D13, D14, D17, D19, D24, R2-D3, R2-D5,
+    R2-D6, R2-D7 (widened to P1-P4), R2-D9 (residual), R2-D10, R2-D11, R2-D12.
+  - Joint resolutions proposed (none needed for READY): J1 task-round CRLF case (R3-D1, with
+    R2-D3, D4); J2 one pass over core, declared, edit (D1, R2-D5, D2, R2-D6, R3-D2, R3-D4,
+    R3-D5, R3-D6); J3 the EU-A criterion (name its three questions, prove the shim ran).
+    No resolution adds tasks, files or edges.
+  - Empirical unknowns: EU-A carried (owner task-preflight-edit); EU1 carried; EU-self new,
+    whether the controller's plugin root is this worktree. Settle before dispatch with
+    `git rev-parse --show-toplevel` on both. In the audit session the plugin ran from
+    `scratch/pde-pinned-a771ddd`, a separate directory, but the executing session must check.
+  - Growth: blocking 3 → 1 → 0; plan 932 → 993 → 1042 lines; ~+20 lines if all clusters land.
+  - Lens reports and reconciliation: `.audit/2026-11-12-preflight-and-review-cap-dag.md/`
+    (gitignored; round 2 moved to `round-2/`).
