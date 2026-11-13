@@ -540,5 +540,117 @@ chk "no args exits 2" "$rc" "2"
 has "usage lists round" "$out" "plan-state round"
 has "usage lists rules 1-5 and 7-15" "$out" "rules 1-5 and 7-15"
 
+
+# T28 helpers. pf_head FILE: frontmatter and a mermaid block. pf_task FILE ID STATUS FILES:
+# a task heading and its yaml; the caller then appends the task's text.
+pf_head() { printf -- '---\ntitle: pf\ncreated: 2026-11-12\n---\n\n```mermaid\nflowchart TD\n```\n\n## Tasks\n\n' > "$1"; }
+pf_task() { printf '## Task: %s\n\n```yaml\nid: %s\ndepends_on: %s\nfiles: [%s]\nstatus: %s\n```\n\n' "$2" "$2" "${5:-[]}" "$4" "$3" >> "$1"; }
+# pf_run DIR PLAN [ARGS]: run preflight from inside DIR (not a git repo); sets out and rc
+pf_run() { pfd="$1"; pfp="$2"; shift 2; out="$(cd "$pfd" && ps preflight "$pfp" "$@" 2>&1)"; rc=$?; }
+
+echo
+echo "T28: preflight, the path rule and P3"
+pf="$tmp/pf"; mkdir -p "$pf/lib" "$pf/data/v1.d"; printf 'one\ntwo\n' > "$pf/lib/two.sh"
+
+pf_head "$pf/benign.md"; pf_task "$pf/benign.md" task-x pending "out.txt"
+cat >> "$pf/benign.md" <<'EOT'
+Pick `and/or`, `7/7` and `missing/extra`; the helper is `lib/two.sh.`
+
+```sh
+cp lib/nowhere.sh out.txt
+```
+EOT
+pf_run "$pf" benign.md
+chk "benign exits 0" "$rc" "0"
+chk "benign prints exactly one P3 warning" "$(printf '%s\n' "$out" | rg -c 'P3: warning:')" "1"
+chk "benign prints no line without warning:" "$(printf '%s\n' "$out" | rg -v 'warning:' | wc -l | tr -d ' ')" "0"
+has "benign warning names the code-block path" "$out" "plan-state: preflight: P3: warning: task-x cites lib/nowhere.sh, which does not exist and no task creates"
+
+pf_head "$pf/abs.md"; pf_task "$pf/abs.md" task-x pending "out.txt"
+printf 'Read `lib/gone.sh:4` first.\n' >> "$pf/abs.md"
+pf_run "$pf" abs.md
+chk "absent path:N" "$rc:$out" "1:plan-state: preflight: P3: task-x cites lib/gone.sh:4, which does not exist and no task creates"
+out="$(cd "$pf" && $ALTSH "$SCRIPT" preflight abs.md 2>&1)"; rc=$?
+chk "absent path:N under $ALTSH" "$rc:$out" "1:plan-state: preflight: P3: task-x cites lib/gone.sh:4, which does not exist and no task creates"
+
+pf_head "$pf/twice.md"; pf_task "$pf/twice.md" task-x pending "out.txt"
+printf 'See `lib/twice.sh` and then `lib/twice.sh:7`.\n' >> "$pf/twice.md"
+pf_run "$pf" twice.md
+chk "bare then suffixed: one line, exit 1" "$rc:$(printf '%s\n' "$out" | rg -c 'lib/twice.sh')" "1:1"
+hasnt "bare then suffixed: not a warning" "$out" "warning:"
+has "bare then suffixed: shows the suffixed citation" "$out" "cites lib/twice.sh:7,"
+
+for c in 5 2-5 0 3-1 2 1-2; do
+  pf_head "$pf/sfx.md"; pf_task "$pf/sfx.md" task-x pending "out.txt"
+  printf 'See `lib/two.sh:%s`.\n' "$c" >> "$pf/sfx.md"
+  pf_run "$pf" sfx.md
+  case "$c" in
+    5|2-5) chk "two.sh:$c is past the end" "$rc:$out" "1:plan-state: preflight: P3: task-x cites lib/two.sh:$c, past the end of the file (2 lines)" ;;
+    0|3-1) chk "two.sh:$c is not a line range" "$rc:$out" "1:plan-state: preflight: P3: task-x cites lib/two.sh:$c, which is not a line range" ;;
+    *)     chk "two.sh:$c prints nothing" "$rc:$out" "0:" ;;
+  esac
+done
+
+pf_head "$pf/dir.md"; pf_task "$pf/dir.md" task-x pending "out.txt"
+printf 'Look at `data/v1.d:3`.\n' >> "$pf/dir.md"
+pf_run "$pf" dir.md
+chk "directory with a suffix" "$rc:$out" "1:plan-state: preflight: P3: task-x cites data/v1.d:3, which is a directory"
+pf_head "$pf/dirb.md"; pf_task "$pf/dirb.md" task-x pending "out.txt"
+printf 'Look at `data/v1.d`.\n' >> "$pf/dirb.md"
+pf_run "$pf" dirb.md
+chk "directory cited bare prints nothing" "$rc:$out" "0:"
+
+pf_head "$pf/own.md"; pf_task "$pf/own.md" task-x pending "lib/new.sh"
+printf 'Create `lib/new.sh:9`.\n' >> "$pf/own.md"
+pf_task "$pf/own.md" task-y pending "other.txt"
+printf 'Read `lib/gone.sh:4`.\n' >> "$pf/own.md"
+pf_run "$pf" own.md
+chk "own declared path skipped, other task still reports" "$rc:$out" "1:plan-state: preflight: P3: task-y cites lib/gone.sh:4, which does not exist and no task creates"
+
+pf_head "$pf/decl.md"; pf_task "$pf/decl.md" task-x pending "other.txt"
+printf 'Read `lib/later.sh:4`.\n' >> "$pf/decl.md"
+pf_task "$pf/decl.md" task-y done "lib/later.sh"
+pf_run "$pf" decl.md
+chk "a path another task declares is not missing" "$rc:$out" "0:"
+
+pf_head "$pf/st.md"; pf_task "$pf/st.md" task-d done "d.txt"
+printf 'Read `lib/gone.sh:4`.\n' >> "$pf/st.md"
+pf_task "$pf/st.md" task-p pending "p.txt"
+printf 'Read `lib/gone.sh:4`.\n' >> "$pf/st.md"
+pf_run "$pf" st.md
+chk "done text not judged, pending text is" "$rc:$out" "1:plan-state: preflight: P3: task-p cites lib/gone.sh:4, which does not exist and no task creates"
+
+pf_head "$pf/sec.md"; pf_task "$pf/sec.md" task-x pending "out.txt"
+printf 'Body.\n\n## Implementation\n\nUse `a/impl.sh:1`.\n\n## Contracts\n\nUse `a/con.sh:1`.\n\n## Acceptance criteria\n\nUse `a/acc.sh:1`.\n\n### Example\n\nUse `a/ex.sh:1`.\n\n## Notes\n\nUse `a/notes.sh:1`.\n' >> "$pf/sec.md"
+pf_run "$pf" sec.md
+chk "four sections read" "$rc:$(printf '%s\n' "$out" | rg -c 'P3: task-x cites a/(impl|con|acc|ex)\.sh:1,')" "1:4"
+hasnt "text after ## Notes is not read" "$out" "notes.sh"
+
+pf_head "$pf/ord.md"; pf_task "$pf/ord.md" task-x pending "out.txt"
+printf 'First `zz/last.sh:1` then `aa/first.sh:1`.\n' >> "$pf/ord.md"
+pf_run "$pf" ord.md
+chk "order is first appearance, not sorted" "$(printf '%s\n' "$out" | sed 's/.*cites \([^,]*\),.*/\1/' | tr '\n' ' ')" "zz/last.sh:1 aa/first.sh:1 "
+
+pf_head "$pf/cyc.md"; pf_task "$pf/cyc.md" task-a pending "a.txt" "[task-b]"; pf_task "$pf/cyc.md" task-b pending "b.txt" "[task-a]"
+pf_run "$pf" cyc.md
+chk "cycle exits 1" "$rc" "1"
+has "cycle prints rule 2" "$out" "rule 2:"
+hasnt "cycle prints no preflight line" "$out" "preflight: P"
+
+pf_run "$pf" abs.md extra
+chk "extra argument exits 2" "$rc" "2"
+
+for rp in 2026-08-27-seams-and-ground-truth-dag 2026-11-12-d1-prerequisites-dag; do
+  sed 's/^status: done$/status: pending/' "$REPO/docs/superpowers/plans/$rp.md" > "$tmp/$rp.md"
+  se="$(cd "$REPO" && ps preflight "$tmp/$rp.md" 2>&1 >/dev/null)"
+  so="$(cd "$REPO" && ps preflight "$tmp/$rp.md" 2>/dev/null)"; rc=$?
+  chk "real plan $rp: stderr empty" "$se" ""
+  case "$rc" in
+    0) ok "real plan $rp: exit 0" ;;
+    1) if printf '%s\n' "$so" | rg -q 'preflight: P'; then ok "real plan $rp: exit 1 with a P line"; else bad "real plan $rp: exit 1 without a P line: $so"; fi ;;
+    *) bad "real plan $rp: exit $rc" ;;
+  esac
+done
+
 echo "RESULT: $passes passed, $fails failed"
 [ "$fails" -eq 0 ]
