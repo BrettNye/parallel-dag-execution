@@ -607,7 +607,7 @@ printf 'Read `lib/gone.sh:4`.\n' >> "$pf/own.md"
 pf_run "$pf" own.md
 chk "own declared path skipped, other task still reports" "$rc:$out" "1:plan-state: preflight: P3: task-y cites lib/gone.sh:4, which does not exist and no task creates"
 
-pf_head "$pf/decl.md"; pf_task "$pf/decl.md" task-x pending "other.txt"
+pf_head "$pf/decl.md"; pf_task "$pf/decl.md" task-x pending "other.txt" "[task-y]"
 printf 'Read `lib/later.sh:4`.\n' >> "$pf/decl.md"
 pf_task "$pf/decl.md" task-y done "lib/later.sh"
 pf_run "$pf" decl.md
@@ -651,6 +651,74 @@ for rp in 2026-08-27-seams-and-ground-truth-dag 2026-11-12-d1-prerequisites-dag;
     *) bad "real plan $rp: exit $rc" ;;
   esac
 done
+
+echo
+echo "T29: preflight P2 and P4"
+P2E="plan-state: preflight: P2: task-x uses lib/made.sh, which task-y declares, but does not depend on task-y"
+pf_head "$pf/p2.md"; pf_task "$pf/p2.md" task-x pending "x.txt"
+printf 'Use `lib/made.sh`.\n' >> "$pf/p2.md"
+pf_task "$pf/p2.md" task-y pending "lib/made.sh"
+pf_run "$pf" p2.md
+chk "non-ancestor declarer is an error" "$rc:$out" "1:$P2E"
+out="$(cd "$pf" && $ALTSH "$SCRIPT" preflight p2.md 2>&1)"; rc=$?
+chk "P2 sibling under $ALTSH" "$rc:$out" "1:$P2E"
+
+pf_head "$pf/p2dep.md"; pf_task "$pf/p2dep.md" task-x pending "x.txt" "[task-y]"
+printf 'Use `lib/made.sh`.\n' >> "$pf/p2dep.md"
+pf_task "$pf/p2dep.md" task-y pending "lib/made.sh"
+pf_run "$pf" p2dep.md
+chk "declarer is a dependency: no line" "$rc:$out" "0:"
+
+pf_head "$pf/p2g.md"; pf_task "$pf/p2g.md" task-y pending "lib/made.sh"
+pf_task "$pf/p2g.md" task-x pending "x.txt" "[task-y]"
+pf_task "$pf/p2g.md" task-z pending "z.txt" "[task-x]"
+printf 'Use `lib/made.sh`.\n' >> "$pf/p2g.md"
+pf_run "$pf" p2g.md
+chk "grand-ancestor declarer: no line" "$rc:$out" "0:"
+
+pf_head "$pf/p2d.md"; pf_task "$pf/p2d.md" task-x pending "x.txt"
+printf 'Use `lib/made.sh`.\n' >> "$pf/p2d.md"
+pf_task "$pf/p2d.md" task-y pending "lib/made.sh" "[task-x]"
+pf_run "$pf" p2d.md
+chk "descendant-only declarer is a warning" "$rc:$out" "0:plan-state: preflight: P2: warning: task-x uses lib/made.sh, which task-y declares, but task-y depends on task-x"
+
+pf_head "$pf/p2m.md"; pf_task "$pf/p2m.md" task-x pending "x.txt"
+printf 'Use `lib/made.sh`.\n' >> "$pf/p2m.md"
+pf_task "$pf/p2m.md" task-d pending "lib/made.sh" "[task-x, task-s]"
+pf_task "$pf/p2m.md" task-s pending "lib/made.sh"
+pf_run "$pf" p2m.md
+chk "mixed declarers: error naming the non-descendant" "$rc:$out" "1:plan-state: preflight: P2: task-x uses lib/made.sh, which task-s declares, but does not depend on task-s"
+
+pf_head "$pf/p2p3.md"; pf_task "$pf/p2p3.md" task-x pending "x.txt"
+printf 'Read `lib/gone.sh:4` and `lib/made.sh`.\n' >> "$pf/p2p3.md"
+pf_task "$pf/p2p3.md" task-y pending "lib/made.sh"
+pf_run "$pf" p2p3.md
+chk "P3 and P2 in one run" "$rc:$out" "1:plan-state: preflight: P3: task-x cites lib/gone.sh:4, which does not exist and no task creates
+$P2E"
+
+P4W="plan-state: preflight: P4: warning: task-x reads lib/two.sh while task-w, which can run at the same time, changes it"
+for st in pending running done; do
+  pf_head "$pf/p4.md"; pf_task "$pf/p4.md" task-x pending "x.txt"
+  printf 'Read `lib/two.sh`.\n' >> "$pf/p4.md"
+  pf_task "$pf/p4.md" task-w "$st" "lib/two.sh"
+  pf_run "$pf" p4.md
+  case "$st" in
+    done) chk "P4: declarer $st prints nothing" "$rc:$out" "0:" ;;
+    *)    chk "P4: declarer $st warns" "$rc:$out" "0:$P4W" ;;
+  esac
+done
+pf_head "$pf/p4d.md"; pf_task "$pf/p4d.md" task-x pending "x.txt" "[task-w]"
+printf 'Read `lib/two.sh`.\n' >> "$pf/p4d.md"
+pf_task "$pf/p4d.md" task-w pending "lib/two.sh"
+pf_run "$pf" p4d.md
+chk "P4: dependent task prints nothing" "$rc:$out" "0:"
+
+pf_head "$pf/p3p4.md"; pf_task "$pf/p3p4.md" task-w pending "lib/two.sh"
+pf_task "$pf/p3p4.md" task-x pending "x.txt"
+printf 'Read `lib/two.sh:5`.\n' >> "$pf/p3p4.md"
+pf_run "$pf" p3p4.md
+chk "P3 prints before P4 on one path" "$rc:$out" "1:plan-state: preflight: P3: task-x cites lib/two.sh:5, past the end of the file (2 lines)
+plan-state: preflight: P4: warning: task-x reads lib/two.sh:5 while task-w, which can run at the same time, changes it"
 
 echo "RESULT: $passes passed, $fails failed"
 [ "$fails" -eq 0 ]

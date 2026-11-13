@@ -249,16 +249,34 @@ function p3(t, i,   p, s, k, a, b, r, cit, id) {
   if (a == 0 || b < a) note(t, p, 3, 2, id " cites " cit ", which is not a line range")
   else if ((b > a ? b : a) > nlines[p]) note(t, p, 3, 2, id " cites " cit ", past the end of the file (" nlines[p] " lines)")
 }
+function p2(t, i,   p, n, d, a, u, first, other, alldesc) {
+  p = cp[t, i]; if (((p in kind) && kind[p] != "absent") || !(p in dcl)) return
+  n = split(dcl[p], d, " "); alldesc = 1; first = 0; other = 0
+  for (a = 1; a <= n; a++) { u = d[a] + 0
+    if (u == t || ((t, u) in anc)) return            # this task or an ancestor creates it
+    if (!first) first = u
+    if (!((u, t) in anc)) { alldesc = 0; if (!other) other = u } }
+  if (alldesc) note(t, p, 2, 1, val[t, "id"] " uses " cite(t, i) ", which " val[first, "id"] " declares, but " val[first, "id"] " depends on " val[t, "id"])
+  else note(t, p, 2, 2, val[t, "id"] " uses " cite(t, i) ", which " val[other, "id"] " declares, but does not depend on " val[other, "id"])
+}
+function p4(t, i,   p, n, d, a, u) {
+  p = cp[t, i]; if (!(p in kind) || kind[p] == "absent" || !(p in dcl)) return
+  n = split(dcl[p], d, " ")
+  for (a = 1; a <= n; a++) { u = d[a] + 0
+    if (u == t || !inset(val[u, "status"], "pending ready running")) continue
+    if (((t, u) in anc) || ((u, t) in anc)) continue
+    note(t, p, 4, 1, val[t, "id"] " reads " cite(t, i) " while " val[u, "id"] ", which can run at the same time, changes it"); return }
+}
 function preflight(   t, i, n, p, c, ln, a) {
   while ((getline ln < PFTAB) > 0) { split(ln, a, "\t"); kind[a[1]] = a[2]; nlines[a[1]] = a[3] + 0 }
   close(PFTAB)
-  pfprep()
+  pfprep(); ancestors()
   for (t = 1; t <= nt; t++) { if (!inset(val[t, "status"], "pending ready")) continue
     cands(t)
     for (i = 1; i <= nc[t]; i++) { p = cp[t, i]
       if (!((t, p) in psn)) { psn[t, p] = 1; np[t]++; pord[t, np[t]] = p }
       if (owns(t, p)) continue
-      p3(t, i)               # later: p1, p2 and p4 go here, one call per citation
+      p3(t, i); p2(t, i); p4(t, i)   # later: p1 goes here too, one call per citation
     }
     for (n = 1; n <= np[t]; n++) { p = pord[t, n]
       for (c = 1; c <= 4; c++) if (lv[t, p, c] > 0) {
