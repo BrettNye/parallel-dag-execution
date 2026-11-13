@@ -175,6 +175,15 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
    violation and covers every rule above except immutable history. If it prints
    anything, fix the draft or refuse; the final path is written only in step 11.
 
+   Then run `sh ./plan-state preflight <draft>`. It reads every task's text (all are
+   `pending` in a draft) for path defects: P1 a path the text says to edit that is not
+   in the task's `files:`, P2 a missing path another task creates with no dependency
+   path to it, P3 a missing path no task creates or a line citation past the end of its
+   file, P4 a path that a task able to run at the same time changes. An error (exit 1)
+   refuses the draft, as a `check` violation does: fix it and run both again. Lines
+   marked `warning:` join step 7's soft-heuristic warnings under the same "save anyway?
+   (y/N)" prompt.
+
    Any failure → refuse, explain, exit. Do NOT write the file.
 
 6.5. **Identify contract surface.** Walk each task's `## Implementation` block (`## Contracts` in a contracts-only plan) and extract defined contract symbols (interfaces, types, exported function signatures, schema definitions) per the H9 detection patterns in `plan-quality.md`. For each consumer task, identify which other tasks define symbols it imports or references. If any consumer task references a contract from a non-dependency, surface as a planner-level decision: either add the `depends_on:` edge or refactor to remove the cross-task reference. Loop until clean. (This is the planner-side mirror of H9 — catch the issue before it becomes a refusal at validation time.) Note: capabilities referenced only in prose or acceptance criteria — not in code blocks — are not visible to this symbol-walk; H10 (missing-producer index) and the step-8 prose-consumption sweep together cover that blind spot.
