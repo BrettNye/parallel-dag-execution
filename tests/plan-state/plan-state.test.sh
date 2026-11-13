@@ -434,5 +434,111 @@ chk "no implementation key is clean" "$rc:$out" "0:"
 out="$($ALTSH "$SCRIPT" check "$tmp/r21.md" 2>&1)"; rc=$?
 chk "rule 14 under $ALTSH" "$rc" "1"
 
+
+# ---- round: count fix rounds, cap 3, rule 15 ----
+# mkrr FILE STATUS RR: clean plan whose task-a has STATUS and, unless RR is empty, review_rounds: RR
+mkrr() {
+  clean_plan "$1"
+  awk -v s="$2" -v r="$3" '/^status: done$/ && !d { d = 1; print "status: " s; if (r != "") print "review_rounds: " r; next } { print }' "$1" > "$1.t" && mv "$1.t" "$1"
+}
+
+echo
+echo "T22: round counts fix rounds on a running task"
+mkrr "$tmp/r22.md" running ""
+out="$(ps round "$tmp/r22.md" task-a 2>&1)"; rc=$?
+chk "absent field counts to 1" "$rc:$out" "0:1"
+after="$(awk 'p { print; exit } /^status: running$/ { p = 1 }' "$tmp/r22.md")"
+chk "inserted on the line after status" "$after" "review_rounds: 1"
+mkrr "$tmp/r22b.md" running 0
+out="$(ps round "$tmp/r22b.md" task-a 2>&1)"; rc=$?
+chk "0 counts to 1" "$rc:$out" "0:1"
+chk "field rewritten in place" "$(rg -c '^review_rounds: 1$' "$tmp/r22b.md"):$(rg -c '^review_rounds:' "$tmp/r22b.md")" "1:1"
+mkrr "$tmp/r22c.md" running 2
+out="$(ps round "$tmp/r22c.md" task-a 2>&1)"; rc=$?
+chk "2 counts to 3" "$rc:$out" "0:3"
+chk "field reads 3" "$(rg -c '^review_rounds: 3$' "$tmp/r22c.md")" "1"
+mkrr "$tmp/r22d.md" running 3
+before="$(cksum < "$tmp/r22d.md")"
+out="$(ps round "$tmp/r22d.md" task-a 2>&1)"; rc=$?
+chk "cap: exit 1 and message" "$rc:$out" "1:plan-state: task-a: review cap reached (3 fix rounds)"
+chk "cap: plan unchanged" "$(cksum < "$tmp/r22d.md")" "$before"
+out="$($ALTSH "$SCRIPT" round "$tmp/r22d.md" task-a 2>&1)"; rc=$?
+chk "cap under $ALTSH" "$rc:$out" "1:plan-state: task-a: review cap reached (3 fix rounds)"
+mkrr "$tmp/r22e.md" running ""
+out="$($ALTSH "$SCRIPT" round "$tmp/r22e.md" task-a 2>&1)"; rc=$?
+chk "absent field under $ALTSH" "$rc:$out" "0:1"
+chk "inserted under $ALTSH" "$(awk 'p { print; exit } /^status: running$/ { p = 1 }' "$tmp/r22e.md")" "review_rounds: 1"
+
+echo
+echo "T23: round refuses a task that is not running"
+mkrr "$tmp/r23.md" pending ""
+before="$(cksum < "$tmp/r23.md")"
+out="$(ps round "$tmp/r23.md" task-a 2>&1)"; rc=$?
+chk "pending exits 2" "$rc" "2"
+chk "pending plan unchanged" "$(cksum < "$tmp/r23.md")" "$before"
+mkrr "$tmp/r23b.md" pending 3
+before="$(cksum < "$tmp/r23b.md")"
+out="$(ps round "$tmp/r23b.md" task-a 2>&1)"; rc=$?
+chk "pending at 3 exits 2, not 1" "$rc" "2"
+chk "pending at 3 plan unchanged" "$(cksum < "$tmp/r23b.md")" "$before"
+
+echo
+echo "T24: rule 15 and bad values"
+mkrr "$tmp/r24.md" running 4
+before="$(cksum < "$tmp/r24.md")"
+ps round "$tmp/r24.md" task-a >/dev/null 2>&1; rc=$?
+chk "round on 4 exits 2" "$rc" "2"
+chk "round on 4 leaves plan alone" "$(cksum < "$tmp/r24.md")" "$before"
+out="$(ps check "$tmp/r24.md" 2>&1)"; rc=$?
+chk "check on 4 exits 1" "$rc" "1"
+has "check names the value" "$out" "plan-state: rule 15: task-a review_rounds is 4"
+for v in abc -1; do
+  mkrr "$tmp/r24v.md" running "$v"
+  out="$(ps check "$tmp/r24v.md" 2>&1)"
+  has "rule 15 for $v" "$out" "plan-state: rule 15: task-a review_rounds is $v"
+done
+for v in 0 3; do
+  mkrr "$tmp/r24w.md" running "$v"
+  out="$(ps check "$tmp/r24w.md" 2>&1)"; rc=$?
+  chk "no rule 15 for $v" "$rc:$out" "0:"
+done
+
+echo
+echo "T25: round keeps CRLF"
+mkrr "$tmp/r25.lf" running ""
+awk -v BINMODE=3 '{ print $0 "\r" }' "$tmp/r25.lf" > "$tmp/r25.md"
+ps round "$tmp/r25.md" task-a >/dev/null 2>&1; rc=$?
+chk "CRLF plan round exits 0" "$rc" "0"
+nl=$(wc -l < "$tmp/r25.md"); ncr=$(tr -cd '\r' < "$tmp/r25.md" | wc -c)
+if [ "$nl" -eq "$ncr" ]; then ok "every line still ends in CR"; else bad "every line still ends in CR ($ncr CRs, $nl lines)"; fi
+k=$(awk -v BINMODE=3 '/^status: running\r?$/ { print FNR + 1; exit }' "$tmp/r25.md")
+head -n "$k" "$tmp/r25.md" | tail -n 1 > "$tmp/got"; printf 'review_rounds: 1\r\n' > "$tmp/want"
+if cmp -s "$tmp/want" "$tmp/got"; then ok "inserted line is review_rounds: 1 CRLF"; else bad "inserted line is review_rounds: 1 CRLF"; fi
+
+echo
+echo "T26: round on an unwritable plan"
+mkrr "$tmp/r26.md" running ""
+chmod a-w "$tmp/r26.md"
+if ( : >> "$tmp/r26.md" ) 2>/dev/null; then
+  echo "NOTE: T26 not exercised - this user can write a read-only file"
+else
+  before="$(cksum < "$tmp/r26.md")"
+  ps round "$tmp/r26.md" task-a >/dev/null 2>&1; rc=$?
+  chk "unwritable plan exits 2" "$rc" "2"
+  chk "unwritable plan unchanged" "$(cksum < "$tmp/r26.md")" "$before"
+fi
+chmod u+w "$tmp/r26.md"
+
+echo
+echo "T27: round argument errors and usage"
+mkrr "$tmp/r27.md" running ""
+ps round "$tmp/r27.md" >/dev/null 2>&1; chk "no id exits 2" "$?" "2"
+ps round "$tmp/r27.md" task-a extra >/dev/null 2>&1; chk "extra arg exits 2" "$?" "2"
+ps round "$tmp/r27.md" nope >/dev/null 2>&1; chk "unknown id exits 2" "$?" "2"
+out="$(sh "$SCRIPT" 2>&1)"; rc=$?
+chk "no args exits 2" "$rc" "2"
+has "usage lists round" "$out" "plan-state round"
+has "usage lists rules 1-5 and 7-15" "$out" "rules 1-5 and 7-15"
+
 echo "RESULT: $passes passed, $fails failed"
 [ "$fails" -eq 0 ]

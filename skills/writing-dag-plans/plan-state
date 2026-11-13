@@ -1,13 +1,14 @@
 #!/usr/bin/env sh
 # plan-state — the mechanical half of DAG-plan bookkeeping (see plan-format.md).
 # Usage:
-#   plan-state check  <plan>               validate rules 1-5 and 7-14, status values, mermaid block
+#   plan-state check  <plan>               validate rules 1-5 and 7-15, status values, mermaid block
 #   plan-state ready  <plan>               print the ids ready to dispatch, one per line
 #   plan-state set    <plan> <id> <status> change one status; failed cascades skipped; redraws mermaid
 #   plan-state render <plan>               redraw the mermaid block in place
+#   plan-state round  <plan> <id>          count one fix round on a running task; exit 1 at the cap
 #   plan-state tree   <plan>               print the ASCII status tree
 #   plan-state charter <charter>           check a superspec charter's children and contracts
-# Exit: 0 ok, 1 validation failure (check, charter), 2 usage error or refused change.
+# Exit: 0 ok, 1 validation failure (check, charter) or cap reached (round), 2 usage error or refused change.
 #
 # Why a script: sorting the graph, computing the ready set, redrawing the
 # mermaid block and checking enum values each have exactly one right answer.
@@ -15,7 +16,9 @@
 # duplicate class line, a node label that no longer matches the spec).
 set -eu
 
-usage() { sed -n '3,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+CAP=3   # review-round cap: round refuses at it, rule 15 bounds review_rounds by it
+
+usage() { sed -n '3,11p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ "$#" -ge 2 ] || usage
 cmd="$1"; plan="$2"; shift 2
 if [ -d "$plan" ] || [ ! -r "$plan" ]; then echo "plan-state: cannot read $plan" >&2; exit 2; fi
@@ -49,6 +52,7 @@ function yamlline(l,   k, v) {
     if (k == "depends_on" || k == "files") { if (v == "") ylist = k; else inl(k, v); return }
     val[cur, k] = unq(v)
     if (k == "status") stl[cur] = FNR
+    if (k == "review_rounds") rrl[cur] = FNR
   }
 }
 function err(msg) { print "plan-state: " msg | "cat 1>&2" }
@@ -79,7 +83,7 @@ function ancestors(   i, t, j, d, u, a) {
       for (a = 1; a <= nt; a++) if ((u, a) in anc) anc[t, a] = 1 } }
 }
 
-function check(   t, k, i, j, f, a, b, list, owners, seen, own, hint, n) {
+function check(   t, k, i, j, f, a, b, v, list, owners, seen, own, hint, n) {
   if (nt == 0) viol(5, "no \"## Task:\" sections found")
   if (!ms) print "plan-state: format: no mermaid block (run: plan-state render)"; if (!ms) bad = 1
   for (t = 1; t <= nt; t++) {
@@ -95,6 +99,8 @@ function check(   t, k, i, j, f, a, b, list, owners, seen, own, hint, n) {
     split("model_hint spec_reviewer_hint quality_reviewer_hint", hint, " ")
     for (i = 1; i <= 3; i++) if (has[t, hint[i]] && !inset(val[t, hint[i]], "cheap standard opus")) viol(7, k " " hint[i] " is " val[t, hint[i]])
     if (has[t, "review_mode"] && !inset(val[t, "review_mode"], "merged split")) viol(9, k " review_mode is " val[t, "review_mode"])
+    v = val[t, "review_rounds"]
+    if (has[t, "review_rounds"] && (v !~ /^[0-9]+$/ || v + 0 > CAP)) viol(15, k " review_rounds is " v)
   }
   split("default_model_hint default_spec_reviewer_hint default_quality_reviewer_hint", hint, " ")
   for (i = 1; i <= 3; i++) if ((hint[i] in fmset) && !inset(fm[hint[i]], "cheap standard opus")) viol(8, hint[i] " is " fm[hint[i]])
@@ -180,6 +186,17 @@ function apply(   t, from, to, j, q, h, n, u, k, c, sk) {
   if (sk != "") err("skipped:" sk)
 }
 
+# Decide one fix round for RID: print the new count, or refuse. Writes nothing.
+function round(   t, n, u, v) {
+  n = 0; for (t = 1; t <= nt; t++) if (val[t, "id"] == RID) { n++; u = t }
+  if (n != 1) { err(n ? "id " RID " is not unique; run: plan-state check" : "no task with id " RID); exit 2 }
+  if (val[u, "status"] != "running") { err("refused " RID ": status is " val[u, "status"] ", not running"); exit 2 }
+  v = has[u, "review_rounds"] ? val[u, "review_rounds"] : "0"
+  if (v !~ /^[0-9]+$/ || v + 0 > CAP) { err(RID " review_rounds is " v ", not a whole number from 0 to " CAP); exit 2 }
+  if (v + 0 >= CAP) { print "plan-state: " RID ": review cap reached (" CAP " fix rounds)"; exit 1 }
+  print v + 1
+}
+
 function pad(s, w) { while (length(s) < w) s = s " "; return s }
 function icon(s) { return s == "done" ? "✓" : s == "running" ? "⟳" : s == "failed" ? "✗" : s == "skipped" ? "⊘" : "·" }
 function row(t, lead) { print pad(lead "[" val[t, "id"] "] " title[t], 52) " " icon(val[t, "status"]) " " val[t, "status"] }
@@ -238,10 +255,13 @@ NR == FNR {
   next
 }
 
-FNR == 1 && NR != FNR { graph(); apply(); emitting = 1; if (!fmend && !ms) { mermaid(); print EOL } }
+FNR == 1 && NR != FNR { graph(); apply(); emitting = 1; if (RRID != "") for (t = 1; t <= nt; t++) if (val[t, "id"] == RRID) ru = t; if (!fmend && !ms) { mermaid(); print EOL } }
 emitting {
   if (FNR == ms) { mermaid(); skip = 1; if (ms == me) skip = 0; next }
   if (skip) { if (FNR == me) skip = 0; next }
+  if (RRID != "" && rrl[ru] && FNR == rrl[ru]) { l = $0; sub(/review_rounds:[ \t]*[0-9]+/, "review_rounds: " RRVAL, l); print l; next }
+  if (RRID != "" && !rrl[ru] && FNR == stl[ru]) { print; ind = $0; sub(/[^ \t].*$/, "", ind)
+    print ind "review_rounds: " RRVAL (($0 ~ /\r$/) ? "\r" : ""); next }
   for (t = 1; t <= nt; t++) if (FNR == stl[t] && (t in newst)) { l = $0; sub(/status:[ \t]*[A-Za-z]+/, "status: " newst[t], l); print l; next }
   print
   if (FNR == fmend && !ms) { print EOL; mermaid() }
@@ -252,6 +272,7 @@ END {
   if (MODE == "emit") exit
   graph()
   if (MODE == "check") { check(); exit bad }
+  if (MODE == "round") { round(); exit }
   if (MODE == "ready") { ready(); exit }
   if (MODE == "tree") { tree(); exit }
   if (MODE == "spec") { if ("spec" in fmset) print fm["spec"]; exit }
@@ -323,14 +344,20 @@ END {
 
 emit() {  # rewrite the plan in place; keep its mode by writing through it
   tmpf=$(mktemp) || exit 2
-  if awk -v MODE=emit -v SETID="${1:-}" -v SETST="${2:-}" "$PROG" "$plan" "$plan" > "$tmpf"; then
-    cat "$tmpf" > "$plan"; rm -f "$tmpf"
+  # BINMODE=3 on this call only: MSYS gawk reads in text mode and drops the CR, BINMODE=3
+  # keeps the bytes, and other awks treat it as an unused variable.
+  if awk -v BINMODE=3 -v MODE=emit -v CAP="$CAP" -v SETID="${1:-}" -v SETST="${2:-}" -v RRID="${3:-}" -v RRVAL="${4:-}" \
+       "$PROG" "$plan" "$plan" > "$tmpf"; then
+    if ! { cat "$tmpf" > "$plan"; } 2>/dev/null; then
+      rm -f "$tmpf"; echo "plan-state: cannot write $plan" >&2; exit 2
+    fi
+    rm -f "$tmpf"
   else rc=$?; rm -f "$tmpf"; exit "$rc"; fi
 }
 
 case "$cmd" in
   check)
-    rc=0; awk -v MODE=check "$PROG" "$plan" || rc=$?
+    rc=0; awk -v MODE=check -v CAP="$CAP" "$PROG" "$plan" || rc=$?
     spec=$(awk -v MODE=spec "$PROG" "$plan")
     if [ -n "$spec" ]; then
       root=$(git -C "$(dirname -- "$plan")" rev-parse --show-toplevel 2>/dev/null || pwd)
@@ -362,6 +389,12 @@ case "$cmd" in
   ready)  awk -v MODE=ready "$PROG" "$plan" ;;
   tree)   awk -v MODE=tree "$PROG" "$plan" ;;
   render) [ "$#" -eq 0 ] || usage; emit ;;
+  round)
+    [ "$#" -eq 1 ] || usage
+    rc=0; n=$(awk -v MODE=round -v RID="$1" -v CAP="$CAP" "$PROG" "$plan") || rc=$?
+    if [ "$rc" -ne 0 ]; then [ -n "$n" ] && printf '%s\n' "$n"; exit "$rc"; fi
+    emit "" "" "$1" "$n"
+    printf '%s\n' "$n" ;;
   set)
     [ "$#" -eq 2 ] || usage
     case "$2" in pending|ready|running|done|failed|skipped) ;; *) echo "plan-state: unknown status $2" >&2; exit 2 ;; esac
