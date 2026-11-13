@@ -148,7 +148,9 @@ CAP=3   # review-round cap: round refuses at it, rule 15 bounds review_rounds by
 
 emit() {  # rewrite the plan in place; keep its mode by writing through it
   tmpf=$(mktemp) || exit 2
-  if awk -v MODE=emit -v CAP="$CAP" -v SETID="${1:-}" -v SETST="${2:-}" -v RRID="${3:-}" -v RRVAL="${4:-}" \
+  # BINMODE=3 on this call only: MSYS gawk reads in text mode and drops the CR, BINMODE=3
+  # keeps the bytes, and other awks treat it as an unused variable.
+  if awk -v BINMODE=3 -v MODE=emit -v CAP="$CAP" -v SETID="${1:-}" -v SETST="${2:-}" -v RRID="${3:-}" -v RRVAL="${4:-}" \
        "$PROG" "$plan" "$plan" > "$tmpf"; then
     if ! { cat "$tmpf" > "$plan"; } 2>/dev/null; then
       rm -f "$tmpf"; echo "plan-state: cannot write $plan" >&2; exit 2
@@ -196,7 +198,15 @@ test:
   rule 15 line for `abc` and for `-1`, and prints nothing for `0` and `3`.
 - A CRLF plan (every line ending `\r\n`, built with awk) with the field absent: after
   `round`, the inserted line is `review_rounds: 1\r` and every line of the file still ends
-  in `\r`.
+  in `\r`. Check the bytes only with tools that keep the CR on Git Bash:
+  - every line ends in CR: `tr -cd '\r' < "$f" | wc -c` equals `wc -l < "$f"` (compare
+    the two with `-eq`);
+  - the inserted line: write it with `head -n K "$f" | tail -n 1 > "$tmp/got"` (K is the
+    `status:` line's number plus 1), write `printf 'review_rounds: 1\r\n' > "$tmp/want"`,
+    and pass when `cmp -s "$tmp/want" "$tmp/got"`.
+  - Do not use plain `awk`, `sed`, `grep` or the `has` helper here: on MSYS all four drop
+    the CR. Do not hold the line in `$(...)` either: Git Bash strips a trailing CR LF there
+    as one newline.
 - A plan the command cannot write (`chmod a-w`): exit 2 and the plan's `cksum` is
   unchanged. When the suite runs as a user that can still write a read-only file (root),
   the test first probes with `( : >> "$f" ) 2>/dev/null`; if the probe succeeds it prints
@@ -482,21 +492,22 @@ Fixtures run from a temp directory outside any git repo, as in T23:
 
 - Siblings: `task-x` cites absent `lib/made.sh`, which root task `task-y` declares: exit 1
   with the P2 error line above, naming `task-y`. When `task-x` gains
-  `depends_on: [task-y]`, the same plan prints no line for `lib/made.sh`.
+  `depends_on: [task-y]`, the same plan prints no line for `lib/made.sh` and exits 0.
 - Grand-ancestor: `task-z` depends on `task-x`, which depends on `task-y`; `task-z` citing
-  `lib/made.sh` prints no line for it.
+  `lib/made.sh` prints no line for it and exits 0.
 - Descendant only: `task-y` depends on `task-x`, `task-y` declares `lib/made.sh`, `task-x`
   cites it: exit 0 and one line,
   `plan-state: preflight: P2: warning: task-x uses lib/made.sh, which task-y declares, but task-y depends on task-x`.
 - Mixed: declarers in plan order are `task-d` (a descendant of `task-x`) then `task-s` (a
-  sibling): exit 1, the line is an error and names `task-s`, not `task-d`.
+  sibling): exit 1, the line is an error and names `task-s`, not `task-d` (`task-d`
+  depends on `task-x` and `task-s`; `task-s` is a root).
 - The fixture from T23's absent-`path:N` case, extended with a non-ancestor declaring a
   second absent path that `task-x` cites, prints both a P3 error and a P2 error in one run.
 - P4: `lib/two.sh` exists; root tasks `task-x` (cites it) and `task-w` (`pending`,
   declares it): exit 0 and the line
   `plan-state: preflight: P4: warning: task-x reads lib/two.sh while task-w, which can run at the same time, changes it`.
   With `task-w` set to `done`, or with `task-x` depending on `task-w`, no P4 line is printed
-  for that path; with `task-w` `running`, the P4 line is printed.
+  for that path and the exit is 0; with `task-w` `running`, the P4 line is printed.
 - P3 before P4 on one path: the two-line `lib/two.sh` exists and root task `task-w`
   (`pending`) declares it; root task `task-x` cites `lib/two.sh:5`. Exit 1, and the P3
   error ending `past the end of the file (2 lines)` prints before the P4 warning for
@@ -586,6 +597,9 @@ there unless a bullet says otherwise:
 - The rename case above: exit 0 and exactly that P1 line.
 - The same text with `lib/greet.sh` absent and undeclared: exit 0, and the P1 line prints
   before the `P3: warning:` line for the same path.
+- The same text citing `lib/greet.sh:4`, absent and undeclared: exit 1, and the P1 warning
+  prints before the P3 error for that path. This is the one case where the lower check id
+  has the lower level, so it tells "by check id" apart from "errors first".
 - Each of `Updated`, `MODIFY`, `rewrote`, `appends to` before the path prints a P1 line;
   `Do not edit`, `Never modify` and `Don't change` before the path print none, and
   `Do not edit the header; update` before the path prints one.
@@ -596,9 +610,13 @@ there unless a bullet says otherwise:
 - Words that merely contain a verb (`changelog`, `editor`, `preupdate`) before the path
   print no P1 line.
 - The rename case gives the same output under `$ALTSH`.
-- When `mawk` or `busybox` is on PATH, the suite's `$ALTSH` cases also run with it as
-  `awk` and pass; when neither is present the suite prints one `NOTE:` line, as it does
-  for dash (tests/plan-state/plan-state.test.sh:7).
+- EU-A, a command the implementer runs and reports: for each of `mawk` and `busybox` that
+  is present, make a shim directory holding an executable `awk` that runs
+  `exec mawk "$@"` (for busybox, `exec busybox awk "$@"`), then run
+  `PATH="$shim:$PATH" bash tests/plan-state/plan-state.test.sh`; with each one present,
+  the run must end `RESULT: N passed, 0 failed`. The DONE report names which awks ran,
+  and has one `NOTE:` line for each one that is missing, not one for both. A `NOTE:`
+  outcome leaves EU-A open; it does not settle it.
 - Every earlier test, including T23's real-plan cases, still passes; the file ends with
   `RESULT: N passed, 0 failed`.
 
