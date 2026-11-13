@@ -55,8 +55,8 @@ implementer DONE
   → dispatch dag-spec-reviewer  (model: resolve_model(resolve_tier(task, 'spec_reviewer')))
       → APPROVED → dispatch dag-quality-reviewer  (model: resolve_model(resolve_tier(task, 'quality_reviewer')))
           → APPROVED → mark task `done`, persist status
-          → ISSUES → re-dispatch implementer with quality feedback → loop
-      → ISSUES → re-dispatch implementer with spec feedback → loop
+          → ISSUES → plan-state round → exit 0: re-dispatch implementer with quality feedback → loop
+      → ISSUES → plan-state round → exit 0: re-dispatch implementer with spec feedback → loop
 ```
 
 `merged` — one combined call:
@@ -64,10 +64,18 @@ implementer DONE
 implementer DONE
   → dispatch dag-merged-reviewer  (model: resolve_model(resolve_tier(task, 'quality_reviewer')))
       → BOTH verdicts APPROVED → mark task `done`, persist status
-      → EITHER verdict ISSUES → re-dispatch implementer with the combined feedback → merged re-review → loop
+      → EITHER verdict ISSUES → plan-state round → exit 0: re-dispatch implementer with the combined feedback → merged re-review → loop
 ```
 
 **Reading a verdict.** Take it from the report's closing line, `VERDICT: APPROVED` or `VERDICT: ISSUES` (a merged review closes with a `SPEC:` line and a `QUALITY:` line), not from the prose above it. A report is malformed when that line is missing, holds anything else, or appears more than once. Re-dispatch the reviewer once, fresh, on the same commit. If the second report is malformed too, mark the task `failed` with the reason "reviewer gave no single verdict". Do not settle it by checking the work yourself: a verdict the controller reaches is a skipped review.
+
+**Review-round cap.** A fix round is one re-dispatch of the implementer in response to an ISSUES verdict from any reviewer: spec, quality, or merged (a merged review with either verdict ISSUES is one fix round). A reviewer re-run because its report had no single verdict line is not a fix round, and neither is the fresh dispatch of a `running` task after a restart. `plan-state` owns the count, in the task's `review_rounds:` field, and the cap of 3; never read or compare the count yourself. On every ISSUES verdict, run `plan-state round <plan> <id>` before anything else:
+
+- exit 0 (it prints the new count): re-dispatch the implementer as before;
+- exit 1 (it prints `plan-state: <id>: review cap reached (3 fix rounds)`): run `plan-state set <plan> <id> failed`, which cascades to downstream tasks as any failure does, and give the printed line as the task's reason in the final report, the same way as "reviewer gave no single verdict". Do not write the reason into the plan;
+- exit 2: halt the run and show the output.
+
+So an implementer gets at most 3 fix attempts across all of a task's reviews, and the fourth ISSUES verdict fails the task. `set` rewrites only the status line, so the count survives the resume reset of `running` to `ready`. A crash between `round` and the re-dispatch uses up that round, and a task at 3 that is reset and dispatched again fails on its next ISSUES verdict. Nothing lowers the count.
 
 Reviewer tiers fall back per-task → plan-level default → `standard`. Review-issue re-dispatch of the **implementer** uses the original resolved implementer tier (NOT the BLOCKED-upgraded one). Spec-before-quality ordering only matters for `split`; `merged` is gated (by the writing-dag-plans validator / author choice) to small low-risk tasks where it doesn't.
 
@@ -79,6 +87,7 @@ Reviewer tiers fall back per-task → plan-level default → `standard`. Review-
 | **DONE_WITH_CONCERNS** | Read concerns. If correctness/scope, address before review. If observations only, log and proceed. |
 | **NEEDS_CONTEXT** | Provide missing context, re-dispatch. |
 | **BLOCKED** | Auto-retry once, one step up. `cheap` and `standard` tasks retry on the next model tier (cheap→standard, standard→opus). An `opus` task has no tier above it, so it retries on `opus` with `effort: "high"` on the Agent call. If the agent's pinned effort is already `high` or above, or the harness's Agent tool has no `effort` parameter, an `opus` task gets no retry and is marked `failed`. If the retry also reports BLOCKED, mark task `failed`. Table and retry prompt: `./implementer-prompt.md` §Re-dispatch on BLOCKED. |
+| **ISSUES** (a reviewer's verdict) | Run `plan-state round <plan> <id>` first. Exit 0: re-dispatch with the issue list. Exit 1: `plan-state set <plan> <id> failed`; the reason is the line `round` printed. Exit 2: halt. See Review-round cap. |
 
 ## Failure handling — D + B
 
