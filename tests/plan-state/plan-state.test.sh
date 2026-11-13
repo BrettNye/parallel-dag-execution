@@ -720,5 +720,49 @@ pf_run "$pf" p3p4.md
 chk "P3 prints before P4 on one path" "$rc:$out" "1:plan-state: preflight: P3: task-x cites lib/two.sh:5, past the end of the file (2 lines)
 plan-state: preflight: P4: warning: task-x reads lib/two.sh:5 while task-w, which can run at the same time, changes it"
 
+echo
+echo "T30: preflight P1"
+pf3="$tmp/pf3"; mkdir -p "$pf3/lib" "$pf3/docs"; printf 'x\n' > "$pf3/lib/greet.sh"
+P1L="plan-state: preflight: P1: warning: task-rename says to edit lib/greet.sh, which is not in its files:"
+# p1_run TEXT [FILES]: one pending task whose text is TEXT
+p1_run() { pf_head "$pf3/p.md"; pf_task "$pf3/p.md" task-rename pending "${2-docs/usage.md}"; printf '%s\n' "$1" >> "$pf3/p.md"; pf_run "$pf3" p.md; }
+p1_run 'Rename the function `greet` to `say_hello` in `lib/greet.sh`.'
+chk "rename case: one P1 warning" "$rc:$out" "0:$P1L"
+out="$(cd "$pf3" && $ALTSH "$SCRIPT" preflight p.md 2>&1)"; rc=$?
+chk "rename case under $ALTSH" "$rc:$out" "0:$P1L"
+
+mv "$pf3/lib/greet.sh" "$pf3/lib/greet.sh.bak"
+p1_run 'Rename the function `greet` to `say_hello` in `lib/greet.sh`.'
+chk "absent: P1 before P3 warning" "$rc:$out" "0:$P1L
+plan-state: preflight: P3: warning: task-rename cites lib/greet.sh, which does not exist and no task creates"
+p1_run 'Rename the function `greet` to `say_hello` in `lib/greet.sh:4`.'
+chk "absent with :4: P1 warning before P3 error" "$rc:$out" "1:plan-state: preflight: P1: warning: task-rename says to edit lib/greet.sh:4, which is not in its files:
+plan-state: preflight: P3: task-rename cites lib/greet.sh:4, which does not exist and no task creates"
+mv "$pf3/lib/greet.sh.bak" "$pf3/lib/greet.sh"
+
+for v in Updated MODIFY rewrote 'appends to' 'Do not edit the header; update'; do
+  p1_run "$v \`lib/greet.sh\`."
+  chk "verb '$v' prints P1" "$rc:$out" "0:$P1L"
+done
+for v in 'Do not edit' 'Never modify' "Don't change"; do
+  p1_run "$v \`lib/greet.sh\`."
+  chk "negated '$v' prints nothing" "$rc:$out" "0:"
+done
+p1_run '`lib/greet.sh` is updated by the hook.'
+chk "verb after the path prints nothing" "$rc:$out" "0:"
+p1_run 'Update the file.
+`lib/greet.sh`'
+chk "verb on the line above prints nothing" "$rc:$out" "0:"
+p1_run '```sh
+# update lib/greet.sh
+```'
+chk "verb in a code block prints P1" "$rc:$out" "0:$P1L"
+p1_run 'Rename the function in `lib/greet.sh`.' "lib/greet.sh"
+chk "declared path prints nothing" "$rc:$out" "0:"
+for v in 'See the changelog' 'Open the editor' 'The preupdate hook'; do
+  p1_run "$v \`lib/greet.sh\`."
+  chk "'$v' is no verb" "$rc:$out" "0:"
+done
+
 echo "RESULT: $passes passed, $fails failed"
 [ "$fails" -eq 0 ]

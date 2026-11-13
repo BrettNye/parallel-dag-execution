@@ -212,17 +212,28 @@ function ispath(p) {
   if (p == "" || p ~ /[*?<>{]/ || index(p, "://") || substr(p, 1, 1) == "/" || substr(p, 1, 3) == "../") return 0
   return (p in dcl) || (index(p, "/") && p ~ /\.[A-Za-z0-9_]+$/)
 }
-function addc(t, raw,   p) { p = norm(raw); if (!ispath(p)) return
-  nc[t]++; cp[t, nc[t]] = p; cs[t, nc[t]] = SUF }
+function addc(t, raw, pre,   p) { p = norm(raw); if (!ispath(p)) return
+  nc[t]++; cp[t, nc[t]] = p; cs[t, nc[t]] = SUF; cpre[t, nc[t]] = pre }
 function cite(t, i) { return cp[t, i] (cs[t, i] == "" ? "" : ":" cs[t, i]) }   # path as cited, suffix kept
-# s, n: the saved RSTART and RLENGTH; addc calls norm, whose match() overwrites both
-function cands(t,   i, l, rest, word, s, n) {
+# s, n: the saved RSTART and RLENGTH; addc calls norm, whose match() overwrites both.
+# off: characters of the line before rest; the prefix handed to addc is the text of the line before the candidate.
+function cands(t,   i, l, rest, word, s, n, off) {
   word = "[^ \t\"\047`]+"              # "\047" is a quote; this program sits inside one
-  for (i = 1; i <= ntx[t]; i++) { rest = txt[t, i]
+  for (i = 1; i <= ntx[t]; i++) { rest = txt[t, i]; off = 0
     if (code[t, i]) while (match(rest, word)) { s = RSTART; n = RLENGTH
-      addc(t, substr(rest, s, n)); rest = substr(rest, s + n) }
+      addc(t, substr(rest, s, n), substr(txt[t, i], 1, off + s - 1)); off += s + n - 1; rest = substr(rest, s + n) }
     else while (match(rest, /`[^`]+`/)) { s = RSTART; n = RLENGTH; l = substr(rest, s + 1, n - 2)
-      if (l !~ /[ \t]/) addc(t, l); rest = substr(rest, s + n) } }
+      if (l !~ /[ \t]/) addc(t, l, substr(txt[t, i], 1, off + s - 1)); off += s + n - 1; rest = substr(rest, s + n) } }
+}
+function editverb(s,   re, rest, pre) {      # 1 when s holds a non-negated edit verb
+  s = tolower(s); rest = s
+  re = "(^|[^a-z])(edit(s|ed|ing)?|modif(y|ies|ied|ying)|chang(e|es|ed|ing)|updat(e|es|ed|ing)|renam(e|es|ed|ing)|delet(e|es|ed|ing)|remov(e|es|ed|ing)|replac(e|es|ed|ing)|rewr(ite|ites|ote|itten|iting)|(add(s|ed|ing)?|append(s|ed|ing)?)[ \t]+to)([^a-z]|$)"
+  while (match(rest, re)) {
+    pre = substr(rest, 1, RSTART)
+    if (pre !~ /(^|[^a-z])(not|never)[ \t]+$/ && pre !~ ("n" "\047" "t[ \t]+$")) return 1   # "\047" = a quote, kept out of the regex literal
+    rest = substr(rest, RSTART + RLENGTH - 1)   # past the verb, keeping its closing character as the next separator
+  }
+  return 0
 }
 # dcl[path] = " t1 t2 ...": the tasks whose files: name the path, whatever their status.
 function pfprep(   t, j, p) {
@@ -248,6 +259,9 @@ function p3(t, i,   p, s, k, a, b, r, cit, id) {
   if (index(s, "-")) { split(s, r, "-"); a = r[1] + 0; b = r[2] + 0 } else { a = s + 0; b = a }
   if (a == 0 || b < a) note(t, p, 3, 2, id " cites " cit ", which is not a line range")
   else if ((b > a ? b : a) > nlines[p]) note(t, p, 3, 2, id " cites " cit ", past the end of the file (" nlines[p] " lines)")
+}
+function p1(t, i) {
+  if (editverb(cpre[t, i])) note(t, cp[t, i], 1, 1, val[t, "id"] " says to edit " cite(t, i) ", which is not in its files:")
 }
 function p2(t, i,   p, n, d, a, u, first, other, alldesc) {
   p = cp[t, i]; if (((p in kind) && kind[p] != "absent") || !(p in dcl)) return
@@ -276,7 +290,7 @@ function preflight(   t, i, n, p, c, ln, a) {
     for (i = 1; i <= nc[t]; i++) { p = cp[t, i]
       if (!((t, p) in psn)) { psn[t, p] = 1; np[t]++; pord[t, np[t]] = p }
       if (owns(t, p)) continue
-      p3(t, i); p2(t, i); p4(t, i)   # later: p1 goes here too, one call per citation
+      p1(t, i); p3(t, i); p2(t, i); p4(t, i)
     }
     for (n = 1; n <= np[t]; n++) { p = pord[t, n]
       for (c = 1; c <= 4; c++) if (lv[t, p, c] > 0) {
