@@ -1,6 +1,6 @@
 # Design: D2 experiment, what gate 2 buys
 
-Date: 2026-11-16. Status: draft for Brett's review.
+Date: 2026-11-16. Status: approved by Brett, 2026-11-16.
 Backlog item: D2 in `docs/proposals/2026-11-12-charters-and-waves-backlog.md`.
 Follows: the D1 pilot, `experiments/d1-no-implementation/REPORT.md`.
 
