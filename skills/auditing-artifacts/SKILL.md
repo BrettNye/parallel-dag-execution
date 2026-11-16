@@ -50,6 +50,9 @@ expensive failure mode of a two-gate pipeline.
 - **`./lenses-plan.md`** — the 8 plan lenses, same.
 - **`./resolve-declared-paths`** — path pre-pass helper; run once in step 2.6, its
   tables passed verbatim to every lens and to the reconciler.
+- **`./audit-stats`** — counts, per lens, the blocking findings it reported and those
+  it caught alone, across every `reconciliation.md` under a path. Not part of an
+  audit; run it to decide which lenses earn their cost.
 - **`./auditor-prompt.md`** — dispatch template for `dag-auditor`.
 - **`./reconciler-prompt.md`** — dispatch template for `dag-audit-reconciler`.
 - **`./audit-charter-template.md`** — optional per-repo charter file.

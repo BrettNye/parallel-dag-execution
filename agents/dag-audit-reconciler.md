@@ -192,8 +192,11 @@ State it in one line, first, before the detail.
 ## Verdict: READY / NOT READY — <n> blocking
 
 ### Blocking findings
-(each: claim · artifact quote · union of evidence · concrete failure · resolution ·
- contributing lenses)
+(each starts with a bold line at the start of the line, `**B1. <claim>**`, then: artifact
+ quote · union of evidence · concrete failure · resolution · and one line
+ `- Lenses: <lens>, <lens>` naming every lens that reported it, at any severity, before
+ any prose. Keep this heading even for one finding. `audit-stats` counts findings and
+ lenses from exactly this shape.)
 
 ### Joint resolutions
 (clusters whose fixes interact, each with ONE resolution, and any artifact growth

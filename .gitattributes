@@ -27,3 +27,4 @@
 skills/executing-dag-plans/git-commit-safe text eol=lf
 skills/auditing-artifacts/resolve-declared-paths text eol=lf
 skills/writing-dag-plans/plan-state text eol=lf
+skills/auditing-artifacts/audit-stats text eol=lf

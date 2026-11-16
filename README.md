@@ -117,11 +117,12 @@ checking the report against the header's declared severity and substrings. Start
 which lenses have no fixture yet. `dag-audit-reconciler` has a separate harness with
 its grading keys held outside the tree it reads.
 
-The three helper scripts have real test suites. Run each with bash:
+The four helper scripts have real test suites. Run each with bash:
 
 ```sh
 bash tests/plan-state/plan-state.test.sh                    # plan validation, ready set, status changes, rendering
 bash tests/resolve-declared-paths/resolve-declared-paths.test.sh
+bash tests/audit-stats/audit-stats.test.sh                  # per-lens counts over reconciler reports
 bash tests/commit-safe/concurrent-commit.test.sh && bash tests/commit-safe/stale-lock.test.sh
 ```
 
