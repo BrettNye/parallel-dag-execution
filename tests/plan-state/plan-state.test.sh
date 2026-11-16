@@ -3,6 +3,8 @@
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 SCRIPT="$REPO/skills/writing-dag-plans/plan-state"
 [ -f "$SCRIPT" ] || { echo "FAIL: plan-state not found at $SCRIPT" >&2; exit 1; }
+# Without rg, every count below is empty and the tallies break; stop with one clear line instead.
+command -v rg >/dev/null 2>&1 || { echo "tests need rg (ripgrep)" >&2; exit 2; }
 # A second POSIX shell, to catch bashisms. dash if present; otherwise sh.
 if command -v dash >/dev/null 2>&1; then ALTSH=dash; else ALTSH=sh; echo "NOTE: dash not installed - alt-shell cases run under sh"; fi
 fails=0; passes=0

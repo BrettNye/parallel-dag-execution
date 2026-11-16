@@ -20,6 +20,9 @@ A Claude Code plugin: skills, agents and commands that write, audit and execute 
 
 ## Running the tests
 
+The suites need `rg` (ripgrep); a suite that uses it exits 2 when it is missing. The helper
+scripts themselves must not depend on it.
+
 ```bash
 for t in tests/*/*.test.sh; do bash "$t" || exit 1; done
 ```
