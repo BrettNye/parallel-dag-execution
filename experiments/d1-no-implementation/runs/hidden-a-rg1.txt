@@ -1,0 +1,13 @@
+PASS mawk tests/commit-safe/concurrent-commit.test.sh
+PASS mawk tests/commit-safe/stale-lock.test.sh
+PASS mawk tests/plan-state/plan-state.test.sh
+PASS mawk tests/resolve-declared-paths/resolve-declared-paths.test.sh
+PASS gawk tests/commit-safe/concurrent-commit.test.sh
+PASS gawk tests/commit-safe/stale-lock.test.sh
+PASS gawk tests/plan-state/plan-state.test.sh
+PASS gawk tests/resolve-declared-paths/resolve-declared-paths.test.sh
+PASS busybox tests/commit-safe/concurrent-commit.test.sh
+PASS busybox tests/commit-safe/stale-lock.test.sh
+PASS busybox tests/plan-state/plan-state.test.sh
+PASS busybox tests/resolve-declared-paths/resolve-declared-paths.test.sh
+HIDDEN CHECK: 12 passed, 0 failed

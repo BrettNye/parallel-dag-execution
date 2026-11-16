@@ -1,0 +1,2 @@
+Background tasks still running 10m after the last turn (subagent "Implement task-preflight-edit", shell "cd /c/Users/Brett/workspace/scratch/pde-d1-b0; python3 - <<'", shell "until [ -s "/c/Users/Brett/AppData/Local/Temp/claude/0306c0d"); stopping them. Set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 to wait indefinitely.
+session d122dad6-33f6-4061-90b9-440a76f3d77c  result success  cli cost $1.15  turns 16

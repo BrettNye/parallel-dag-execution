@@ -1,0 +1,41 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+session b6bb30f3-7be1-48a5-b17e-97ee4083c9e3  result success  cli cost $10.72
+## Gate 2, round 3: **READY, 0 blocking**
+
+All eight lenses ran in one dispatch and the reconciler merged their reports. No lens proposed a blocking finding, and the reconciler found no combination of findings that makes one. Every finding is either deferred, carried from an earlier round, or an open empirical question. Under the skill's rule for when to stop, the plan has converged, so I recommend no fourth round.
+
+**Blocking findings:** none. The reconciler checked two candidates and kept them below blocking:
+- **R3-D1 (task-round):** the CRLF test checks one line, K, by its number. `emit` redraws the plan's diagram, which moves that line by about 10. A correct implementation can still pass, and a wrong K fails visibly in task-round's own test file.
+- **R3-D2:** three apostrophes in the awk sketch (L320, L339, L566). This can only halt a run if EU-self (below) turns out to be true.
+
+**Joint fixes proposed:** none is needed for READY, and none adds tasks, files or edges.
+- **J1 (task-round CRLF test):** say how K is found. About 2 lines.
+- **J2 (one edit pass over the three preflight tasks):**
+  - `run_check` must `return` instead of `exit`.
+  - `preflight()` must call `ancestors()`.
+  - The negated-verb check must resume at the right position.
+  - Reword the apostrophes.
+  - Make the cycle fixture actually test something.
+  - Add exit-0 checks to the "prints nothing" cases.
+  - Make the ordering case unable to pass by chance.
+
+  The first three are carried one-liners. Left as they are, each will likely cost a fix round during execution.
+- **J3 (EU-A criterion):** name its three questions, and prove the mawk/busybox stand-in actually ran.
+
+**Where the lenses disagreed:** two disagreements were real.
+- The CRLF line-number problem (R3-D1) was flagged by three lenses and cleared by three others. The reconciler reproduced the line moving, so it stands.
+- The EU-A wording was cleared by three lenses and flagged by two. The two traced it more completely, so it is kept as deferred.
+
+**Nothing was downgraded.** Lens findings that repeated an earlier round's item were folded into that item.
+
+**Deferred:**
+- **New:** R3-D1 to R3-D7.
+- **Still open from earlier rounds:** D1, D2, D4, D13, D14, D17, D19, D24, R2-D3, R2-D5, R2-D6, R2-D7, R2-D9 (what remains of it), R2-D10, R2-D11, R2-D12.
+- **Closed by a08ec8d:** R2-B1, D6, D7, R2-D8, and the per-awk `NOTE:` and whole-suite parts of R2-D9.
+
+**Open questions (empirical unknowns):**
+- **EU-A** is still open; mawk and busybox are not installed here.
+- **EU1** is unchanged.
+- **EU-self** is new: is the plugin copy that runs the executor the same directory as this worktree? If it is, tasks editing `plan-state` would change the script the executor is using mid-run. In this session the plugin ran from `scratch/pde-pinned-a771ddd`, a separate directory, but whoever executes the plan should check before dispatch.
+
+**Trend:** blocking findings went 3 → 1 → 0 across the three rounds. The plan grew 932 → 993 → 1042 line

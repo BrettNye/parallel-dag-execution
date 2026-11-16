@@ -1,0 +1,14 @@
+A start 17:29
+A rc=0 end 18:26
+B start 18:26
+B rc=0 end 20:47
+B0 start 20:47
+B0 rc=0 end 21:00
+A resume start 21:02
+A resume rc=0 end 23:17
+B0 resume start 23:17
+B0 resume rc=1 end 02:48
+B0 resume2 start 13:32
+B0 resume2 rc=0 end 13:45
+B0 resume3 (ceiling 0) start 13:45
+B0 resume3 rc=0 end 14:18
