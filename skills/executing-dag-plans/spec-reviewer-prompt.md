@@ -97,7 +97,7 @@ Agent({
 
 ## Re-dispatch on implementer fix
 
-After the implementer addresses ISSUES and re-commits, dispatch the spec reviewer again with the new commit SHA. The reviewer should not see prior iteration history — fresh review against the same spec on the new diff.
+When ISSUES are reported, run `plan-state round` first (see Review-round cap in SKILL.md); the implementer is re-dispatched only on exit 0. After the implementer addresses ISSUES and re-commits, dispatch the spec reviewer again with the new commit SHA. The reviewer should not see prior iteration history — fresh review against the same spec on the new diff.
 
 ## Approval criteria
 

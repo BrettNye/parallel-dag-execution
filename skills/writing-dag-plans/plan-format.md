@@ -106,6 +106,7 @@ quality_reviewer_hint: standard # OPTIONAL. Quality reviewer tier. cheap | stand
 review_mode: merged    # OPTIONAL. merged | split. Falls back to default_review_mode, then `split`. `merged` runs one combined spec+quality reviewer instead of the two-call chain.
 single_threaded: false # OPTIONAL. If true, task forces dispatch tick to itself. Use for scope-less/exploratory tasks.
 is_wiring_task: false  # OPTIONAL. If true, plan-quality.md H3 (single-subsystem in files:) is bypassed. Use only for tasks whose explicit purpose is to wire two subsystems together; should depend_on the tasks producing each side.
+review_rounds: 0       # OPTIONAL. Whole number 0-3. Fix rounds so far: re-dispatches of the implementer after a reviewer's ISSUES verdict. Absent = 0. Written by `plan-state round`; nothing lowers it.
 ```
 
 ### Mixing implementers in a single plan
@@ -238,7 +239,7 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
 | `ready` | All deps `done`. Awaiting next dispatch tick. | Yes |
 | `running` | Implementer subagent is currently executing. | No |
 | `done` | Implementer finished AND spec/quality reviewers approved. | No |
-| `failed` | After auto-retry-once, still BLOCKED or repeatedly failed review. | No |
+| `failed` | After auto-retry-once, still BLOCKED; or a reviewer's fourth ISSUES verdict, after 3 fix rounds (rule 15); or a reviewer gave no single verdict twice. | No |
 | `skipped` | Cascaded from a `failed` ancestor. Will not run. | No |
 
 ## Validation rules (enforced by writing-dag-plans + updating-dag-plans)
@@ -257,10 +258,11 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
 12. **`default_implementer` type check** — `default_implementer`, when present in frontmatter, MUST be a non-empty string. Any other value → refuse with the field name and the bad value.
 13. **`parent:` / `child:` placement** — when either is present, both MUST be present; `parent:` MUST resolve to a readable single file, and `child:` MUST appear in that file's `children:` frontmatter list. Any other case → refuse, naming the field and the offending value.
 14. **`implementation:` mode** — `implementation:`, when present in frontmatter, MUST be `full` or `contracts-only`. Under `contracts-only`, every task without `is_wiring_task: true` MUST have a `## Contracts` section and MUST NOT have a `## Implementation` section. Any other case → refuse, naming the field and its value, or the task and the section.
+15. **`review_rounds` count** — `review_rounds`, when present on any task, MUST be a whole number from 0 to 3. It counts fix rounds; absent means 0. `plan-state round <plan> <id>` raises it by one on a `running` task and refuses at 3 (exit 1), which is the review cap: the executor then marks the task `failed`. Any other value → refuse naming the task id, the field, and the bad value.
 
-Rules #7–#14 use the same refusal-message format as rules 1–6.
+Rules #7–#15 use the same refusal-message format as rules 1–6.
 
-`plan-state check <plan>` (the script beside this file) enforces rules 1–5 and 7–14 and prints one line per violation; rule 6 needs the previous version of the plan and stays with `updating-dag-plans`. `plan-state render` draws the mermaid block below and `plan-state tree` prints the ASCII tree, so both follow this spec exactly.
+`plan-state check <plan>` (the script beside this file) enforces rules 1–5 and 7–15 and prints one line per violation; rule 6 needs the previous version of the plan and stays with `updating-dag-plans`. `plan-state round` counts a task's fix rounds against the cap of 3 (rule 15). `plan-state render` draws the mermaid block below and `plan-state tree` prints the ASCII tree, so both follow this spec exactly.
 
 ## Why `files:` is the load-bearing field
 

@@ -127,6 +127,8 @@ Note: This teaches the controller LLM to include `model:` at dispatch — the wi
 
 When the spec or quality reviewer reports ISSUES, re-dispatch the implementer with the same task context PLUS the issue list:
 
+Before each such re-dispatch, run `plan-state round <plan> <id>` and re-dispatch only on exit 0. Exit 1 means the task has had 3 fix rounds, across all its reviewers: mark it `failed` with `plan-state set <plan> <id> failed` and report the line `round` printed as the reason. Exit 2 halts the run. See `./SKILL.md` §Review-round cap.
+
 Review-issue re-dispatch uses the **original resolved tier**, not the BLOCKED-upgraded one.
 
 ```

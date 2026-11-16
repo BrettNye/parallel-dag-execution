@@ -1,13 +1,15 @@
 #!/usr/bin/env sh
 # plan-state — the mechanical half of DAG-plan bookkeeping (see plan-format.md).
 # Usage:
-#   plan-state check  <plan>               validate rules 1-5 and 7-14, status values, mermaid block
+#   plan-state check  <plan>               validate rules 1-5 and 7-15, status values, mermaid block
 #   plan-state ready  <plan>               print the ids ready to dispatch, one per line
 #   plan-state set    <plan> <id> <status> change one status; failed cascades skipped; redraws mermaid
 #   plan-state render <plan>               redraw the mermaid block in place
+#   plan-state round  <plan> <id>          count one fix round on a running task; exit 1 at the cap
 #   plan-state tree   <plan>               print the ASCII status tree
+#   plan-state preflight <plan>            report path defects in unfinished tasks' text
 #   plan-state charter <charter>           check a superspec charter's children and contracts
-# Exit: 0 ok, 1 validation failure (check, charter), 2 usage error or refused change.
+# Exit: 0 ok, 1 validation failure (check, charter), preflight error, or cap reached (round), 2 usage error or refused change.
 #
 # Why a script: sorting the graph, computing the ready set, redrawing the
 # mermaid block and checking enum values each have exactly one right answer.
@@ -15,7 +17,9 @@
 # duplicate class line, a node label that no longer matches the spec).
 set -eu
 
-usage() { sed -n '3,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+CAP=3   # review-round cap: round refuses at it, rule 15 bounds review_rounds by it
+
+usage() { sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ "$#" -ge 2 ] || usage
 cmd="$1"; plan="$2"; shift 2
 if [ -d "$plan" ] || [ ! -r "$plan" ]; then echo "plan-state: cannot read $plan" >&2; exit 2; fi
@@ -34,6 +38,7 @@ function stripc(s) { sub(/[ \t]+#.*$/, "", s); return s }
 function runlen(s, c,   n) { n = 0; while (substr(s, n + 1, 1) == c) n++; return n }
 function addlist(key, item) {
   item = unq(item); if (item == "") return
+  if (key == "files") while (substr(item, 1, 2) == "./") item = substr(item, 3)   # ./a and a are one path
   if (key == "depends_on") { nd[cur]++; dep[cur, nd[cur]] = item }
   else { nf[cur]++; fil[cur, nf[cur]] = item }
 }
@@ -49,6 +54,7 @@ function yamlline(l,   k, v) {
     if (k == "depends_on" || k == "files") { if (v == "") ylist = k; else inl(k, v); return }
     val[cur, k] = unq(v)
     if (k == "status") stl[cur] = FNR
+    if (k == "review_rounds") rrl[cur] = FNR
   }
 }
 function err(msg) { print "plan-state: " msg | "cat 1>&2" }
@@ -79,7 +85,7 @@ function ancestors(   i, t, j, d, u, a) {
       for (a = 1; a <= nt; a++) if ((u, a) in anc) anc[t, a] = 1 } }
 }
 
-function check(   t, k, i, j, f, a, b, list, owners, seen, own, hint, n) {
+function check(   t, k, i, j, f, a, b, v, list, owners, seen, own, hint, n) {
   if (nt == 0) viol(5, "no \"## Task:\" sections found")
   if (!ms) print "plan-state: format: no mermaid block (run: plan-state render)"; if (!ms) bad = 1
   for (t = 1; t <= nt; t++) {
@@ -95,6 +101,8 @@ function check(   t, k, i, j, f, a, b, list, owners, seen, own, hint, n) {
     split("model_hint spec_reviewer_hint quality_reviewer_hint", hint, " ")
     for (i = 1; i <= 3; i++) if (has[t, hint[i]] && !inset(val[t, hint[i]], "cheap standard opus")) viol(7, k " " hint[i] " is " val[t, hint[i]])
     if (has[t, "review_mode"] && !inset(val[t, "review_mode"], "merged split")) viol(9, k " review_mode is " val[t, "review_mode"])
+    v = val[t, "review_rounds"]
+    if (has[t, "review_rounds"] && (v !~ /^[0-9]+$/ || v + 0 > CAP)) viol(15, k " review_rounds is " v)
   }
   split("default_model_hint default_spec_reviewer_hint default_quality_reviewer_hint", hint, " ")
   for (i = 1; i <= 3; i++) if ((hint[i] in fmset) && !inset(fm[hint[i]], "cheap standard opus")) viol(8, hint[i] " is " fm[hint[i]])
@@ -180,6 +188,119 @@ function apply(   t, from, to, j, q, h, n, u, k, c, sk) {
   if (sk != "") err("skipped:" sk)
 }
 
+# Decide one fix round for RID: print the new count, or refuse. Writes nothing.
+function round(   t, n, u, v) {
+  n = 0; for (t = 1; t <= nt; t++) if (val[t, "id"] == RID) { n++; u = t }
+  if (n != 1) { err(n ? "id " RID " is not unique; run: plan-state check" : "no task with id " RID); exit 2 }
+  if (val[u, "status"] != "running") { err("refused " RID ": status is " val[u, "status"] ", not running"); exit 2 }
+  v = has[u, "review_rounds"] ? val[u, "review_rounds"] : "0"
+  if (v !~ /^[0-9]+$/ || v + 0 > CAP) { err(RID " review_rounds is " v ", not a whole number from 0 to " CAP); exit 2 }
+  if (v + 0 >= CAP) { print "plan-state: " RID ": review cap reached (" CAP " fix rounds)"; exit 1 }
+  print v + 1
+}
+
+# ---- preflight: path defects in the text of pending and ready tasks ----
+# Task text: pass 1 stores the lines after the yaml block (see addtx and the NR==FNR block).
+function addtx(s, c) { ntx[cur]++; txt[cur, ntx[cur]] = s; code[cur, ntx[cur]] = c }
+function norm(c) {                     # path part of c; the line suffix goes to SUF
+  while (c ~ /[.,;:)]$/) c = substr(c, 1, length(c) - 1)
+  SUF = ""
+  if (match(c, /:[0-9]+(-[0-9]+)?$/)) { SUF = substr(c, RSTART + 1); c = substr(c, 1, RSTART - 1) }
+  if (substr(c, 1, 2) == "./") c = substr(c, 3)
+  return c
+}
+function ispath(p) {
+  if (p == "" || p ~ /[*?<>{]/ || index(p, "://") || substr(p, 1, 1) == "/" || substr(p, 1, 3) == "../") return 0
+  return (p in dcl) || (index(p, "/") && p ~ /\.[A-Za-z0-9_]+$/)
+}
+function addc(t, raw, pre,   p) { p = norm(raw); if (!ispath(p)) return
+  nc[t]++; cp[t, nc[t]] = p; cs[t, nc[t]] = SUF; cpre[t, nc[t]] = pre }
+function cite(t, i) { return cp[t, i] (cs[t, i] == "" ? "" : ":" cs[t, i]) }   # path as cited, suffix kept
+# s, n: the saved RSTART and RLENGTH; addc calls norm, whose match() overwrites both.
+# off: characters of the line before rest; the prefix handed to addc is the text of the line before the candidate.
+function cands(t,   i, l, rest, word, s, n, off) {
+  word = "[^ \t\"\047`]+"              # "\047" is a quote; this program sits inside one
+  for (i = 1; i <= ntx[t]; i++) { rest = txt[t, i]; off = 0
+    if (code[t, i]) while (match(rest, word)) { s = RSTART; n = RLENGTH
+      addc(t, substr(rest, s, n), substr(txt[t, i], 1, off + s - 1)); off += s + n - 1; rest = substr(rest, s + n) }
+    else while (match(rest, /`[^`]+`/)) { s = RSTART; n = RLENGTH; l = substr(rest, s + 1, n - 2)
+      if (l !~ /[ \t]/) addc(t, l, substr(txt[t, i], 1, off + s - 1)); off += s + n - 1; rest = substr(rest, s + n) } }
+}
+function editverb(s,   re, rest, pre) {      # 1 when s holds a non-negated edit verb
+  s = tolower(s); rest = s
+  re = "(^|[^a-z])(edit(s|ed|ing)?|modif(y|ies|ied|ying)|chang(e|es|ed|ing)|updat(e|es|ed|ing)|renam(e|es|ed|ing)|delet(e|es|ed|ing)|remov(e|es|ed|ing)|replac(e|es|ed|ing)|rewr(ite|ites|ote|itten|iting)|(add(s|ed|ing)?|append(s|ed|ing)?)[ \t]+to)([^a-z]|$)"
+  while (match(rest, re)) {
+    pre = substr(rest, 1, RSTART)
+    if (pre !~ /(^|[^a-z])(not|never)[ \t]+$/ && pre !~ ("n" "\047" "t[ \t]+$")) return 1   # "\047" = a quote, kept out of the regex literal
+    rest = substr(rest, RSTART + RLENGTH - 1)   # past the verb, keeping its closing character as the next separator
+  }
+  return 0
+}
+# dcl[path] = " t1 t2 ...": the tasks whose files: name the path, whatever their status.
+function pfprep(   t, j, p) {
+  for (t = 1; t <= nt; t++) for (j = 1; j <= nf[t]; j++) { p = fil[t, j]; dcl[p] = dcl[p] " " t }
+}
+function owns(t, p) { return (p in dcl) && index(dcl[p] " ", " " t " ") > 0 }   # the test first: reading dcl[p] would create it
+function pfpaths(   t, i, p) {
+  pfprep()
+  for (t = 1; t <= nt; t++) { if (!inset(val[t, "status"], "pending ready")) continue
+    cands(t); for (i = 1; i <= nc[t]; i++) { p = cp[t, i]; if (!(p in pfseen)) { pfseen[p] = 1; print p } } }
+}
+# lv[t, p, c]: 0 nothing, 1 warning, 2 error; the first citation to reach the highest level wins.
+function note(t, p, c, level, msg) { if (level > lv[t, p, c]) { lv[t, p, c] = level; pfmsg[t, p, c] = msg } }
+function p3(t, i,   p, s, k, a, b, r, cit, id) {
+  p = cp[t, i]; s = cs[t, i]; cit = cite(t, i); id = val[t, "id"]
+  k = (p in kind) ? kind[p] : "absent"
+  if (k == "absent") {
+    if (!(p in dcl)) note(t, p, 3, s == "" ? 1 : 2, id " cites " cit ", which does not exist and no task creates")
+    return
+  }
+  if (s == "") return
+  if (k == "dir") { note(t, p, 3, 2, id " cites " cit ", which is a directory"); return }
+  if (index(s, "-")) { split(s, r, "-"); a = r[1] + 0; b = r[2] + 0 } else { a = s + 0; b = a }
+  if (a == 0 || b < a) note(t, p, 3, 2, id " cites " cit ", which is not a line range")
+  else if ((b > a ? b : a) > nlines[p]) note(t, p, 3, 2, id " cites " cit ", past the end of the file (" nlines[p] " lines)")
+}
+function p1(t, i) {
+  if (editverb(cpre[t, i])) note(t, cp[t, i], 1, 1, val[t, "id"] " says to edit " cite(t, i) ", which is not in its files:")
+}
+function p2(t, i,   p, n, d, a, u, first, other, alldesc) {
+  p = cp[t, i]; if (((p in kind) && kind[p] != "absent") || !(p in dcl)) return
+  n = split(dcl[p], d, " "); alldesc = 1; first = 0; other = 0
+  for (a = 1; a <= n; a++) { u = d[a] + 0
+    if (u == t || ((t, u) in anc)) return            # this task or an ancestor creates it
+    if (!first) first = u
+    if (!((u, t) in anc)) { alldesc = 0; if (!other) other = u } }
+  if (alldesc) note(t, p, 2, 1, val[t, "id"] " uses " cite(t, i) ", which " val[first, "id"] " declares, but " val[first, "id"] " depends on " val[t, "id"])
+  else note(t, p, 2, 2, val[t, "id"] " uses " cite(t, i) ", which " val[other, "id"] " declares, but does not depend on " val[other, "id"])
+}
+function p4(t, i,   p, n, d, a, u) {
+  p = cp[t, i]; if (!(p in kind) || kind[p] == "absent" || !(p in dcl)) return
+  n = split(dcl[p], d, " ")
+  for (a = 1; a <= n; a++) { u = d[a] + 0
+    if (u == t || !inset(val[u, "status"], "pending ready running")) continue
+    if (((t, u) in anc) || ((u, t) in anc)) continue
+    note(t, p, 4, 1, val[t, "id"] " reads " cite(t, i) " while " val[u, "id"] ", which can run at the same time, changes it"); return }
+}
+function preflight(   t, i, n, p, c, ln, a) {
+  while ((getline ln < PFTAB) > 0) { split(ln, a, "\t"); kind[a[1]] = a[2]; nlines[a[1]] = a[3] + 0 }
+  close(PFTAB)
+  pfprep(); ancestors()
+  for (t = 1; t <= nt; t++) { if (!inset(val[t, "status"], "pending ready")) continue
+    cands(t)
+    for (i = 1; i <= nc[t]; i++) { p = cp[t, i]
+      if (!((t, p) in psn)) { psn[t, p] = 1; np[t]++; pord[t, np[t]] = p }
+      if (owns(t, p)) continue
+      p1(t, i); p3(t, i); p2(t, i); p4(t, i)
+    }
+    for (n = 1; n <= np[t]; n++) { p = pord[t, n]
+      for (c = 1; c <= 4; c++) if (lv[t, p, c] > 0) {
+        print "plan-state: preflight: P" c ": " (lv[t, p, c] == 1 ? "warning: " : "") pfmsg[t, p, c]
+        if (lv[t, p, c] == 2) perr = 1 } }
+  }
+  exit perr + 0
+}
+
 function pad(s, w) { while (length(s) < w) s = s " "; return s }
 function icon(s) { return s == "done" ? "✓" : s == "running" ? "⟳" : s == "failed" ? "✗" : s == "skipped" ? "⊘" : "·" }
 function row(t, lead) { print pad(lead "[" val[t, "id"] "] " title[t], 52) " " icon(val[t, "status"]) " " val[t, "status"] }
@@ -226,22 +347,32 @@ NR == FNR {
   }
   if (fence) {
     if (runlen(line, fch) >= flen && trim(substr(line, runlen(line, fch) + 1)) == "") {
-      fence = 0; if (inmer) { me = FNR; inmer = 0 }; inyaml = 0; next
+      fence = 0; if (inmer) { me = FNR; inmer = 0 }; if (inyaml && cur) intext = 1; inyaml = 0; next
     }
     if (inyaml) yamlline(line)
+    else if (intext) addtx(line, 1)
     next
   }
-  if (match(line, /^## Task:[ \t]*/)) { nt++; cur = nt; title[cur] = trim(substr(line, RLENGTH + 1)); pend = 1; next }
+  if (match(line, /^## Task:[ \t]*/)) { intext = 0; nt++; cur = nt; title[cur] = trim(substr(line, RLENGTH + 1)); pend = 1; next }
   if (cur && line ~ /^## Implementation[ 	]*$/) secimpl[cur] = 1
   if (cur && line ~ /^## Contracts[ 	]*$/) seccon[cur] = 1
+  if (line ~ /^##? / && line !~ /^## (Implementation|Contracts|Acceptance criteria)[ \t]*$/) intext = 0
   if (line ~ /^##? /) pend = 0
+  if (intext) addtx(line, 0)
   next
 }
 
-FNR == 1 && NR != FNR { graph(); apply(); emitting = 1; if (!fmend && !ms) { mermaid(); print EOL } }
+FNR == 1 && NR != FNR { graph(); apply(); emitting = 1; if (RRID != "") for (t = 1; t <= nt; t++) if (val[t, "id"] == RRID) ru = t; if (!fmend && !ms) { mermaid(); print EOL } }
 emitting {
   if (FNR == ms) { mermaid(); skip = 1; if (ms == me) skip = 0; next }
   if (skip) { if (FNR == me) skip = 0; next }
+  # Rule 15 accepts a quoted count, so the rewrite must match one too. If the line still does
+  # not match, refuse rather than report a round that was never written.
+  if (RRID != "" && rrl[ru] && FNR == rrl[ru]) { l = $0
+    if (!sub("review_rounds:[ \t]*[\"\047]?[0-9]+[\"\047]?", "review_rounds: " RRVAL, l)) { err("cannot rewrite review_rounds for " RRID); rrbad = 1 }
+    print l; next }
+  if (RRID != "" && !rrl[ru] && FNR == stl[ru]) { print; ind = $0; sub(/[^ \t].*$/, "", ind)
+    print ind "review_rounds: " RRVAL (($0 ~ /\r$/) ? "\r" : ""); next }
   for (t = 1; t <= nt; t++) if (FNR == stl[t] && (t in newst)) { l = $0; sub(/status:[ \t]*[A-Za-z]+/, "status: " newst[t], l); print l; next }
   print
   if (FNR == fmend && !ms) { print EOL; mermaid() }
@@ -249,9 +380,12 @@ emitting {
 }
 
 END {
-  if (MODE == "emit") exit
+  if (MODE == "emit") { if (rrbad) exit 2; exit }   # bare exit keeps an earlier exit 2 from apply()
   graph()
   if (MODE == "check") { check(); exit bad }
+  if (MODE == "round") { round(); exit }
+  if (MODE == "pfpaths") { pfpaths(); exit }
+  if (MODE == "preflight") { preflight(); exit }
   if (MODE == "ready") { ready(); exit }
   if (MODE == "tree") { tree(); exit }
   if (MODE == "spec") { if ("spec" in fmset) print fm["spec"]; exit }
@@ -323,45 +457,76 @@ END {
 
 emit() {  # rewrite the plan in place; keep its mode by writing through it
   tmpf=$(mktemp) || exit 2
-  if awk -v MODE=emit -v SETID="${1:-}" -v SETST="${2:-}" "$PROG" "$plan" "$plan" > "$tmpf"; then
-    cat "$tmpf" > "$plan"; rm -f "$tmpf"
+  # BINMODE=3 on this call only: MSYS gawk reads in text mode and drops the CR, BINMODE=3
+  # keeps the bytes, and other awks treat it as an unused variable.
+  if awk -v BINMODE=3 -v MODE=emit -v CAP="$CAP" -v SETID="${1:-}" -v SETST="${2:-}" -v RRID="${3:-}" -v RRVAL="${4:-}" \
+       "$PROG" "$plan" "$plan" > "$tmpf"; then
+    if ! { cat "$tmpf" > "$plan"; } 2>/dev/null; then
+      rm -f "$tmpf"; echo "plan-state: cannot write $plan" >&2; exit 2
+    fi
+    rm -f "$tmpf"
   else rc=$?; rm -f "$tmpf"; exit "$rc"; fi
 }
 
-case "$cmd" in
-  check)
-    rc=0; awk -v MODE=check "$PROG" "$plan" || rc=$?
-    spec=$(awk -v MODE=spec "$PROG" "$plan")
-    if [ -n "$spec" ]; then
-      root=$(git -C "$(dirname -- "$plan")" rev-parse --show-toplevel 2>/dev/null || pwd)
-      case "$spec" in /*) sp="$spec" ;; *) sp="$root/$spec" ;; esac
-      if [ -d "$sp" ] || [ ! -r "$sp" ]; then
-        echo "plan-state: rule 11: spec $spec does not resolve to a readable single file"; rc=1
-      fi
+repo_root() { git -C "$(dirname -- "$plan")" rev-parse --show-toplevel 2>/dev/null || pwd; }
+
+run_check() {
+  rc=0; awk -v MODE=check -v CAP="$CAP" "$PROG" "$plan" || rc=$?
+  spec=$(awk -v MODE=spec "$PROG" "$plan")
+  if [ -n "$spec" ]; then
+    root=$(repo_root)
+    case "$spec" in /*) sp="$spec" ;; *) sp="$root/$spec" ;; esac
+    if [ -d "$sp" ] || [ ! -r "$sp" ]; then
+      echo "plan-state: rule 11: spec $spec does not resolve to a readable single file"; rc=1
     fi
-    # Rule 13: parent: names the superspec charter, child: this plan's id in it.
-    pc=$(awk -v MODE=pc "$PROG" "$plan")
-    parent=$(printf '%s
+  fi
+  # Rule 13: parent: names the superspec charter, child: this plan's id in it.
+  pc=$(awk -v MODE=pc "$PROG" "$plan")
+  parent=$(printf '%s
 ' "$pc" | sed -n 's/^parent=//p'); child=$(printf '%s
 ' "$pc" | sed -n 's/^child=//p')
-    if [ -n "$parent" ] || [ -n "$child" ]; then
-      if [ -z "$parent" ] || [ -z "$child" ]; then
-        echo "plan-state: rule 13: parent and child must be set together"; rc=1
-      else
-        root=$(git -C "$(dirname -- "$plan")" rev-parse --show-toplevel 2>/dev/null || pwd)
-        case "$parent" in /*) pp="$parent" ;; *) pp="$root/$parent" ;; esac
-        if [ -d "$pp" ] || [ ! -r "$pp" ]; then
-          echo "plan-state: rule 13: parent $parent does not resolve to a readable single file"; rc=1
-        elif ! awk -v MODE=children "$CPROG" "$pp" | grep -qxF -- "$child"; then
-          echo "plan-state: rule 13: child $child is not in $parent children"; rc=1
-        fi
+  if [ -n "$parent" ] || [ -n "$child" ]; then
+    if [ -z "$parent" ] || [ -z "$child" ]; then
+      echo "plan-state: rule 13: parent and child must be set together"; rc=1
+    else
+      root=$(repo_root)
+      case "$parent" in /*) pp="$parent" ;; *) pp="$root/$parent" ;; esac
+      if [ -d "$pp" ] || [ ! -r "$pp" ]; then
+        echo "plan-state: rule 13: parent $parent does not resolve to a readable single file"; rc=1
+      elif ! awk -v MODE=children "$CPROG" "$pp" | grep -qxF -- "$child"; then
+        echo "plan-state: rule 13: child $child is not in $parent children"; rc=1
       fi
     fi
-    exit "$rc" ;;
+  fi
+  return "$rc"
+}
+
+case "$cmd" in
+  check) run_check || exit "$?" ;;
+  preflight)
+    [ "$#" -eq 0 ] || usage
+    run_check || exit 1                      # check's own lines are already on stdout
+    root=$(repo_root); tab=$(mktemp) || exit 2
+    awk -v MODE=pfpaths -v CAP="$CAP" "$PROG" "$plan" | while IFS= read -r p; do
+      if   [ -d "$root/$p" ]; then printf '%s	dir	0
+' "$p"
+      elif [ -e "$root/$p" ]; then printf '%s	file	%s
+' "$p" "$(awk 'END { print NR }' "$root/$p" 2>/dev/null || echo 0)"
+      else printf '%s	absent	0
+' "$p"; fi
+    done > "$tab"
+    rc=0; awk -v MODE=preflight -v PFTAB="$tab" -v CAP="$CAP" "$PROG" "$plan" || rc=$?
+    rm -f "$tab"; exit "$rc" ;;
   charter) [ "$#" -eq 0 ] || usage; awk -v MODE=check "$CPROG" "$plan" ;;
   ready)  awk -v MODE=ready "$PROG" "$plan" ;;
   tree)   awk -v MODE=tree "$PROG" "$plan" ;;
   render) [ "$#" -eq 0 ] || usage; emit ;;
+  round)
+    [ "$#" -eq 1 ] || usage
+    rc=0; n=$(awk -v MODE=round -v RID="$1" -v CAP="$CAP" "$PROG" "$plan") || rc=$?
+    if [ "$rc" -ne 0 ]; then [ -n "$n" ] && printf '%s\n' "$n"; exit "$rc"; fi
+    emit "" "" "$1" "$n"
+    printf '%s\n' "$n" ;;
   set)
     [ "$#" -eq 2 ] || usage
     case "$2" in pending|ready|running|done|failed|skipped) ;; *) echo "plan-state: unknown status $2" >&2; exit 2 ;; esac

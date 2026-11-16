@@ -114,7 +114,7 @@ Agent({
 
 ## Re-dispatch on implementer fix
 
-When ISSUES are reported, the implementer fixes them and re-commits. Re-dispatch the quality reviewer with the new commit SHA. Fresh review on the new diff.
+When ISSUES are reported, run `plan-state round` first (see Review-round cap in SKILL.md). Only on exit 0 does the implementer fix them and re-commit; then re-dispatch the quality reviewer with the new commit SHA. Fresh review on the new diff.
 
 ## Approval criteria
 
