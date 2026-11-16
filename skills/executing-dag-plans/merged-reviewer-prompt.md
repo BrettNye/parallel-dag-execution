@@ -103,7 +103,7 @@ Agent({
 
 ## Re-dispatch on implementer fix
 
-When EITHER verdict reports ISSUES, the implementer fixes them and re-commits; re-dispatch the merged reviewer with the new commit SHA. Fresh review on the new diff.
+When EITHER verdict reports ISSUES, run `plan-state round` first (see Review-round cap in SKILL.md). Only on exit 0 does the implementer fix them and re-commit; then re-dispatch the merged reviewer with the new commit SHA. Fresh review on the new diff.
 
 ## Approval criteria
 
