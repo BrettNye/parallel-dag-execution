@@ -38,6 +38,7 @@ function stripc(s) { sub(/[ \t]+#.*$/, "", s); return s }
 function runlen(s, c,   n) { n = 0; while (substr(s, n + 1, 1) == c) n++; return n }
 function addlist(key, item) {
   item = unq(item); if (item == "") return
+  if (key == "files") while (substr(item, 1, 2) == "./") item = substr(item, 3)   # ./a and a are one path
   if (key == "depends_on") { nd[cur]++; dep[cur, nd[cur]] = item }
   else { nf[cur]++; fil[cur, nf[cur]] = item }
 }
@@ -365,7 +366,11 @@ FNR == 1 && NR != FNR { graph(); apply(); emitting = 1; if (RRID != "") for (t =
 emitting {
   if (FNR == ms) { mermaid(); skip = 1; if (ms == me) skip = 0; next }
   if (skip) { if (FNR == me) skip = 0; next }
-  if (RRID != "" && rrl[ru] && FNR == rrl[ru]) { l = $0; sub(/review_rounds:[ \t]*[0-9]+/, "review_rounds: " RRVAL, l); print l; next }
+  # Rule 15 accepts a quoted count, so the rewrite must match one too. If the line still does
+  # not match, refuse rather than report a round that was never written.
+  if (RRID != "" && rrl[ru] && FNR == rrl[ru]) { l = $0
+    if (!sub("review_rounds:[ \t]*[\"\047]?[0-9]+[\"\047]?", "review_rounds: " RRVAL, l)) { err("cannot rewrite review_rounds for " RRID); rrbad = 1 }
+    print l; next }
   if (RRID != "" && !rrl[ru] && FNR == stl[ru]) { print; ind = $0; sub(/[^ \t].*$/, "", ind)
     print ind "review_rounds: " RRVAL (($0 ~ /\r$/) ? "\r" : ""); next }
   for (t = 1; t <= nt; t++) if (FNR == stl[t] && (t in newst)) { l = $0; sub(/status:[ \t]*[A-Za-z]+/, "status: " newst[t], l); print l; next }
@@ -375,7 +380,7 @@ emitting {
 }
 
 END {
-  if (MODE == "emit") exit
+  if (MODE == "emit") { if (rrbad) exit 2; exit }   # bare exit keeps an earlier exit 2 from apply()
   graph()
   if (MODE == "check") { check(); exit bad }
   if (MODE == "round") { round(); exit }

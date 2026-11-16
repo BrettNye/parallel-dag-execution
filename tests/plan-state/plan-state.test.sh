@@ -764,5 +764,23 @@ for v in 'See the changelog' 'Open the editor' 'The preupdate hook'; do
   chk "'$v' is no verb" "$rc:$out" "0:"
 done
 
+echo
+echo "T31: round rewrites a quoted count"
+for q in '"2"' "'2'"; do
+  mkrr "$tmp/r31.md" running "$q"
+  out="$(ps round "$tmp/r31.md" task-a 2>&1)"; rc=$?
+  chk "round on $q counts to 3" "$rc:$out" "0:3"
+  chk "round on $q writes review_rounds: 3" "$(awk '/^review_rounds:/ { print }' "$tmp/r31.md")" "review_rounds: 3"
+  out="$(ps round "$tmp/r31.md" task-a 2>&1)"; rc=$?
+  chk "round after $q reaches the cap" "$rc" "1"
+done
+
+echo
+echo "T32: preflight reads ./ in files: as the same path"
+p1_run 'Rename the function `greet` to `say_hello` in `lib/greet.sh`.' ./lib/greet.sh
+chk "./lib/greet.sh in files: owns lib/greet.sh" "$rc:$out" "0:"
+p1_run 'Rename the function `greet` to `say_hello` in `./lib/greet.sh`.' lib/greet.sh
+chk "./ in the text matches files:" "$rc:$out" "0:"
+
 echo "RESULT: $passes passed, $fails failed"
 [ "$fails" -eq 0 ]
