@@ -186,12 +186,15 @@ test <file>\t<case>
   - 0: printed.
   - 2, with nothing on stdout. The checks run in this order, and the first group that fails is
     the only one reported:
-    1. the usage is wrong: the usage text on stderr, as for every other subcommand;
-    2. the id is unknown (`plan-state: no task with id <id>`) or not unique
+    1. fewer than two arguments: the usage text on stderr, as for every other subcommand;
+    2. the plan cannot be read (missing, a directory, or unreadable):
+       `plan-state: cannot read <plan>`, as for every other subcommand;
+    3. not exactly one id after the plan: the usage text on stderr;
+    4. the id is unknown (`plan-state: no task with id <id>`) or not unique
        (`plan-state: id <id> is not unique; run: plan-state check`);
-    3. a plan-level rule 16 check fails: every failing plan-level rule 16 line, in the order
+    5. a plan-level rule 16 check fails: every failing plan-level rule 16 line, in the order
        rule 16 lists them, exactly as `check` prints them, on stderr;
-    4. this task fails any of rule 16's task-level checks (an entry check, or a value on its
+    6. this task fails any of rule 16's task-level checks (an entry check, or a value on its
        `tests:` line): `plan-state: <id> has a bad tests entry; run: plan-state check`.
     Other tasks' entries don't affect it.
 - The script header gains a `tests` line, `check`'s line becomes "validate rules 1-5 and 7-17"
@@ -287,8 +290,10 @@ verify-tests: T3: 1 ok, 1 failed
 - 0: every entry is ok, or there are no entries.
 - 1: at least one entry failed.
 - 2: a usage error, a `plan-state tests` error, no `base_sha`, or a git failure (the worktree
-  could not be made, or `base_sha` is not a commit), or an interrupt (INT, TERM or HUP). The
-  reason goes on stderr.
+  could not be made, or `base_sha` is not a commit), or an interrupt (INT, TERM or HUP) from
+  step 4 on. The reason goes on stderr. Stderr may also carry git's own lines (for example from
+  `git worktree add`); only the messages this spec names are pinned, so a test checks that
+  stderr contains them, not that it equals them.
 
 **It never:** writes to the plan, touches the shared working tree or index, or commits.
 
@@ -398,3 +403,12 @@ there.
   - Joint resolutions proposed: J-A (B2, B3), J-B (B1), J-C (B4). Not applied.
   - Empirical unknown: which signal reaches verify-tests on a Bash tool timeout; becomes an
     acceptance criterion on the E3 plan's verify-tests task.
+- **2026-11-17** · rev `e1ffd5e60e4b` · commit `348fb0e` · lenses: absence, ambiguity, coherence
+  (3/3 ran; carried: grounding, design, charter — the ~10-line diff makes no new claim about
+  existing code, changes no structure, touches no convention) · **NOT READY — 1 blocking**
+  - Round 2's J-A, J-B, J-C applied; its B1-B4 resolved.
+  - Blocking: B1 the ordered exit-2 list omits `plan-state: cannot read <plan>`, which
+    plan-state checks (plan-state:25) before any subcommand's argument count.
+  - Joint resolution proposed: J-D (reorder the list to match the code). Not applied.
+  - Deferred: D1 trap exit on a second signal or failed cleanup (plan AC); D2 interrupt exit 2
+    holds only from step 4; D3 whether stderr carries only the named messages.
