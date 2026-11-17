@@ -1,6 +1,6 @@
 # Design: acceptance criteria as named tests (E3)
 
-Date: 2026-11-17. Status: draft for Brett's review.
+Date: 2026-11-17. Status: approved by Brett, 2026-11-17; gate 1 next.
 Backlog item: E3 in `docs/proposals/2026-11-12-charters-and-waves-backlog.md`.
 Also the feature the D2 experiment builds (`2026-11-16-d2-gate2-ablation-design.md`). Its plan
 should come out around 15 tasks, and this spec pins the two command interfaces exactly, because
