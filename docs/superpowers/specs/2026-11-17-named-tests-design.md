@@ -1,6 +1,6 @@
 # Design: acceptance criteria as named tests (E3)
 
-Date: 2026-11-17. Status: approved by Brett, 2026-11-17; gate 1 next.
+Date: 2026-11-17. Status: approved by Brett, 2026-11-17; gate 1 READY, 2026-11-17 (five rounds).
 Backlog item: E3 in `docs/proposals/2026-11-12-charters-and-waves-backlog.md`.
 Also the feature the D2 experiment builds (`2026-11-16-d2-gate2-ablation-design.md`). Its plan
 should come out around 15 tasks, and this spec pins the two command interfaces exactly, because
@@ -423,3 +423,9 @@ there.
     nothing to merge; the reconciler was not run. Fixed with the lens's own wording.
   - Taken with it (ambiguity DEFERRED): stdout is pinned exactly and never carries git's stdout;
     the stderr-contains rule covers `plan-state tests` too.
+- **2026-11-17** · rev `0ce0b9a53827` · commit `c788a97` · lenses: ambiguity, coherence (2/2 ran;
+  carried: absence, grounding, design, charter — the diff is two sentences on argument counting
+  and output streams) · **READY**
+  - Round 4's B1 resolved. No blocking findings; 3 DEFERRED (in round5/). Converged: blocking
+    counts 9, 4, 1, 1, 0.
+  - rev covers one later edit: the Status line, changed to record this verdict.
