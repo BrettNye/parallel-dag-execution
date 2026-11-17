@@ -70,6 +70,8 @@ base_sha: 1f3c9e0a...           # Written by plan-state set ... running. Never h
 - **A `tests:` entry** is `<file> :: <case>`.
   - **Block form only**, one entry per `  - ` line. Any value on the `tests:` line itself
     (`tests: [...]`, or a scalar) is a rule 16 violation, because case names may contain commas.
+    A trailing comment on the `tests:` line is not a value (the key line is comment-stripped,
+    as for every key); only the entries are read literally.
   - **The raw entry** is the text after the `-` and the whitespace that follows it, taken
     literally to the end of the line, with trailing whitespace and a trailing CR removed. Unlike
     `files:` items, nothing is treated as a comment (` #` is part of the text), quotes are not
@@ -182,13 +184,16 @@ test <file>\t<case>
   `<case>` and a tab between them. A task with no `tests:` has no `test` lines.
 - Exit codes:
   - 0: printed.
-  - 2: the usage is wrong (the usage text on stderr, as for every other subcommand), the id is
-    unknown (`plan-state: no task with id <id>`), or the id is not unique
-    (`plan-state: id <id> is not unique; run: plan-state check`).
-  - 2, with nothing on stdout, when a plan-level rule 16 check fails (the rule 16 line on
-    stderr, exactly as `check` prints it), or when any of this task's `tests:` entries breaks
-    rule 16 (`plan-state: <id> has a bad tests entry; run: plan-state check`). Other tasks'
-    entries don't affect it.
+  - 2, with nothing on stdout. The checks run in this order, and the first group that fails is
+    the only one reported:
+    1. the usage is wrong: the usage text on stderr, as for every other subcommand;
+    2. the id is unknown (`plan-state: no task with id <id>`) or not unique
+       (`plan-state: id <id> is not unique; run: plan-state check`);
+    3. a plan-level rule 16 check fails: every failing plan-level rule 16 line, in the order
+       rule 16 lists them, exactly as `check` prints them, on stderr;
+    4. this task fails any of rule 16's task-level checks (an entry check, or a value on its
+       `tests:` line): `plan-state: <id> has a bad tests entry; run: plan-state check`.
+    Other tasks' entries don't affect it.
 - The script header gains a `tests` line, `check`'s line becomes "validate rules 1-5 and 7-17"
   (ASCII hyphen), and `usage()` prints the whole header through its `# Exit:` line. The existing
   usage assertion in `tests/plan-state/plan-state.test.sh` is updated to match.
@@ -199,7 +204,8 @@ test <file>\t<case>
 `git-commit-safe`.
 
 **Usage:** `verify-tests <plan> <id>`. The repository is the one the plan is in
-(`git -C <plan's directory> rev-parse --show-toplevel`).
+(`git -C <plan's directory> rev-parse --show-toplevel`). It is looked up only after steps 1-3,
+so a plan outside a repository whose task has no `tests:` still gets step 2's exit 0.
 
 **What it does:**
 1. Runs `plan-state tests <plan> <id>` (the `plan-state` beside it in the plugin, at
@@ -211,7 +217,8 @@ test <file>\t<case>
    stderr and exits 2.
 4. It runs `git worktree prune` in the repository, to clear registrations left by an earlier run
    that was killed. It resolves `HEAD` to one commit SHA once, and builds both trees below from
-   that SHA. From here on it traps INT, TERM and HUP, so an interrupted run still does step 9.
+   that SHA. From here on it traps INT, TERM and HUP. The trap does step 9, prints
+   `verify-tests: <id>: interrupted` on stderr, and exits 2, whatever step it interrupted.
 5. **After tree:** a detached worktree at that SHA, in a fresh directory made with
    `mktemp -d` (so under `${TMPDIR:-/tmp}`). Only committed work counts: uncommitted changes in
    the shared working tree are ignored.
@@ -280,7 +287,8 @@ verify-tests: T3: 1 ok, 1 failed
 - 0: every entry is ok, or there are no entries.
 - 1: at least one entry failed.
 - 2: a usage error, a `plan-state tests` error, no `base_sha`, or a git failure (the worktree
-  could not be made, or `base_sha` is not a commit). The reason goes on stderr.
+  could not be made, or `base_sha` is not a commit), or an interrupt (INT, TERM or HUP). The
+  reason goes on stderr.
 
 **It never:** writes to the plan, touches the shared working tree or index, or commits.
 
@@ -296,7 +304,7 @@ to `ready`; that is safer than today's opposite case, a subagent working on a ta
 
 After an implementer reports DONE or DONE_WITH_CONCERNS, and before any review, the controller
 runs `verify-tests <plan> <id>`, by its path under the plugin root as it runs `plan-state`, with
-an explicit Bash tool timeout of 600000 ms (or in the background). A plan-state suite takes about
+an explicit Bash tool timeout of 600000 ms, in the foreground. A plan-state suite takes about
 85 s per run here and the check runs it twice, so the default 120 s limit is too short. A run
 that ends without exit 0, 1 or 2 (killed by the timeout, or interrupted) counts as exit 2. This
 is a deliberate trade-off: an implementer's code that loops forever halts the run as a tooling
@@ -379,4 +387,14 @@ there.
   - Joint resolutions proposed: J1 (B3, B4), J2 (B5, B6), J3 (B7, B8, B9), J4 (B1, B2). Not
     applied.
   - Empirical unknown: a fresh worktree lacks untracked or ignored dependencies; becomes an
+    acceptance criterion on the E3 plan's verify-tests task.
+- **2026-11-17** · rev `b972896a3a37` · commit `d218d29` · lenses: absence, ambiguity, grounding,
+  coherence, design (5/5 ran; carried: charter — the diff touched no convention or placement
+  claim beyond the plan-state usage header, which grounding covered) · **NOT READY — 4 blocking**
+  - J1-J4 from round 1 applied; B1-B9 resolved.
+  - Blocking: B1 interrupt trap has no exit status; B2 a value on the `tests:` line has two
+    readings for `plan-state tests`; B3 stderr content and order when several exit-2 faults
+    hold; B4 "(or in the background)" leaves verify-tests unbounded.
+  - Joint resolutions proposed: J-A (B2, B3), J-B (B1), J-C (B4). Not applied.
+  - Empirical unknown: which signal reaches verify-tests on a Bash tool timeout; becomes an
     acceptance criterion on the E3 plan's verify-tests task.
