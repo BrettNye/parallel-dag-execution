@@ -186,7 +186,7 @@ test <file>\t<case>
   - 0: printed.
   - 2, with nothing on stdout. The checks run in this order, and the first group that fails is
     the only one reported:
-    1. fewer than two arguments: the usage text on stderr, as for every other subcommand;
+    1. fewer than two arguments to `plan-state` (the subcommand and the plan): the usage text on stderr, as for every other subcommand;
     2. the plan cannot be read (missing, a directory, or unreadable):
        `plan-state: cannot read <plan>`, as for every other subcommand;
     3. not exactly one id after the plan: the usage text on stderr;
@@ -292,8 +292,10 @@ verify-tests: T3: 1 ok, 1 failed
 - 2: a usage error, a `plan-state tests` error, no `base_sha`, or a git failure (the worktree
   could not be made, or `base_sha` is not a commit), or an interrupt (INT, TERM or HUP) from
   step 4 on. The reason goes on stderr. Stderr may also carry git's own lines (for example from
-  `git worktree add`); only the messages this spec names are pinned, so a test checks that
-  stderr contains them, not that it equals them.
+  `git worktree add`); for both `verify-tests` and `plan-state tests`, only the messages this
+  spec names are pinned on stderr, so a test checks that stderr contains them, not that it equals
+  them. Stdout is pinned exactly: git's own stdout (such as `HEAD is now at ...`) never reaches
+  it.
 
 **It never:** writes to the plan, touches the shared working tree or index, or commits.
 
@@ -412,3 +414,12 @@ there.
   - Joint resolution proposed: J-D (reorder the list to match the code). Not applied.
   - Deferred: D1 trap exit on a second signal or failed cleanup (plan AC); D2 interrupt exit 2
     holds only from step 4; D3 whether stderr carries only the named messages.
+- **2026-11-17** · rev `5c03cec83490` · commit `b3e1ba4` · lenses: ambiguity, coherence (2/2 ran;
+  carried: absence, grounding, design, charter — the diff is three wording changes to exit-code
+  and stderr text) · **NOT READY — 1 blocking**
+  - Round 3's J-D, D2 and D3 applied; its B1 resolved.
+  - Blocking: B1 "fewer than two arguments" did not say whose arguments, and the two readings
+    give different stderr for `plan-state tests <missing plan>`. One lens raised it, so there was
+    nothing to merge; the reconciler was not run. Fixed with the lens's own wording.
+  - Taken with it (ambiguity DEFERRED): stdout is pinned exactly and never carries git's stdout;
+    the stderr-contains rule covers `plan-state tests` too.
