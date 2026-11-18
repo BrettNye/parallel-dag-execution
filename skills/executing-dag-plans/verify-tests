@@ -4,6 +4,18 @@
 # Exit: 0 every entry ok, or no entries; 1 at least one entry failed;
 #       2 usage, plan-state tests error, no base_sha, git failure, or interrupt.
 # It never writes to the plan, touches the shared working tree or index, or commits.
+# It builds two detached worktrees of HEAD under ${TMPDIR:-/tmp}: "after" as committed, and
+# "before", where the task's files other than its test files are put back to base_sha. Each test
+# file runs once per tree; each entry gets one label: ambiguous, not-green, not-red, ok-absent, ok.
+# Untracked files: only committed files are in the trees; untracked and ignored files in the shared
+#   working tree are not. On this repository (2026-11-18) the plan-state suite ran in both fresh
+#   trees with nothing untracked (entry "round on "2" writes review_rounds: 3", base 76ed77d^,
+#   labelled ok); the whole run took about 1710 s wall time on a machine loaded by other runs.
+# Bash tool timeout: the probe log stayed empty (2026-11-18): the Claude Code Bash tool sends no
+#   signal on timeout; it moves the command to the background and lets it run on. Probe, run with
+#   timeout 5000: sh -c 'trap "echo INT >> /tmp/vt-probe.log; exit 2" INT; trap "echo TERM >> /tmp/vt-probe.log; exit 2" TERM; trap "echo HUP >> /tmp/vt-probe.log; exit 2" HUP; sleep 60 & wait'
+# Test hook: VERIFY_TESTS_CLEANUP_HOOK, when set, runs as sh -c "$hook" with $1 the repository and
+#   $2 the temporary directory, at the start of every cleanup. Only the test suite sets it.
 set -u
 usage() { sed -n '3,5p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ "$#" -eq 2 ] || usage
@@ -22,4 +34,133 @@ while IFS= read -r line; do
 done < "$rec"
 if [ "$ntest" -eq 0 ]; then echo "verify-tests: $id: no named tests"; rm -rf "$work"; exit 0; fi
 if [ "$base" = "-" ]; then echo "verify-tests: $id: no base_sha (set the task running first)" >&2; rm -rf "$work"; exit 2; fi
-echo "verify-tests: $id: not built yet" >&2; rm -rf "$work"; exit 2
+# Step 4: the repository, one HEAD, and a base_sha that names a commit.
+repo=$(git -C "$(dirname -- "$plan")" rev-parse --show-toplevel 2>/dev/null) || { echo "verify-tests: $id: not in a git repository" >&2; rm -rf "$work"; exit 2; }
+git -C "$repo" worktree prune >/dev/null 2>&1
+head=$(git -C "$repo" rev-parse --verify -q HEAD 2>/dev/null) || { echo "verify-tests: $id: cannot read HEAD" >&2; rm -rf "$work"; exit 2; }
+git -C "$repo" cat-file -e "$base^{commit}" 2>/dev/null || { echo "verify-tests: $id: base_sha $base is not a commit" >&2; rm -rf "$work"; exit 2; }
+after="$work/after"; before="$work/before"; child=""
+# Step 9. Returns non-zero when a worktree or the temporary directory is left behind.
+cleanup() {
+  crc=0
+  if [ -n "${VERIFY_TESTS_CLEANUP_HOOK:-}" ]; then sh -c "$VERIFY_TESTS_CLEANUP_HOOK" verify-tests-hook "$repo" "$work" >/dev/null 2>&1; fi
+  for w in "$after" "$before"; do
+    if [ -d "$w" ]; then git -C "$repo" worktree remove --force "$w" >/dev/null 2>&1 || crc=1; fi
+  done
+  rm -rf "$work" 2>/dev/null; [ -e "$work" ] && crc=1
+  return "$crc"
+}
+# Called when a step fails or a signal arrives: clean up and exit 2.
+bail() {
+  trap '' INT TERM HUP
+  [ -n "$1" ] && echo "verify-tests: $id: $1" >&2
+  cleanup || echo "verify-tests: $id: cleanup failed" >&2
+  exit 2
+}
+on_signal() {
+  trap '' INT TERM HUP
+  if [ -n "$child" ]; then kill -s TERM -- "-$child" 2>/dev/null || kill -s TERM "$child" 2>/dev/null; wait "$child" 2>/dev/null; fi
+  cleanup || echo "verify-tests: $id: cleanup failed" >&2
+  echo "verify-tests: $id: interrupted" >&2
+  exit 2
+}
+trap on_signal INT TERM HUP
+
+# Steps 5 and 6: both trees at the one HEAD; in the before tree the task's non-test files go back to base_sha.
+git -C "$repo" worktree add --detach "$after" "$head" >&2 || bail "cannot add a worktree at $after"
+git -C "$repo" worktree add --detach "$before" "$head" >&2 || bail "cannot add a worktree at $before"
+tab=$(printf '\t')
+while IFS= read -r line; do
+  case $line in "file "*) ;; *) continue ;; esac
+  p=${line#file }; istest=0
+  while IFS= read -r l2; do
+    case $l2 in "test $p$tab"*) istest=1; break ;; esac
+  done < "$rec"
+  [ "$istest" -eq 1 ] && continue
+  if git -C "$before" cat-file -e "$base:$p" 2>/dev/null; then
+    git -C "$before" checkout "$base" -- "$p" >&2 || bail "cannot put $p back to $base"
+  else
+    rm -rf -- "$before/$p" || bail "cannot delete $p"
+  fi
+done < "$rec"
+
+# Step 7: run each distinct test file once in each tree; output goes to $work/<tree>.<n>.
+cmd=$(sed -n 's/^command //p' "$rec")
+awk 'substr($0, 1, 5) == "test " { s = substr($0, 6); f = substr(s, 1, index(s, "\t") - 1); if (!(f in seen)) { seen[f] = 1; print f } }' "$rec" > "$work/files"
+for tree in after before; do
+  n=0
+  while IFS= read -r f; do
+    n=$((n + 1)); out="$work/$tree.$n"; : > "$out"
+    [ -e "$work/$tree/$f" ] || continue
+    # Single-quote the file for the shell: each ' inside becomes '\''.
+    rest=$f; q=""
+    while :; do
+      case $rest in
+        *"'"*) q=$q${rest%%"'"*}"'\\''"; rest=${rest#*"'"} ;;
+        *) q="'$q$rest'"; break ;;
+      esac
+    done
+    rest=$cmd; run=""
+    while :; do
+      case $rest in
+        *"{file}"*) run=$run${rest%%"{file}"*}$q; rest=${rest#*"{file}"} ;;
+        *) run=$run$rest; break ;;
+      esac
+    done
+    # Job control gives the suite its own process group, so the trap can stop all of it.
+    set -m
+    (cd "$work/$tree" && exec sh -c "$run") < /dev/null > "$out" 2>&1 &
+    child=$!
+    set +m
+    wait "$child"
+    child=""
+  done < "$work/files"
+done
+
+# Step 8: label each entry. Prefixes and case names are user text, so only substr and == compare them.
+VT_ID=$id VT_W=$work awk '
+function norm(s) { sub(/[ \t\r]+$/, "", s); sub(/^[ \t]+/, "", s); return s }
+# state(tree, entry): passed, failed, absent or ambiguous.
+function state(tree, e,   f, l, c, np, nf, pl, fl) {
+  W = ENVIRON["VT_W"]
+  f = W "/" tree "." fno[ef[e]]; c = ec[e]; np = 0; nf = 0; pl = P c; fl = F c
+  while ((getline l < f) > 0) {
+    l = norm(l)
+    if (l == pl) np++
+    else if (l == fl || substr(l, 1, length(fl) + 2) == fl " (") nf++
+  }
+  close(f)
+  if (np + nf > 1) return "ambiguous"
+  if (np) return "passed"
+  if (nf) return "failed"
+  return "absent"
+}
+NR == FNR {
+  if (substr($0, 1, 5) == "pass ") P = substr($0, 6)
+  else if (substr($0, 1, 5) == "fail ") F = substr($0, 6)
+  else if (substr($0, 1, 5) == "test ") { s = substr($0, 6); i = index(s, "\t"); ne++; ef[ne] = substr(s, 1, i - 1); ec[ne] = substr(s, i + 1) }
+  next
+}
+{ fno[$0] = FNR }
+END {
+  ID = ENVIRON["VT_ID"]
+  for (e = 1; e <= ne; e++) {
+    a = state("after", e); b = state("before", e)
+    if (a == "ambiguous" || b == "ambiguous") lab = "ambiguous"
+    else if (a != "passed") lab = "not-green"
+    else if (b == "passed") lab = "not-red"
+    else if (b == "absent") lab = "ok-absent"
+    else lab = "ok"
+    if (lab == "ok" || lab == "ok-absent") nok++; else nbad++
+    print lab "\t" ef[e] "\t" ec[e]
+  }
+  print "verify-tests: " ID ": " (nok + 0) " ok, " (nbad + 0) " failed"
+  exit (nbad > 0)
+}' "$rec" "$work/files"
+rc=$?
+[ "$rc" -le 1 ] || bail "cannot label the results"
+
+# Step 9 on the normal path; a signal here is ignored so the labels already printed stand.
+trap '' INT TERM HUP
+cleanup || { echo "verify-tests: $id: cleanup failed" >&2; exit 2; }
+exit "$rc"
