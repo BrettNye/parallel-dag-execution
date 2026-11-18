@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # plan-state — the mechanical half of DAG-plan bookkeeping (see plan-format.md).
 # Usage:
-#   plan-state check  <plan>               validate rules 1-5 and 7-16, status values, mermaid block
+#   plan-state check  <plan>               validate rules 1-5 and 7-17, status values, mermaid block
 #   plan-state ready  <plan>               print the ids ready to dispatch, one per line
 #   plan-state set    <plan> <id> <status> change one status; failed cascades skipped; redraws mermaid
 #   plan-state render <plan>               redraw the mermaid block in place
@@ -138,6 +138,8 @@ function check(   t, k, i, j, f, a, b, v, list, owners, seen, own, hint, n) {
     v = val[t, "review_rounds"]
     if (has[t, "review_rounds"] && (v !~ /^[0-9]+$/ || v + 0 > CAP)) viol(15, k " review_rounds is " v)
     r16task(t, 1)
+    v = val[t, "base_sha"]
+    if (has[t, "base_sha"] && (v !~ /^[0-9a-f]+$/ || length(v) < 7 || length(v) > 40)) viol(17, k " base_sha is " v)
   }
   r16plan(1)
   split("default_model_hint default_spec_reviewer_hint default_quality_reviewer_hint", hint, " ")
@@ -409,7 +411,9 @@ emitting {
     print l; next }
   if (RRID != "" && !rrl[ru] && FNR == stl[ru]) { print; ind = $0; sub(/[^ \t].*$/, "", ind)
     print ind "review_rounds: " RRVAL (($0 ~ /\r$/) ? "\r" : ""); next }
-  for (t = 1; t <= nt; t++) if (FNR == stl[t] && (t in newst)) { l = $0; sub(/status:[ \t]*[A-Za-z]+/, "status: " newst[t], l); print l; next }
+  for (t = 1; t <= nt; t++) if (FNR == stl[t] && (t in newst)) { l = $0; sub(/status:[ \t]*[A-Za-z]+/, "status: " newst[t], l); print l
+    if (BASESHA != "" && val[t, "id"] == SETID) { ind = $0; sub(/[^ \t].*$/, "", ind); print ind "base_sha: " BASESHA (($0 ~ /\r$/) ? "\r" : "") }
+    next }
   print
   if (FNR == fmend && !ms) { print EOL; mermaid() }
   next
@@ -420,6 +424,7 @@ END {
   graph()
   if (MODE == "check") { check(); exit bad }
   if (MODE == "round") { round(); exit }
+  if (MODE == "setq") { apply(); u = idx[SETID]; print (has[u, "base_sha"] ? 1 : 0) " " (nte[u] > 0 ? 1 : 0); exit }
   if (MODE == "pfpaths") { pfpaths(); exit }
   if (MODE == "preflight") { preflight(); exit }
   if (MODE == "ready") { ready(); exit }
@@ -495,7 +500,7 @@ emit() {  # rewrite the plan in place; keep its mode by writing through it
   tmpf=$(mktemp) || exit 2
   # BINMODE=3 on this call only: MSYS gawk reads in text mode and drops the CR, BINMODE=3
   # keeps the bytes, and other awks treat it as an unused variable.
-  if awk -v BINMODE=3 -v MODE=emit -v CAP="$CAP" -v SETID="${1:-}" -v SETST="${2:-}" -v RRID="${3:-}" -v RRVAL="${4:-}" \
+  if awk -v BINMODE=3 -v MODE=emit -v CAP="$CAP" -v SETID="${1:-}" -v SETST="${2:-}" -v RRID="${3:-}" -v RRVAL="${4:-}" -v BASESHA="${5:-}" \
        "$PROG" "$plan" "$plan" > "$tmpf"; then
     if ! { cat "$tmpf" > "$plan"; } 2>/dev/null; then
       rm -f "$tmpf"; echo "plan-state: cannot write $plan" >&2; exit 2
@@ -566,6 +571,20 @@ case "$cmd" in
   set)
     [ "$#" -eq 2 ] || usage
     case "$2" in pending|ready|running|done|failed|skipped) ;; *) echo "plan-state: unknown status $2" >&2; exit 2 ;; esac
-    emit "$1" "$2" ;;
+    base=""
+    if [ "$2" = running ]; then
+      # The checks in apply() run first, so an illegal move is refused before git is called.
+      # The answer is "<has base_sha> <has tests>".
+      q=$(awk -v MODE=setq -v SETID="$1" -v SETST="$2" -v CAP="$CAP" "$PROG" "$plan") || exit "$?"
+      case "$q" in
+        "0 "*) base=$(git -C "$(dirname -- "$plan")" rev-parse HEAD 2>/dev/null) || base=""
+               case "$base" in *[!0-9a-f]*) base="" ;; esac
+               [ "${#base}" -eq 40 ] || base=""
+               if [ -z "$base" ] && [ "${q#0 }" = 1 ]; then
+                 echo "plan-state: refused $1: cannot read HEAD for base_sha" >&2; exit 2
+               fi ;;
+      esac
+    fi
+    emit "$1" "$2" "" "" "$base" ;;
   *) usage ;;
 esac

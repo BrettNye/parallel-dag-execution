@@ -540,7 +540,7 @@ ps round "$tmp/r27.md" nope >/dev/null 2>&1; chk "unknown id exits 2" "$?" "2"
 out="$(sh "$SCRIPT" 2>&1)"; rc=$?
 chk "no args exits 2" "$rc" "2"
 has "usage lists round" "$out" "plan-state round"
-has "usage lists rules 1-5 and 7-16" "$out" "rules 1-5 and 7-16"
+has "usage lists rules 1-5 and 7-17" "$out" "rules 1-5 and 7-17"
 
 
 # T28 helpers. pf_head FILE: frontmatter and a mermaid block. pf_task FILE ID STATUS FILES:
@@ -847,6 +847,68 @@ has "rule 16: empty pass prefix" "$out" 'rule 16: test_pass_prefix is empty'
 mk16 "$tmp/t16j.md" 'test_fail_prefix: ""' ''
 out="$(ps check "$tmp/t16j.md" 2>&1)"; rc=$?
 has "rule 16: empty fail prefix" "$out" 'rule 16: test_fail_prefix is empty'
+
+
+echo
+echo "T34: base_sha recorded when a task is set running"
+# mk17 <file> <status> <extra lines after status:> <tests lines after files:>; one task, files: t/a.sh
+mk17() {
+  { printf -- '---\ntitle: demo\n---\n\n```mermaid\nflowchart TD\n```\n\n## Task: one\n\n```yaml\nid: task-a\ndepends_on: []\nfiles:\n  - t/a.sh\n'
+    [ -n "$4" ] && printf '%s\n' "$4"
+    printf 'status: %s\n' "$2"; [ -n "$3" ] && printf '%s\n' "$3"; printf '```\n'; } > "$1"
+}
+g="$tmp/gitrepo"; mkdir "$g"; git -C "$g" init -q
+git -C "$g" -c user.email=t@t.test -c user.name=t commit -q --allow-empty -m base
+sha1="$(git -C "$g" rev-parse HEAD)"
+clean_plan "$g/plan.md"; ps set "$g/plan.md" task-b ready >/dev/null 2>&1
+out="$(ps set "$g/plan.md" task-b running 2>&1)"; rc=$?
+chk "base_sha: written on first running" "$rc:$(awk '/^base_sha:/ { print $2 }' "$g/plan.md")" "0:$sha1"
+chk "base_sha: line follows status running" "$(awk '/^status: running$/ { getline; print; exit }' "$g/plan.md")" "base_sha: $sha1"
+
+git -C "$g" -c user.email=t@t.test -c user.name=t commit -q --allow-empty -m second
+ps set "$g/plan.md" task-b ready >/dev/null 2>&1; ps set "$g/plan.md" task-b running >/dev/null 2>&1
+chk "base_sha: kept through resume" "$(awk '/^base_sha:/ { print $2 }' "$g/plan.md")" "$sha1"
+chk "base_sha: one line after resume" "$(rg -c '^base_sha:' "$g/plan.md")" "1"
+
+n="$tmp/norepo"; mkdir "$n"
+mk17 "$n/t.md" ready '' 'tests:
+  - t/a.sh :: x'
+cp "$n/t.md" "$n/t.orig"
+out="$(ps set "$n/t.md" task-a running 2>&1)"; rc=$?
+chk "base_sha: refused without HEAD for a task with tests" "$rc" "2"
+has "base_sha: refusal names the task" "$out" "plan-state: refused task-a: cannot read HEAD for base_sha"
+cmp -s "$n/t.md" "$n/t.orig"; chk "base_sha: refused plan bytes unchanged" "$?" "0"
+
+mk17 "$n/u.md" ready '' ''
+out="$(ps set "$n/u.md" task-a running 2>&1)"; rc=$?
+chk "base_sha: no repository, no tests, moves as today" "$rc:$out:$(rg -c '^status: running' "$n/u.md"):$(rg -c '^base_sha:' "$n/u.md" || echo 0)" "0::1:0"
+
+mk17 "$n/v.md" done '' ''
+out="$(ps set "$n/v.md" task-a running 2>&1)"; rc=$?
+has "base_sha: illegal move refused before git" "$out" "refused task-a: done -> running"
+hasnt "base_sha: illegal move is not a HEAD refusal" "$out" "cannot read HEAD"
+chk "base_sha: illegal move exits 2" "$rc" "2"
+
+mk17 "$g/w.md" ready '' ''
+sed 's/$/\r/' "$g/w.md" > "$g/w2.md"
+ps set "$g/w2.md" task-a running >/dev/null 2>&1
+chk "base_sha: CRLF plan stays CRLF" "$(tr '\r' '~' < "$g/w2.md" | rg -c '^base_sha: [0-9a-f]{40}~$' || echo 0)" "1"
+
+mk17 "$tmp/r17a.md" pending 'base_sha: XYZ' ''
+out="$(ps check "$tmp/r17a.md" 2>&1)"; rc=$?
+chk "rule 17: bad base_sha is named" "$rc:$out" "1:plan-state: rule 17: task-a base_sha is XYZ"
+bout=""
+for v in abc12 ABCDEF1; do
+  mk17 "$tmp/r17b.md" pending "base_sha: $v" ''
+  ps check "$tmp/r17b.md" > "$tmp/r17b.out" 2>&1; brc=$?
+  bout="$bout$(cat "$tmp/r17b.out"):$brc;"
+done
+chk "rule 17: short and uppercase refused" "$bout" "plan-state: rule 17: task-a base_sha is abc12:1;plan-state: rule 17: task-a base_sha is ABCDEF1:1;"
+mk17 "$tmp/r17c.md" pending 'base_sha: abcdef1' ''
+o1="$(ps check "$tmp/r17c.md" 2>&1)"; r1=$?
+mk17 "$tmp/r17d.md" pending "base_sha: $sha1" ''
+o2="$(ps check "$tmp/r17d.md" 2>&1)"; r2=$?
+chk "rule 17: 7 and 40 hex pass" "$r1:$o1:$r2:$o2" "0::0:"
 
 echo "RESULT: $passes passed, $fails failed"
 [ "$fails" -eq 0 ]
