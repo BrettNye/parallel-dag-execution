@@ -16,13 +16,14 @@ The spec reviewer MUST receive:
 - This task's full body (everything after the YAML block, up to the next `## Task` heading).
 - This task's `files:` list.
 - The git commit SHA that the implementer produced.
+- The `verify-tests` output, or `no named tests` when the task has none.
 
 ## Prompt template
 
 <!-- Section order (cache-friendly: stable content leads, volatile content trails):
      (1) stable preamble; (2) project conventions (if any); (3) output spec (APPROVED/ISSUES);
      (4) task spec (id, files); (5) task body (the binding spec);
-     (6) implementation under review; (7) re-dispatch addenda.
+     (6) implementation under review; (7) named-test check; (8) re-dispatch addenda.
      If the Agent tool later exposes `cache_control`, the breakpoint goes after section 3 — no re-architecture needed. -->
 
 ```
@@ -80,6 +81,12 @@ Files reviewed (read ONLY these):
 Commit SHA: {commit_sha}
 
 Inspect the diff with: `git show {commit_sha} -- {space-separated task.files}`
+
+## Named-test check
+
+{verify_tests_output}
+
+A script produced the lines above from the implementer's commits: each `ok` or `ok-absent` entry was red before the task's change and green after it. Do not re-run or re-derive those results. For each acceptance criterion that has a named test, judge only whether that test really tests the criterion; one that does not is an ISSUES finding. For an `ok-absent` entry, also read the file's `(before)` tail and judge whether the case was red for the right reason (missing because the task had not built it yet). If the suite broke before reaching the case for another reason, such as a missing fixture or a syntax error, that is an ISSUES finding. Review criteria without a named test as before.
 ```
 
 ## Agent invocation example
