@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+# verify-tests — check that a task's named test cases were red before its change and green after.
+# Usage: verify-tests <plan> <id>
+# Exit: 0 every entry ok, or no entries; 1 at least one entry failed;
+#       2 usage, plan-state tests error, no base_sha, git failure, or interrupt.
+# It never writes to the plan, touches the shared working tree or index, or commits.
+set -u
+usage() { sed -n '3,5p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+[ "$#" -eq 2 ] || usage
+plan=$1; id=$2
+here=$(cd "$(dirname -- "$0")" && pwd)
+ps="$here/../writing-dag-plans/plan-state"
+work=$(mktemp -d) || exit 2
+rec="$work/rec"; perr="$work/err"
+if ! sh "$ps" tests "$plan" "$id" > "$rec" 2> "$perr"; then cat "$perr" >&2; rm -rf "$work"; exit 2; fi
+base=""; ntest=0
+while IFS= read -r line; do
+  case $line in
+    "base "*) base=${line#base } ;;
+    "test "*) ntest=$((ntest + 1)) ;;
+  esac
+done < "$rec"
+if [ "$ntest" -eq 0 ]; then echo "verify-tests: $id: no named tests"; rm -rf "$work"; exit 0; fi
+if [ "$base" = "-" ]; then echo "verify-tests: $id: no base_sha (set the task running first)" >&2; rm -rf "$work"; exit 2; fi
+echo "verify-tests: $id: not built yet" >&2; rm -rf "$work"; exit 2
