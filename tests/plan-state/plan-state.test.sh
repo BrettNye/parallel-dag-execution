@@ -540,7 +540,7 @@ ps round "$tmp/r27.md" nope >/dev/null 2>&1; chk "unknown id exits 2" "$?" "2"
 out="$(sh "$SCRIPT" 2>&1)"; rc=$?
 chk "no args exits 2" "$rc" "2"
 has "usage lists round" "$out" "plan-state round"
-has "usage lists rules 1-5 and 7-15" "$out" "rules 1-5 and 7-15"
+has "usage lists rules 1-5 and 7-16" "$out" "rules 1-5 and 7-16"
 
 
 # T28 helpers. pf_head FILE: frontmatter and a mermaid block. pf_task FILE ID STATUS FILES:
@@ -783,6 +783,70 @@ p1_run 'Rename the function `greet` to `say_hello` in `lib/greet.sh`.' ./lib/gre
 chk "./lib/greet.sh in files: owns lib/greet.sh" "$rc:$out" "0:"
 p1_run 'Rename the function `greet` to `say_hello` in `./lib/greet.sh`.' lib/greet.sh
 chk "./ in the text matches files:" "$rc:$out" "0:"
+
+echo
+echo "T33: rule 16, tests entries and test fields"
+# mk16 <file> <frontmatter extras> <lines after files:>; one task, files: t/a.sh
+mk16() {
+  { printf -- '---\ntitle: demo\n%s\n---\n\n```mermaid\nflowchart TD\n```\n\n## Task: one\n\n```yaml\nid: task-a\ndepends_on: []\nfiles:\n  - t/a.sh\n' "$2"
+    printf '%s\n' "$3"; printf 'status: pending\n```\n'; } > "$1"
+}
+mk16 "$tmp/t16ok.md" 'test_command: sh {file}
+test_pass_prefix: "PASS: "
+test_fail_prefix: "FAIL: "' 'tests:
+  - t/a.sh :: round on "2" counts to 3'
+out="$(ps check "$tmp/t16ok.md" 2>&1)"; rc=$?
+chk "rule 16: valid tests pass check" "$rc:$out" "0:"
+
+mk16 "$tmp/t16a.md" '' 'tests:
+  - t/a.sh no separator'
+out="$(ps check "$tmp/t16a.md" 2>&1)"; rc=$?
+chk "rule 16: entry without :: exits 1" "$rc" "1"
+has "rule 16: entry without :: is named" "$out" 'rule 16: task-a tests entry "t/a.sh no separator" is not "<file> :: <case>"'
+
+mk16 "$tmp/t16b.md" '' 'tests:
+  - t/a.sh ::   '
+out="$(ps check "$tmp/t16b.md" 2>&1)"; rc=$?
+has "rule 16: empty case is refused" "$out" 'rule 16: task-a tests entry "t/a.sh ::" is not "<file> :: <case>"'
+
+mk16 "$tmp/t16c.md" '' 'tests:
+  - t/a.sh :: x # "y", z'
+out="$(ps check "$tmp/t16c.md" 2>&1)"; rc=$?
+chk "rule 16: raw entry keeps # and quotes" "$rc:$out" "0:"
+mk16 "$tmp/t16c2.md" '' 'tests:
+  - t/a.sh :: x # "y", z
+  - t/a.sh :: x # "y", z'
+out="$(ps check "$tmp/t16c2.md" 2>&1)"; rc=$?
+has "rule 16: raw entry survives into the repeat line" "$out" 'rule 16: task-a tests entry "t/a.sh :: x # "y", z" is repeated'
+
+mk16 "$tmp/t16d.md" '' 'tests:
+  - ./t/a.sh :: x
+  - t/a.sh :: x'
+out="$(ps check "$tmp/t16d.md" 2>&1)"; rc=$?
+chk "rule 16: ./ repeat is the same entry" "$(printf '%s\n' "$out" | grep -c 'is repeated')" "1"
+
+mk16 "$tmp/t16e.md" '' 'tests:
+  - other.sh :: x'
+out="$(ps check "$tmp/t16e.md" 2>&1)"; rc=$?
+has "rule 16: test file outside files: is named" "$out" 'rule 16: task-a test file other.sh is not in its files:'
+
+mk16 "$tmp/t16f.md" '' 'tests: [t/a.sh :: x]'
+out="$(ps check "$tmp/t16f.md" 2>&1)"; rc=$?
+has "rule 16: inline tests value is refused" "$out" 'rule 16: task-a tests must be a block list'
+mk16 "$tmp/t16g.md" '' 'tests:   # cases
+  - t/a.sh :: x'
+out="$(ps check "$tmp/t16g.md" 2>&1)"; rc=$?
+chk "rule 16: comment on tests line is block form" "$rc:$out" "0:"
+
+mk16 "$tmp/t16h.md" 'test_command: make test' ''
+out="$(ps check "$tmp/t16h.md" 2>&1)"; rc=$?
+has "rule 16: test_command without {file}" "$out" 'rule 16: test_command has no {file}'
+mk16 "$tmp/t16i.md" 'test_pass_prefix: ""' ''
+out="$(ps check "$tmp/t16i.md" 2>&1)"; rc=$?
+has "rule 16: empty pass prefix" "$out" 'rule 16: test_pass_prefix is empty'
+mk16 "$tmp/t16j.md" 'test_fail_prefix: ""' ''
+out="$(ps check "$tmp/t16j.md" 2>&1)"; rc=$?
+has "rule 16: empty fail prefix" "$out" 'rule 16: test_fail_prefix is empty'
 
 echo "RESULT: $passes passed, $fails failed"
 [ "$fails" -eq 0 ]

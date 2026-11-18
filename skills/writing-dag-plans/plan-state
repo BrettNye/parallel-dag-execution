@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # plan-state — the mechanical half of DAG-plan bookkeeping (see plan-format.md).
 # Usage:
-#   plan-state check  <plan>               validate rules 1-5 and 7-15, status values, mermaid block
+#   plan-state check  <plan>               validate rules 1-5 and 7-16, status values, mermaid block
 #   plan-state ready  <plan>               print the ids ready to dispatch, one per line
 #   plan-state set    <plan> <id> <status> change one status; failed cascades skipped; redraws mermaid
 #   plan-state render <plan>               redraw the mermaid block in place
@@ -47,10 +47,15 @@ function inl(key, v,   n, i, a) {
   n = split(v, a, ","); for (i = 1; i <= n; i++) addlist(key, a[i])
 }
 function yamlline(l,   k, v) {
-  if (match(l, /^[ \t]+-[ \t]*/)) { if (ylist != "") addlist(ylist, stripc(substr(l, RLENGTH + 1))); return }
+  if (match(l, /^[ \t]+-[ \t]*/)) {
+    if (ylist == "tests") { raw = substr(l, RLENGTH + 1); sub(/[ \t\r]+$/, "", raw); nte[cur]++; traw[cur, nte[cur]] = raw; return }   # literal: no comment, no quotes
+    if (ylist != "") addlist(ylist, stripc(substr(l, RLENGTH + 1)))
+    return
+  }
   if (match(l, /^[A-Za-z_][A-Za-z0-9_]*:/)) {
     k = substr(l, 1, RLENGTH - 1); v = trim(stripc(substr(l, RLENGTH + 1))); ylist = ""
     has[cur, k] = 1
+    if (k == "tests") { if (v != "") tline[cur] = 1; else ylist = "tests"; return }
     if (k == "depends_on" || k == "files") { if (v == "") ylist = k; else inl(k, v); return }
     val[cur, k] = unq(v)
     if (k == "status") stl[cur] = FNR
@@ -85,6 +90,35 @@ function ancestors(   i, t, j, d, u, a) {
       for (a = 1; a <= nt; a++) if ((u, a) in anc) anc[t, a] = 1 } }
 }
 
+# Rule 16, one task: split a raw tests entry into TF (file, ./ removed) and TC (case); 0 when it does not split.
+function tsplit(raw,   i) {
+  i = index(raw, " :: "); if (!i) return 0
+  TF = trim(substr(raw, 1, i - 1)); while (substr(TF, 1, 2) == "./") TF = substr(TF, 3)
+  TC = trim(substr(raw, i + 4))
+  return TF != "" && TC != ""
+}
+# Returns how many rule 16 checks fail for task t; prints the lines only when say is 1.
+function r16task(t, say,   e, n, k, seen, j, inf) {
+  n = 0; k = val[t, "id"]
+  if (tline[t]) { n++; if (say) viol(16, k " tests must be a block list") }
+  for (e = 1; e <= nte[t]; e++) {
+    if (!tsplit(traw[t, e])) { n++; if (say) viol(16, k " tests entry \"" traw[t, e] "\" is not \"<file> :: <case>\""); continue }
+    inf = 0; for (j = 1; j <= nf[t]; j++) if (fil[t, j] == TF) inf = 1
+    if (!inf) { n++; if (say) viol(16, k " test file " TF " is not in its files:") }
+    if ((TF SUBSEP TC) in seen) { n++; if (say) viol(16, k " tests entry \"" traw[t, e] "\" is repeated") }
+    seen[TF SUBSEP TC] = 1
+  }
+  return n
+}
+# Returns how many plan-level rule 16 checks fail; prints the lines only when say is 1.
+function r16plan(say,   n) {
+  n = 0
+  if (("test_command" in fmset) && index(fm["test_command"], "{file}") == 0) { n++; if (say) viol(16, "test_command has no {file}") }
+  if (("test_pass_prefix" in fmset) && fm["test_pass_prefix"] == "") { n++; if (say) viol(16, "test_pass_prefix is empty") }
+  if (("test_fail_prefix" in fmset) && fm["test_fail_prefix"] == "") { n++; if (say) viol(16, "test_fail_prefix is empty") }
+  return n
+}
+
 function check(   t, k, i, j, f, a, b, v, list, owners, seen, own, hint, n) {
   if (nt == 0) viol(5, "no \"## Task:\" sections found")
   if (!ms) print "plan-state: format: no mermaid block (run: plan-state render)"; if (!ms) bad = 1
@@ -103,7 +137,9 @@ function check(   t, k, i, j, f, a, b, v, list, owners, seen, own, hint, n) {
     if (has[t, "review_mode"] && !inset(val[t, "review_mode"], "merged split")) viol(9, k " review_mode is " val[t, "review_mode"])
     v = val[t, "review_rounds"]
     if (has[t, "review_rounds"] && (v !~ /^[0-9]+$/ || v + 0 > CAP)) viol(15, k " review_rounds is " v)
+    r16task(t, 1)
   }
+  r16plan(1)
   split("default_model_hint default_spec_reviewer_hint default_quality_reviewer_hint", hint, " ")
   for (i = 1; i <= 3; i++) if ((hint[i] in fmset) && !inset(fm[hint[i]], "cheap standard opus")) viol(8, hint[i] " is " fm[hint[i]])
   if (("default_review_mode" in fmset) && !inset(fm["default_review_mode"], "merged split")) viol(10, "default_review_mode is " fm["default_review_mode"])
