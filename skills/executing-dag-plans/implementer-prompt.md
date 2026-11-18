@@ -17,6 +17,7 @@ The implementer MUST receive:
 
 - This task's full body (everything after the YAML block, up to the next `## Task` heading).
 - This task's frontmatter (id, depends_on, files).
+- This task's `tests:` entries, when present.
 - An "upstream context" block: for each task id in `depends_on:`, a short summary of what that upstream task produced — paths created/modified, key types/contracts/exports, commit SHA. Pull these from the plan file's task body for `done` upstream tasks.
 - The repo's `CLAUDE.md` (if present) so it follows project conventions.
 - The absolute path to the `git-commit-safe` helper (`skills/executing-dag-plans/git-commit-safe`), substituted into the prompt as `{git_commit_safe_path}`. Implementers commit through it so concurrent implementers don't race on the shared git index.
@@ -63,6 +64,16 @@ already own to spec; it does not add new requirements beyond the task body.
 
   If `{git_commit_safe_path}` is missing/empty, STOP and report BLOCKED — the controller failed to inject the commit helper; do not hand-roll a commit (you would race other implementers on the shared index).
 
+## Named tests
+
+If the Task spec above lists `Named tests:`, each entry is `<file> :: <case>`. For each entry:
+
+- the case must exist in `<file>` with exactly that name, printed on one line as the suite prints its other cases (by default `PASS: <case>` or `FAIL: <case>`);
+- no other case in that file may print the same name;
+- it must fail before your change and pass after it.
+
+After you report, a script checks this from your committed work only: it runs each file once on the code as it was when your task started (with your finished test files) and once on your last commit. Uncommitted changes are not seen, so commit before you report. Do not try to run that check yourself. The RED-THEN-GREEN report below is still required for acceptance criteria that have no named test.
+
 ## Your output
 
 Implement the task per your agent system prompt. Use TDD. Commit when green. Report:
@@ -92,6 +103,10 @@ Files (you may modify ONLY these):
 {for each path in task.files: "  - " + path}
 
 depends_on: {task.depends_on or "[] (root task)"}
+
+{if task.tests is non-empty; otherwise omit these two lines:}
+Named tests:
+{for each entry in task.tests: "  - " + entry}
 
 ### Body
 
