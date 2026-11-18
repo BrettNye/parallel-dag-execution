@@ -54,7 +54,8 @@ Once an implementer reports DONE, branch on `resolve_review_mode(task)` (resolve
 `split` (default) — the two-call chain:
 ```
 implementer DONE
-  → dispatch dag-spec-reviewer  (model: resolve_model(resolve_tier(task, 'spec_reviewer')))
+  → verify-tests → exit 0 → dispatch dag-spec-reviewer  (model: resolve_model(resolve_tier(task, 'spec_reviewer')))
+  → verify-tests exit 1 → plan-state round → exit 0: re-dispatch implementer with the verify-tests output → loop
       → APPROVED → dispatch dag-quality-reviewer  (model: resolve_model(resolve_tier(task, 'quality_reviewer')))
           → APPROVED → mark task `done`, persist status
           → ISSUES → plan-state round → exit 0: re-dispatch implementer with quality feedback → loop
@@ -64,14 +65,21 @@ implementer DONE
 `merged` — one combined call:
 ```
 implementer DONE
-  → dispatch dag-merged-reviewer  (model: resolve_model(resolve_tier(task, 'quality_reviewer')))
+  → verify-tests → exit 0 → dispatch dag-merged-reviewer  (model: resolve_model(resolve_tier(task, 'quality_reviewer')))
+  → verify-tests exit 1 → plan-state round → exit 0: re-dispatch implementer with the verify-tests output → loop
       → BOTH verdicts APPROVED → mark task `done`, persist status
       → EITHER verdict ISSUES → plan-state round → exit 0: re-dispatch implementer with the combined feedback → merged re-review → loop
 ```
 
+**Named-test check.** After an implementer reports DONE or DONE_WITH_CONCERNS, and before any review, run `sh <plugin root>/skills/executing-dag-plans/verify-tests <plan> <id>` with the Bash tool in the foreground and an explicit `timeout` of 600000 ms. The default 120 s limit is too short: a plan-state suite takes about 85 s per run here, and the check runs it twice. A run that ends without exit 0, 1 or 2 (killed by the timeout, or interrupted) counts as exit 2. It is a deliberate trade-off: an implementer's code that loops forever halts the run as a tooling fault rather than costing one fix round, which is safe and visible, and the user decides from there. A task with no `tests:` prints `no named tests` and exits 0.
+
+- exit 0: reviews proceed as before; substitute the `verify-tests` output into the reviewer prompt's `{verify_tests_output}` placeholder.
+- exit 1: a fix round, exactly as for an ISSUES verdict. Run `plan-state round <plan> <id>`: exit 0, re-dispatch the implementer with the `verify-tests` output as the issue list, and run `verify-tests` again after it reports; exit 1 (cap reached), run `plan-state set <plan> <id> failed` and give the printed line as the reason; exit 2, halt.
+- exit 2: halt the run and print the reason, as for `plan-state round` exit 2. A broken check is a tooling fault, not the implementer's.
+
 **Reading a verdict.** Take it from the report's closing line, `VERDICT: APPROVED` or `VERDICT: ISSUES` (a merged review closes with a `SPEC:` line and a `QUALITY:` line), not from the prose above it. A report is malformed when that line is missing, holds anything else, or appears more than once. Re-dispatch the reviewer once, fresh, on the same commit. If the second report is malformed too, mark the task `failed` with the reason "reviewer gave no single verdict". Do not settle it by checking the work yourself: a verdict the controller reaches is a skipped review.
 
-**Review-round cap.** A fix round is one re-dispatch of the implementer in response to an ISSUES verdict from any reviewer: spec, quality, or merged (a merged review with either verdict ISSUES is one fix round). A reviewer re-run because its report had no single verdict line is not a fix round, and neither is the fresh dispatch of a `running` task after a restart. `plan-state` owns the count, in the task's `review_rounds:` field, and the cap of 3; never read or compare the count yourself. On every ISSUES verdict, run `plan-state round <plan> <id>` before anything else:
+**Review-round cap.** A fix round is one re-dispatch of the implementer after an ISSUES verdict or a failed `verify-tests`: from any reviewer, spec, quality, or merged (a merged review with either verdict ISSUES is one fix round), or from the named-test check (exit 1). A reviewer re-run because its report had no single verdict line is not a fix round, and neither is the fresh dispatch of a `running` task after a restart. `plan-state` owns the count, in the task's `review_rounds:` field, and the cap of 3; never read or compare the count yourself. On every ISSUES verdict, run `plan-state round <plan> <id>` before anything else:
 
 - exit 0 (it prints the new count): re-dispatch the implementer as before;
 - exit 1 (it prints `plan-state: <id>: review cap reached (3 fix rounds)`): run `plan-state set <plan> <id> failed`, which cascades to downstream tasks as any failure does, and give the printed line as the task's reason in the final report, the same way as "reviewer gave no single verdict". Do not write the reason into the plan;
@@ -90,6 +98,7 @@ Reviewer tiers fall back per-task → plan-level default → `standard`. Review-
 | **NEEDS_CONTEXT** | Provide missing context, re-dispatch. |
 | **BLOCKED** | Auto-retry once, one step up. `cheap` and `standard` tasks retry on the next model tier (cheap→standard, standard→opus). An `opus` task has no tier above it, so it retries on `opus` with `effort: "high"` on the Agent call. If the agent's pinned effort is already `high` or above, or the harness's Agent tool has no `effort` parameter, an `opus` task gets no retry and is marked `failed`. If the retry also reports BLOCKED, mark task `failed`. Table and retry prompt: `./implementer-prompt.md` §Re-dispatch on BLOCKED. |
 | **ISSUES** (a reviewer's verdict) | Run `plan-state round <plan> <id>` first. Exit 0: re-dispatch with the issue list. Exit 1: `plan-state set <plan> <id> failed`; the reason is the line `round` printed. Exit 2: halt. See Review-round cap. |
+| **verify-tests exit 1** (a named case failed) | Same as ISSUES: run `plan-state round <plan> <id>` first; re-dispatch with the `verify-tests` output on exit 0. See Named-test check. |
 
 ## Failure handling — D + B
 
