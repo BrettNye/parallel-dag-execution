@@ -8,6 +8,7 @@
 #   plan-state round  <plan> <id>          count one fix round on a running task; exit 1 at the cap
 #   plan-state tree   <plan>               print the ASCII status tree
 #   plan-state preflight <plan>            report path defects in unfinished tasks' text
+#   plan-state tests  <plan> <id>          print a task's named tests and test settings
 #   plan-state charter <charter>           check a superspec charter's children and contracts
 # Exit: 0 ok, 1 validation failure (check, charter), preflight error, or cap reached (round), 2 usage error or refused change.
 #
@@ -19,7 +20,7 @@ set -eu
 
 CAP=3   # review-round cap: round refuses at it, rule 15 bounds review_rounds by it
 
-usage() { sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '3,/^# Exit:/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ "$#" -ge 2 ] || usage
 cmd="$1"; plan="$2"; shift 2
 if [ -d "$plan" ] || [ ! -r "$plan" ]; then echo "plan-state: cannot read $plan" >&2; exit 2; fi
@@ -63,7 +64,7 @@ function yamlline(l,   k, v) {
   }
 }
 function err(msg) { print "plan-state: " msg | "cat 1>&2" }
-function viol(rule, msg) { print "plan-state: rule " rule ": " msg; bad = 1 }
+function viol(rule, msg) { if (MODE == "tests") err("rule " rule ": " msg); else print "plan-state: rule " rule ": " msg; bad = 1 }
 function inset(v, set) { return index(" " set " ", " " v " ") > 0 }
 function st(t) { return (t in newst) ? newst[t] : val[t, "status"] }
 
@@ -117,6 +118,21 @@ function r16plan(say,   n) {
   if (("test_pass_prefix" in fmset) && fm["test_pass_prefix"] == "") { n++; if (say) viol(16, "test_pass_prefix is empty") }
   if (("test_fail_prefix" in fmset) && fm["test_fail_prefix"] == "") { n++; if (say) viol(16, "test_fail_prefix is empty") }
   return n
+}
+
+# plan-state tests: print what verify-tests needs about task TID. Nothing reaches stdout until every check has passed.
+function testsout(   n, t, u, e, j, cmdv, pv, fv) {
+  n = 0; for (t = 1; t <= nt; t++) if (val[t, "id"] == TID) { n++; u = t }
+  if (n != 1) { err(n ? "id " TID " is not unique; run: plan-state check" : "no task with id " TID); exit 2 }
+  if (r16plan(0)) { r16plan(1); exit 2 }
+  if (r16task(u, 0)) { err(TID " has a bad tests entry; run: plan-state check"); exit 2 }
+  cmdv = ("test_command" in fmset) ? fm["test_command"] : "bash {file}"
+  pv = ("test_pass_prefix" in fmset) ? fm["test_pass_prefix"] : "PASS: "
+  fv = ("test_fail_prefix" in fmset) ? fm["test_fail_prefix"] : "FAIL: "
+  print "base " (has[u, "base_sha"] ? val[u, "base_sha"] : "-")
+  print "command " cmdv; print "pass " pv; print "fail " fv
+  for (j = 1; j <= nf[u]; j++) print "file " fil[u, j]
+  for (e = 1; e <= nte[u]; e++) { tsplit(traw[u, e]); print "test " TF "\t" TC }
 }
 
 function check(   t, k, i, j, f, a, b, v, list, owners, seen, own, hint, n) {
@@ -424,6 +440,7 @@ END {
   graph()
   if (MODE == "check") { check(); exit bad }
   if (MODE == "round") { round(); exit }
+  if (MODE == "tests") { testsout(); exit }
   if (MODE == "setq") { apply(); u = idx[SETID]; print (has[u, "base_sha"] ? 1 : 0) " " (nte[u] > 0 ? 1 : 0); exit }
   if (MODE == "pfpaths") { pfpaths(); exit }
   if (MODE == "preflight") { preflight(); exit }
@@ -561,6 +578,7 @@ case "$cmd" in
   charter) [ "$#" -eq 0 ] || usage; awk -v MODE=check "$CPROG" "$plan" ;;
   ready)  awk -v MODE=ready "$PROG" "$plan" ;;
   tree)   awk -v MODE=tree "$PROG" "$plan" ;;
+  tests)  [ "$#" -eq 1 ] || usage; awk -v MODE=tests -v TID="$1" -v CAP="$CAP" "$PROG" "$plan" ;;
   render) [ "$#" -eq 0 ] || usage; emit ;;
   round)
     [ "$#" -eq 1 ] || usage

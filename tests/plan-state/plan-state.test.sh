@@ -910,5 +910,68 @@ mk17 "$tmp/r17d.md" pending "base_sha: $sha1" ''
 o2="$(ps check "$tmp/r17d.md" 2>&1)"; r2=$?
 chk "rule 17: 7 and 40 hex pass" "$r1:$o1:$r2:$o2" "0::0:"
 
+echo
+echo "T35: plan-state tests prints a task's named tests"
+# mk35 <file> <frontmatter extras>; task-a has base_sha, ./ file and two entries; task-b has no tests or base_sha;
+# task-c has a bad entry; task-d is clean.
+mk35() {
+  { printf -- '---\ntitle: demo\n%s\n---\n\n```mermaid\nflowchart TD\n```\n\n' "$2"
+    printf '## Task: a\n\n```yaml\nid: task-a\ndepends_on: []\nfiles:\n  - ./t/a.sh\n  - "t/b.sh"   # second\nstatus: running\nbase_sha: abcdef1234\ntests:\n  - t/a.sh :: round one\n  - ./t/b.sh ::   round "two", # x\n```\n\n'
+    printf '## Task: b\n\n```yaml\nid: task-b\ndepends_on: []\nfiles: [t/c.sh, ./t/d.sh]\nstatus: pending\n```\n\n'
+    printf '## Task: c\n\n```yaml\nid: task-c\ndepends_on: []\nfiles:\n  - t/e.sh\nstatus: pending\ntests:\n  - no separator\n```\n\n'
+    printf '## Task: d\n\n```yaml\nid: task-d\ndepends_on: []\nfiles:\n  - t/f.sh\nstatus: pending\n```\n'; } > "$1"
+}
+mk35 "$tmp/t35.md" ''
+out="$(ps tests "$tmp/t35.md" task-a 2>/dev/null)"; rc=$?
+chk "tests: prints the whole record" "$rc:$out" "0:base abcdef1234
+command bash {file}
+pass PASS: 
+fail FAIL: 
+file t/a.sh
+file t/b.sh
+test t/a.sh	round one
+test t/b.sh	round \"two\", # x"
+out="$(ps tests "$tmp/t35.md" task-a 2>/dev/null | sed -n 3p | od -An -c | tr -d ' \n')"
+chk "tests: pass line keeps its trailing space" "$out" "passPASS:\n"
+mk35 "$tmp/t35f.md" 'test_fail_prefix: "not ok "'
+out="$(ps tests "$tmp/t35f.md" task-a 2>/dev/null | sed -n 4p | od -An -c | tr -d ' \n')"
+chk "tests: fail prefix with trailing space is kept" "$out" "failnotok\n"
+out="$(ps tests "$tmp/t35f.md" task-a 2>/dev/null | sed -n 4p)"
+chk "tests: fail line carries the plan value" "$out" "fail not ok "
+out="$(ps tests "$tmp/t35.md" task-b 2>/dev/null | sed -n 1p)"
+chk "tests: no base_sha prints base -" "$out" "base -"
+out="$(ps tests "$tmp/t35.md" task-b 2>/dev/null)"; rc=$?
+chk "tests: no tests prints no test lines" "$rc:$out" "0:base -
+command bash {file}
+pass PASS: 
+fail FAIL: 
+file t/c.sh
+file t/d.sh"
+ps tests "$tmp/t35.md" >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: missing id is usage" "$rc:$(wc -c < "$tmp/t35.out" | tr -d ' '):$(rg -c 'plan-state tests' "$tmp/t35.err")" "2:0:1"
+ps tests "$tmp/t35.md" task-a task-b >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: two ids is usage" "$rc:$(wc -c < "$tmp/t35.out" | tr -d ' '):$(rg -c 'plan-state tests' "$tmp/t35.err")" "2:0:1"
+ps tests "$tmp/nope.md" task-a >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: missing plan reports cannot read" "$rc:$(cat "$tmp/t35.err")" "2:plan-state: cannot read $tmp/nope.md"
+ps tests "$tmp/nope.md" >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: missing plan without id still says cannot read" "$rc:$(cat "$tmp/t35.err")" "2:plan-state: cannot read $tmp/nope.md"
+ps tests "$tmp/t35.md" zz >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: unknown id" "$rc:$(wc -c < "$tmp/t35.out" | tr -d ' '):$(cat "$tmp/t35.err")" "2:0:plan-state: no task with id zz"
+sed 's/^id: task-d$/id: task-a/' "$tmp/t35.md" > "$tmp/t35r.md"
+ps tests "$tmp/t35r.md" task-a >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: repeated id" "$rc:$(wc -c < "$tmp/t35.out" | tr -d ' ')" "2:0"
+has "tests: repeated id is named" "$(cat "$tmp/t35.err")" "is not unique; run: plan-state check"
+mk35 "$tmp/t35p.md" 'test_command: make
+test_pass_prefix: ""'
+ps tests "$tmp/t35p.md" task-a >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: plan-level rule 16 lines on stderr" "$rc:$(wc -c < "$tmp/t35.out" | tr -d ' '):$(cat "$tmp/t35.err")" "2:0:plan-state: rule 16: test_command has no {file}
+plan-state: rule 16: test_pass_prefix is empty"
+ps tests "$tmp/t35.md" task-c >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: bad entry in this task" "$rc:$(wc -c < "$tmp/t35.out" | tr -d ' '):$(cat "$tmp/t35.err")" "2:0:plan-state: task-c has a bad tests entry; run: plan-state check"
+ps tests "$tmp/t35.md" task-d >/dev/null 2>&1; chk "tests: bad entry in another task is ignored" "$?" "0"
+out="$(sh "$SCRIPT" 2>&1)"
+has "usage lists tests" "$out" "plan-state tests"
+chk "usage ends at Exit" "$(printf '%s\n' "$out" | tail -n 1 | cut -c1-5)" "Exit:"
+
 echo "RESULT: $passes passed, $fails failed"
 [ "$fails" -eq 0 ]
