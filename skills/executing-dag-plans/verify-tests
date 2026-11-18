@@ -7,6 +7,8 @@
 # It builds two detached worktrees of HEAD under ${TMPDIR:-/tmp}: "after" as committed, and
 # "before", where the task's files other than its test files are put back to base_sha. Each test
 # file runs once per tree; each entry gets one label: ambiguous, not-green, not-red, ok-absent, ok.
+# After the total it prints the last 20 lines of the runs behind a bad label: an "(after)" block for a
+#   file with a not-green or ambiguous entry, a "(before)" block for not-red or ok-absent.
 # Untracked files: only committed files are in the trees; untracked and ignored files in the shared
 #   working tree are not. On this repository (2026-11-18) the plan-state suite ran in both fresh
 #   trees with nothing untracked (entry "round on "2" writes review_rounds: 3", base 76ed77d^,
@@ -153,12 +155,34 @@ END {
     else lab = "ok"
     if (lab == "ok" || lab == "ok-absent") nok++; else nbad++
     print lab "\t" ef[e] "\t" ec[e]
+    print lab "\t" ef[e] "\t" ec[e] > (ENVIRON["VT_W"] "/labels")
   }
   print "verify-tests: " ID ": " (nok + 0) " ok, " (nbad + 0) " failed"
   exit (nbad > 0)
 }' "$rec" "$work/files"
 rc=$?
 [ "$rc" -le 1 ] || bail "cannot label the results"
+
+# Tails: for each file in first-appearance order, the last 20 lines of the run a reader needs to see
+# why an entry got its label. not-green and ambiguous read the after run; not-red and ok-absent read the before run.
+tail_block() {
+  printf '%s\n' "$1"
+  if [ -s "$2" ]; then tail -n 20 "$2" | sed 's/^/  | /'; else printf '  | (no output)\n'; fi
+}
+n=0
+while IFS= read -r f; do
+  n=$((n + 1)); wa=0; wb=0
+  while IFS= read -r line; do
+    lab=${line%%"$tab"*}; rest=${line#*"$tab"}; lf=${rest%%"$tab"*}
+    [ "$lf" = "$f" ] || continue
+    case $lab in
+      not-green|ambiguous) wa=1 ;;
+      not-red|ok-absent) wb=1 ;;
+    esac
+  done < "$work/labels"
+  [ "$wa" -eq 1 ] && tail_block "--- $f (after)" "$work/after.$n"
+  [ "$wb" -eq 1 ] && tail_block "--- $f (before)" "$work/before.$n"
+done < "$work/files"
 
 # Step 9 on the normal path; a signal here is ignored so the labels already printed stand.
 trap '' INT TERM HUP

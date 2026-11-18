@@ -75,9 +75,11 @@ echo "trees"
 # Runs use their own TMPDIR, so the suite can see what verify-tests leaves behind.
 VT_T="$tmp/T"; mkdir -p "$VT_T"
 : > "$tmp/allout"
-# vt <plan> [shell]: prints "rc:stdout"; stderr goes to $tmp/e; stdout is also kept in $tmp/allout.
+# vt <plan> [shell]: prints "rc:stdout" up to the total line (the tail blocks are checked in "tails");
+# stderr goes to $tmp/e; all stdout is also kept in $tmp/allout.
 vt() { local out rc; out="$(TMPDIR="$VT_T" "${2:-sh}" "$SCRIPT" "$1" T1 2>"$tmp/e")"; rc=$?
-  printf '%s\n' "$out" >> "$tmp/allout"; printf '%s:%s' "$rc" "$out"; }
+  printf '%s\n' "$out" >> "$tmp/allout"
+  printf '%s:%s' "$rc" "$(printf '%s\n' "$out" | sed '/^verify-tests: T1: /q')"; }
 newrepo() { mkdir -p "$1" && git -C "$1" init -q && git -C "$1" config user.email t@example.com &&
   git -C "$1" config user.name t && git -C "$1" config core.autocrlf false; }
 put() { mkdir -p "$(dirname -- "$1/$2")"; printf '%s\n' "$3" > "$1/$2"; }
@@ -240,6 +242,77 @@ r="$(vt "$tmp/r15/plan.md")"
 chk "trees: ignored dependency is not in the after tree" "$r" "1:not-green	t/demo.test.sh	dep
 verify-tests: T1: 0 ok, 1 failed"
 
+
+echo "tails"
+# vtfull <plan> [shell]: like vt, but prints the whole stdout, the tail blocks included.
+vtfull() { local out rc; out="$(TMPDIR="$VT_T" "${2:-sh}" "$SCRIPT" "$1" T1 2>"$tmp/e")"; rc=$?
+  printf '%s\n' "$out" >> "$tmp/allout"; printf '%s:%s' "$rc" "$out"; }
+# a.sh is absent before (new.sh is created by the task) and passes after; b.sh fails after.
+newrepo "$tmp/q1"; put "$tmp/q1" t/a.sh 'echo start
+[ -f new.sh ] || exit 1
+echo "PASS: x"'; put "$tmp/q1" t/b.sh 'echo "FAIL: y"'; commit "$tmp/q1" base
+B=$(git -C "$tmp/q1" rev-parse HEAD); put "$tmp/q1" new.sh 'x=1'; commit "$tmp/q1" task
+writeplan "$tmp/q1" "$B" '  - new.sh
+  - t/a.sh
+  - t/b.sh' '  - t/a.sh :: x
+  - t/b.sh :: y'
+r="$(vtfull "$tmp/q1/plan.md")"
+chk "tails: spec example order" "$r" "1:ok-absent	t/a.sh	x
+not-green	t/b.sh	y
+verify-tests: T1: 1 ok, 1 failed
+--- t/a.sh (before)
+  | start
+--- t/b.sh (after)
+  | FAIL: y"
+
+mkrepo "$tmp/q2" 'i=1; while [ "$i" -le 30 ]; do echo "line $i"; i=$((i + 1)); done
+echo "FAIL: adds"'
+r="$(vtfull "$tmp/q2/plan.md" | sed '1,/^verify-tests: T1: /d')"
+chk "tails: last 20 lines only" "$(printf '%s\n' "$r" | rg -c '^  \| ')|$(printf '%s\n' "$r" | sed -n '2p')|$(printf '%s\n' "$r" | tail -n 1)" "20|  | line 12|  | FAIL: adds"
+
+# lib.sh is right at base_sha and wrong after: the suite passes before and fails after.
+newrepo "$tmp/q3"; put "$tmp/q3" lib.sh "$LIB_GOOD"; put "$tmp/q3" t/demo.test.sh "$DEMO"; commit "$tmp/q3" base
+B=$(git -C "$tmp/q3" rev-parse HEAD); put "$tmp/q3" lib.sh "$LIB_BAD"; commit "$tmp/q3" task
+writeplan "$tmp/q3" "$B" "$FILES2" '  - t/demo.test.sh :: adds'
+r="$(vtfull "$tmp/q3/plan.md")"
+chk "tails: not-red and not-green gives only after" "$(printf '%s\n' "${r#*:}" | rg '^(not-|---)')" "not-green	t/demo.test.sh	adds
+--- t/demo.test.sh (after)"
+
+# g fails in both trees; h is absent before (new.sh is missing) and passes after.
+newrepo "$tmp/q4"; put "$tmp/q4" t/demo.test.sh 'echo "FAIL: g"
+if [ -f new.sh ]; then echo "PASS: h"; fi'; commit "$tmp/q4" base
+B=$(git -C "$tmp/q4" rev-parse HEAD); put "$tmp/q4" new.sh 'x=1'; commit "$tmp/q4" task
+writeplan "$tmp/q4" "$B" '  - new.sh
+  - t/demo.test.sh' '  - t/demo.test.sh :: g
+  - t/demo.test.sh :: h'
+r="$(vtfull "$tmp/q4/plan.md")"
+chk "tails: one file gives after then before" "$(printf '%s\n' "${r#*:}" | rg '^(not-|ok|---)')" "not-green	t/demo.test.sh	g
+ok-absent	t/demo.test.sh	h
+--- t/demo.test.sh (after)
+--- t/demo.test.sh (before)"
+
+newrepo "$tmp/q5"; put "$tmp/q5" t/a.sh 'echo "FAIL: p"'; put "$tmp/q5" t/b.sh 'echo "FAIL: p"'; commit "$tmp/q5" base
+B=$(git -C "$tmp/q5" rev-parse HEAD); put "$tmp/q5" new.sh 'x=1'; commit "$tmp/q5" task
+writeplan "$tmp/q5" "$B" '  - new.sh
+  - t/a.sh
+  - t/b.sh' '  - t/b.sh :: p
+  - t/a.sh :: p'
+r="$(vtfull "$tmp/q5/plan.md")"
+chk "tails: file order follows tests:" "$(printf '%s\n' "${r#*:}" | rg '^---')" "--- t/b.sh (after)
+--- t/a.sh (after)"
+
+# t/gone.sh is listed in files: and named in tests:, but was never committed.
+mkrepo "$tmp/q6"
+B=$(git -C "$tmp/q6" rev-list --max-parents=0 HEAD); writeplan "$tmp/q6" "$B" "$FILES2
+  - t/gone.sh" '  - t/gone.sh :: q'
+r="$(vtfull "$tmp/q6/plan.md" | sed '1,/^verify-tests: T1: /d')"
+chk "tails: no output shows placeholder" "$r" "--- t/gone.sh (after)
+  | (no output)"
+
+mkrepo "$tmp/q7"
+r="$(vtfull "$tmp/q7/plan.md")"
+chk "tails: all ok prints no block" "$(printf '%s\n' "${r#*:}" | rg '^---' | wc -l | tr -d ' ')|$r" "0|0:ok	t/demo.test.sh	adds
+verify-tests: T1: 1 ok, 0 failed"
 echo "signals"
 # mksleepy <dir>: like mkrepo, but while <dir>.flag exists the suite writes its pid to <dir>.mark and sleeps.
 mksleepy() {
@@ -296,8 +369,8 @@ printf '%s\n' "$r" >> "$tmp/allout"
 chk "cleanup: failed removal exits 2" "$rc|$(rg -c 'verify-tests: T1: cleanup failed' "$tmp/e")" "2|1"
 
 # Every stdout line of every run above is a label line, a total line, or empty.
-stray="$(rg -v '^((ok|ok-absent|not-red|not-green|ambiguous)\t|verify-tests: T1: \d+ ok, \d+ failed$|$)' "$tmp/allout")"
-chk "trees: git stdout never reaches stdout" "$stray|$(rg -c 'HEAD is now at|Preparing worktree' "$tmp/allout")|$(rg -c '^verify-tests: T1: ' "$tmp/allout")" "||18"
+stray="$(rg -v '^((ok|ok-absent|not-red|not-green|ambiguous)\t|verify-tests: T1: \d+ ok, \d+ failed$|--- .* \((after|before)\)$|  \| |$)' "$tmp/allout")"
+chk "trees: git stdout never reaches stdout" "$stray|$(rg -c 'HEAD is now at|Preparing worktree' "$tmp/allout")|$(rg -c '^verify-tests: T1: ' "$tmp/allout")" "||25"
 
 echo "attributes"
 chk "eol attribute is lf" "$(git -C "$REPO" check-attr eol -- skills/executing-dag-plans/verify-tests)" "skills/executing-dag-plans/verify-tests: eol: lf"
