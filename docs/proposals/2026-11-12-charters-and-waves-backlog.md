@@ -177,6 +177,10 @@ Not placed in the order below; D2 and D3 belong with C5.
   full harness cost over 20 times a solo run.
 - **Proposal:** candidates are split review per task versus merged, the number of lenses per
   gate, and the second audit round. Measure with the fixtures, as C5 does for tiers.
+- **Done for gate 2's rounds (2026-11-18):** `experiments/d2-gate2-ablation/REPORT.md`. On one
+  16-task plan, one gate-2 round matched three on quality at 0.61x the cost; with no gate 2, both
+  runs shipped a defect round 1 had caught. Keep gate 2 and all lenses. Next: try one round as the default in a
+  consuming repo before changing it here.
 
 ### D3. A different model for review than for implementation
 - **Evidence:** OpenAI's reviewer recovered known bugs less well in model-written code than in
@@ -224,6 +228,8 @@ is finished.
 - **Why:** moves most of the per-task spec review from a model to mechanics, and gives the
   verifiability lens less to find.
 - **Limit:** a criterion that can't be a test still needs a reader.
+- **Done (2026-11-18):** `tests:` in the plan format, rules 16-17 and S17, and
+  `skills/executing-dag-plans/verify-tests`, built as D2's full-gate run.
 
 ### E4. One review per task, one per wave
 - **Idea:** default to `merged` review per task, and spend the saving on a wave-level review
