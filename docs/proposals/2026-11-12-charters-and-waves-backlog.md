@@ -153,6 +153,92 @@ Sonnet 5.5 changes, and pressure language is rare. What is left is mostly in the
   its own work with subagents, which doubles this plugin's required review chain.
 - **Proposal:** recommend Opus 5.5 for the controller session.
 
+## D. From outside practice (added 2026-11-12)
+
+From Anthropic's harness-design post (2026-03) and OpenAI's code-verification post (2025-12).
+Not placed in the order below; D2 and D3 belong with C5.
+
+### D1. How much implementation a plan should prescribe
+- **Evidence:** Anthropic kept its planner on product context and high-level design, because
+  detailed specs made errors "cascade into the downstream implementation". Here an implementer
+  receives only its task's text and the reviewers treat that text as the binding spec, so a wrong
+  instruction in a plan is built faithfully and passes review. Gate 2 is the only defence, which
+  is why its first round nearly always returns NOT READY. In one consuming repo, plans run 3,000
+  to 5,500 lines, the largest class of gate-2 findings was a task needing a file no task
+  declared, and 18 citations went stale between the last audit and the first dispatch.
+- **Caveat:** their case was a greenfield app. A repo with conventions may need the detail.
+- **Proposal:** an experiment, not a change. Author one plan with exact acceptance criteria,
+  contracts and `files:` but no `## Implementation` section, and compare gate-2 findings, plan
+  size, review outcomes and cost against a normal plan of similar size.
+
+### D2. Remove one component at a time when the model changes
+- **Evidence:** Anthropic: every harness component "encodes an assumption about what the model
+  can't do on its own". Their first radical cut failed; removing one piece at a time worked. Their
+  full harness cost over 20 times a solo run.
+- **Proposal:** candidates are split review per task versus merged, the number of lenses per
+  gate, and the second audit round. Measure with the fixtures, as C5 does for tiers.
+
+### D3. A different model for review than for implementation
+- **Evidence:** OpenAI's reviewer recovered known bugs less well in model-written code than in
+  human-written code. Implementers and reviewers here are the same model family.
+- **Proposal:** add this as one of C5's alternative settings.
+
+## E. Spec and plan process (added 2026-11-12)
+
+From a count over every audit record in one consuming repo (30 plan audits, 22 spec audits).
+Not placed in the order below. E1 comes first; it is reading, and the rest are guesses until it
+is finished.
+
+**What the records show.**
+- Round 1 has never passed: all 21 plan audits and all 12 spec audits that carry a verdict were
+  NOT READY (median 11 and 10 blocking findings; 362 in total). Round 1 works as a mandatory
+  repair pass, not a gate.
+- Of the gate-2 findings that name their lenses, 73 of 102 were reported by two or more lenses;
+  at gate 1, 26 of 30.
+- Blocking findings a gate-2 lens caught alone: verifiability 9, coverage 8, context-sufficiency
+  3, ambiguity 3, dag-integrity 3, grounding 2, charter 1, coherence 0.
+- The two lenses that join the most blocking findings (context-sufficiency 43, verifiability 40)
+  exist because an implementer sees only its task. That is the cost of task isolation, paid at
+  gate 2.
+- Limits: lens names parsed for 45% of gate-2 and 33% of gate-1 findings; 19 older records have
+  no reconciled verdict; the records don't show how many rounds each audit took.
+
+### E1. Measure which layer catches what
+- **Done:** the lens counts above.
+- **Not done:** sort the findings a later code review raised on finished plans by which earlier
+  layer should have caught them (gate 1, gate 2, per-task spec review, per-task quality review,
+  the branch gate). In that repo the review still raised 86 threads on five MRs after all of them.
+- **Proposal:** a small script over `.audit/` that reports per-lens blocking and sole catches,
+  so this is a command and not a one-off. Ask reconcilers to always write a `Lenses:` line.
+
+### E2. Detail each wave just before it runs
+- **Idea:** plan the whole graph up front (tasks, dependencies, `files:`, contracts). Write and
+  audit a wave's task bodies only when the wave before it has merged.
+- **Why:** gate 2 then reads a small, current document, and wave N+1 is planned knowing what
+  wave N's review changed. One plan had 18 citations go stale between audit and dispatch.
+- **Cost:** gives up "one gate 2 per plan", which the wave trial holds as a rule. Wait for B.
+
+### E3. Acceptance criteria as named tests
+- **Idea:** a task lists the tests that prove it. Checking that they exist, failed first and pass
+  now is a script (C4's plan-state script is the natural home).
+- **Why:** moves most of the per-task spec review from a model to mechanics, and gives the
+  verifiability lens less to find.
+- **Limit:** a criterion that can't be a test still needs a reader.
+
+### E4. One review per task, one per wave
+- **Idea:** default to `merged` review per task, and spend the saving on a wave-level review
+  with repo access (the checkpoint task in B1).
+- **Why:** a per-task reviewer sees one task, so it can't catch what crosses tasks.
+- **Depends on:** E1 confirming that cross-task findings are what later review is catching.
+
+### E5. Turn repeated gate findings into pre-flight checks
+- **Idea:** each class a gate keeps finding becomes a mechanical check run before dispatch
+  (a task needing a file no task declares; a citation that no longer resolves; a prescribed
+  migration number already taken).
+- **Why:** one consuming repo already did this once, after two gate-2 rounds with 16 and 8
+  blocking findings. Lenses can then be merged down to the ones that need judgment, starting
+  with the two that rarely catch anything alone.
+
 ## v0.6.0 (merged 2026-11-12)
 
 `docs/superpowers/plans/2026-08-27-seams-and-ground-truth-dag.md` was executed (15/15) on
