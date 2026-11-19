@@ -540,7 +540,7 @@ ps round "$tmp/r27.md" nope >/dev/null 2>&1; chk "unknown id exits 2" "$?" "2"
 out="$(sh "$SCRIPT" 2>&1)"; rc=$?
 chk "no args exits 2" "$rc" "2"
 has "usage lists round" "$out" "plan-state round"
-has "usage lists rules 1-5 and 7-15" "$out" "rules 1-5 and 7-15"
+has "usage lists rules 1-5 and 7-17" "$out" "rules 1-5 and 7-17"
 
 
 # T28 helpers. pf_head FILE: frontmatter and a mermaid block. pf_task FILE ID STATUS FILES:
@@ -783,6 +783,195 @@ p1_run 'Rename the function `greet` to `say_hello` in `lib/greet.sh`.' ./lib/gre
 chk "./lib/greet.sh in files: owns lib/greet.sh" "$rc:$out" "0:"
 p1_run 'Rename the function `greet` to `say_hello` in `./lib/greet.sh`.' lib/greet.sh
 chk "./ in the text matches files:" "$rc:$out" "0:"
+
+echo
+echo "T33: rule 16, tests entries and test fields"
+# mk16 <file> <frontmatter extras> <lines after files:>; one task, files: t/a.sh
+mk16() {
+  { printf -- '---\ntitle: demo\n%s\n---\n\n```mermaid\nflowchart TD\n```\n\n## Task: one\n\n```yaml\nid: task-a\ndepends_on: []\nfiles:\n  - t/a.sh\n' "$2"
+    printf '%s\n' "$3"; printf 'status: pending\n```\n'; } > "$1"
+}
+mk16 "$tmp/t16ok.md" 'test_command: sh {file}
+test_pass_prefix: "PASS: "
+test_fail_prefix: "FAIL: "' 'tests:
+  - t/a.sh :: round on "2" counts to 3'
+out="$(ps check "$tmp/t16ok.md" 2>&1)"; rc=$?
+chk "rule 16: valid tests pass check" "$rc:$out" "0:"
+
+mk16 "$tmp/t16a.md" '' 'tests:
+  - t/a.sh no separator'
+out="$(ps check "$tmp/t16a.md" 2>&1)"; rc=$?
+chk "rule 16: entry without :: exits 1" "$rc" "1"
+has "rule 16: entry without :: is named" "$out" 'rule 16: task-a tests entry "t/a.sh no separator" is not "<file> :: <case>"'
+
+mk16 "$tmp/t16b.md" '' 'tests:
+  - t/a.sh ::   '
+out="$(ps check "$tmp/t16b.md" 2>&1)"; rc=$?
+has "rule 16: empty case is refused" "$out" 'rule 16: task-a tests entry "t/a.sh ::" is not "<file> :: <case>"'
+
+mk16 "$tmp/t16c.md" '' 'tests:
+  - t/a.sh :: x # "y", z'
+out="$(ps check "$tmp/t16c.md" 2>&1)"; rc=$?
+chk "rule 16: raw entry keeps # and quotes" "$rc:$out" "0:"
+mk16 "$tmp/t16c2.md" '' 'tests:
+  - t/a.sh :: x # "y", z
+  - t/a.sh :: x # "y", z'
+out="$(ps check "$tmp/t16c2.md" 2>&1)"; rc=$?
+has "rule 16: raw entry survives into the repeat line" "$out" 'rule 16: task-a tests entry "t/a.sh :: x # "y", z" is repeated'
+
+mk16 "$tmp/t16d.md" '' 'tests:
+  - ./t/a.sh :: x
+  - t/a.sh :: x'
+out="$(ps check "$tmp/t16d.md" 2>&1)"; rc=$?
+chk "rule 16: ./ repeat is the same entry" "$(printf '%s\n' "$out" | grep -c 'is repeated')" "1"
+
+mk16 "$tmp/t16e.md" '' 'tests:
+  - other.sh :: x'
+out="$(ps check "$tmp/t16e.md" 2>&1)"; rc=$?
+has "rule 16: test file outside files: is named" "$out" 'rule 16: task-a test file other.sh is not in its files:'
+
+mk16 "$tmp/t16f.md" '' 'tests: [t/a.sh :: x]'
+out="$(ps check "$tmp/t16f.md" 2>&1)"; rc=$?
+has "rule 16: inline tests value is refused" "$out" 'rule 16: task-a tests must be a block list'
+mk16 "$tmp/t16g.md" '' 'tests:   # cases
+  - t/a.sh :: x'
+out="$(ps check "$tmp/t16g.md" 2>&1)"; rc=$?
+chk "rule 16: comment on tests line is block form" "$rc:$out" "0:"
+
+mk16 "$tmp/t16h.md" 'test_command: make test' ''
+out="$(ps check "$tmp/t16h.md" 2>&1)"; rc=$?
+has "rule 16: test_command without {file}" "$out" 'rule 16: test_command has no {file}'
+mk16 "$tmp/t16i.md" 'test_pass_prefix: ""' ''
+out="$(ps check "$tmp/t16i.md" 2>&1)"; rc=$?
+has "rule 16: empty pass prefix" "$out" 'rule 16: test_pass_prefix is empty'
+mk16 "$tmp/t16j.md" 'test_fail_prefix: ""' ''
+out="$(ps check "$tmp/t16j.md" 2>&1)"; rc=$?
+has "rule 16: empty fail prefix" "$out" 'rule 16: test_fail_prefix is empty'
+
+
+echo
+echo "T34: base_sha recorded when a task is set running"
+# mk17 <file> <status> <extra lines after status:> <tests lines after files:>; one task, files: t/a.sh
+mk17() {
+  { printf -- '---\ntitle: demo\n---\n\n```mermaid\nflowchart TD\n```\n\n## Task: one\n\n```yaml\nid: task-a\ndepends_on: []\nfiles:\n  - t/a.sh\n'
+    [ -n "$4" ] && printf '%s\n' "$4"
+    printf 'status: %s\n' "$2"; [ -n "$3" ] && printf '%s\n' "$3"; printf '```\n'; } > "$1"
+}
+g="$tmp/gitrepo"; mkdir "$g"; git -C "$g" init -q
+git -C "$g" -c user.email=t@t.test -c user.name=t commit -q --allow-empty -m base
+sha1="$(git -C "$g" rev-parse HEAD)"
+clean_plan "$g/plan.md"; ps set "$g/plan.md" task-b ready >/dev/null 2>&1
+out="$(ps set "$g/plan.md" task-b running 2>&1)"; rc=$?
+chk "base_sha: written on first running" "$rc:$(awk '/^base_sha:/ { print $2 }' "$g/plan.md")" "0:$sha1"
+chk "base_sha: line follows status running" "$(awk '/^status: running$/ { getline; print; exit }' "$g/plan.md")" "base_sha: $sha1"
+
+git -C "$g" -c user.email=t@t.test -c user.name=t commit -q --allow-empty -m second
+ps set "$g/plan.md" task-b ready >/dev/null 2>&1; ps set "$g/plan.md" task-b running >/dev/null 2>&1
+chk "base_sha: kept through resume" "$(awk '/^base_sha:/ { print $2 }' "$g/plan.md")" "$sha1"
+chk "base_sha: one line after resume" "$(rg -c '^base_sha:' "$g/plan.md")" "1"
+
+n="$tmp/norepo"; mkdir "$n"
+mk17 "$n/t.md" ready '' 'tests:
+  - t/a.sh :: x'
+cp "$n/t.md" "$n/t.orig"
+out="$(ps set "$n/t.md" task-a running 2>&1)"; rc=$?
+chk "base_sha: refused without HEAD for a task with tests" "$rc" "2"
+has "base_sha: refusal names the task" "$out" "plan-state: refused task-a: cannot read HEAD for base_sha"
+cmp -s "$n/t.md" "$n/t.orig"; chk "base_sha: refused plan bytes unchanged" "$?" "0"
+
+mk17 "$n/u.md" ready '' ''
+out="$(ps set "$n/u.md" task-a running 2>&1)"; rc=$?
+chk "base_sha: no repository, no tests, moves as today" "$rc:$out:$(rg -c '^status: running' "$n/u.md"):$(rg -c '^base_sha:' "$n/u.md" || echo 0)" "0::1:0"
+
+mk17 "$n/v.md" done '' ''
+out="$(ps set "$n/v.md" task-a running 2>&1)"; rc=$?
+has "base_sha: illegal move refused before git" "$out" "refused task-a: done -> running"
+hasnt "base_sha: illegal move is not a HEAD refusal" "$out" "cannot read HEAD"
+chk "base_sha: illegal move exits 2" "$rc" "2"
+
+mk17 "$g/w.md" ready '' ''
+sed 's/$/\r/' "$g/w.md" > "$g/w2.md"
+ps set "$g/w2.md" task-a running >/dev/null 2>&1
+chk "base_sha: CRLF plan stays CRLF" "$(tr '\r' '~' < "$g/w2.md" | rg -c '^base_sha: [0-9a-f]{40}~$' || echo 0)" "1"
+
+mk17 "$tmp/r17a.md" pending 'base_sha: XYZ' ''
+out="$(ps check "$tmp/r17a.md" 2>&1)"; rc=$?
+chk "rule 17: bad base_sha is named" "$rc:$out" "1:plan-state: rule 17: task-a base_sha is XYZ"
+bout=""
+for v in abc12 ABCDEF1; do
+  mk17 "$tmp/r17b.md" pending "base_sha: $v" ''
+  ps check "$tmp/r17b.md" > "$tmp/r17b.out" 2>&1; brc=$?
+  bout="$bout$(cat "$tmp/r17b.out"):$brc;"
+done
+chk "rule 17: short and uppercase refused" "$bout" "plan-state: rule 17: task-a base_sha is abc12:1;plan-state: rule 17: task-a base_sha is ABCDEF1:1;"
+mk17 "$tmp/r17c.md" pending 'base_sha: abcdef1' ''
+o1="$(ps check "$tmp/r17c.md" 2>&1)"; r1=$?
+mk17 "$tmp/r17d.md" pending "base_sha: $sha1" ''
+o2="$(ps check "$tmp/r17d.md" 2>&1)"; r2=$?
+chk "rule 17: 7 and 40 hex pass" "$r1:$o1:$r2:$o2" "0::0:"
+
+echo
+echo "T35: plan-state tests prints a task's named tests"
+# mk35 <file> <frontmatter extras>; task-a has base_sha, ./ file and two entries; task-b has no tests or base_sha;
+# task-c has a bad entry; task-d is clean.
+mk35() {
+  { printf -- '---\ntitle: demo\n%s\n---\n\n```mermaid\nflowchart TD\n```\n\n' "$2"
+    printf '## Task: a\n\n```yaml\nid: task-a\ndepends_on: []\nfiles:\n  - ./t/a.sh\n  - "t/b.sh"   # second\nstatus: running\nbase_sha: abcdef1234\ntests:\n  - t/a.sh :: round one\n  - ./t/b.sh ::   round "two", # x\n```\n\n'
+    printf '## Task: b\n\n```yaml\nid: task-b\ndepends_on: []\nfiles: [t/c.sh, ./t/d.sh]\nstatus: pending\n```\n\n'
+    printf '## Task: c\n\n```yaml\nid: task-c\ndepends_on: []\nfiles:\n  - t/e.sh\nstatus: pending\ntests:\n  - no separator\n```\n\n'
+    printf '## Task: d\n\n```yaml\nid: task-d\ndepends_on: []\nfiles:\n  - t/f.sh\nstatus: pending\n```\n'; } > "$1"
+}
+mk35 "$tmp/t35.md" ''
+out="$(ps tests "$tmp/t35.md" task-a 2>/dev/null)"; rc=$?
+chk "tests: prints the whole record" "$rc:$out" "0:base abcdef1234
+command bash {file}
+pass PASS: 
+fail FAIL: 
+file t/a.sh
+file t/b.sh
+test t/a.sh	round one
+test t/b.sh	round \"two\", # x"
+out="$(ps tests "$tmp/t35.md" task-a 2>/dev/null | sed -n 3p | od -An -c | tr -d ' \n')"
+chk "tests: pass line keeps its trailing space" "$out" "passPASS:\n"
+mk35 "$tmp/t35f.md" 'test_fail_prefix: "not ok "'
+out="$(ps tests "$tmp/t35f.md" task-a 2>/dev/null | sed -n 4p | od -An -c | tr -d ' \n')"
+chk "tests: fail prefix with trailing space is kept" "$out" "failnotok\n"
+out="$(ps tests "$tmp/t35f.md" task-a 2>/dev/null | sed -n 4p)"
+chk "tests: fail line carries the plan value" "$out" "fail not ok "
+out="$(ps tests "$tmp/t35.md" task-b 2>/dev/null | sed -n 1p)"
+chk "tests: no base_sha prints base -" "$out" "base -"
+out="$(ps tests "$tmp/t35.md" task-b 2>/dev/null)"; rc=$?
+chk "tests: no tests prints no test lines" "$rc:$out" "0:base -
+command bash {file}
+pass PASS: 
+fail FAIL: 
+file t/c.sh
+file t/d.sh"
+ps tests "$tmp/t35.md" >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: missing id is usage" "$rc:$(wc -c < "$tmp/t35.out" | tr -d ' '):$(rg -c 'plan-state tests' "$tmp/t35.err")" "2:0:1"
+ps tests "$tmp/t35.md" task-a task-b >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: two ids is usage" "$rc:$(wc -c < "$tmp/t35.out" | tr -d ' '):$(rg -c 'plan-state tests' "$tmp/t35.err")" "2:0:1"
+ps tests "$tmp/nope.md" task-a >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: missing plan reports cannot read" "$rc:$(cat "$tmp/t35.err")" "2:plan-state: cannot read $tmp/nope.md"
+ps tests "$tmp/nope.md" >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: missing plan without id still says cannot read" "$rc:$(cat "$tmp/t35.err")" "2:plan-state: cannot read $tmp/nope.md"
+ps tests "$tmp/t35.md" zz >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: unknown id" "$rc:$(wc -c < "$tmp/t35.out" | tr -d ' '):$(cat "$tmp/t35.err")" "2:0:plan-state: no task with id zz"
+sed 's/^id: task-d$/id: task-a/' "$tmp/t35.md" > "$tmp/t35r.md"
+ps tests "$tmp/t35r.md" task-a >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: repeated id" "$rc:$(wc -c < "$tmp/t35.out" | tr -d ' ')" "2:0"
+has "tests: repeated id is named" "$(cat "$tmp/t35.err")" "is not unique; run: plan-state check"
+mk35 "$tmp/t35p.md" 'test_command: make
+test_pass_prefix: ""'
+ps tests "$tmp/t35p.md" task-a >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: plan-level rule 16 lines on stderr" "$rc:$(wc -c < "$tmp/t35.out" | tr -d ' '):$(cat "$tmp/t35.err")" "2:0:plan-state: rule 16: test_command has no {file}
+plan-state: rule 16: test_pass_prefix is empty"
+ps tests "$tmp/t35.md" task-c >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
+chk "tests: bad entry in this task" "$rc:$(wc -c < "$tmp/t35.out" | tr -d ' '):$(cat "$tmp/t35.err")" "2:0:plan-state: task-c has a bad tests entry; run: plan-state check"
+ps tests "$tmp/t35.md" task-d >/dev/null 2>&1; chk "tests: bad entry in another task is ignored" "$?" "0"
+out="$(sh "$SCRIPT" 2>&1)"
+has "usage lists tests" "$out" "plan-state tests"
+chk "usage ends at Exit" "$(printf '%s\n' "$out" | tail -n 1 | cut -c1-5)" "Exit:"
 
 echo "RESULT: $passes passed, $fails failed"
 [ "$fails" -eq 0 ]

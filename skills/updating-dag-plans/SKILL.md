@@ -22,7 +22,7 @@ Mutate an in-flight or partially-executed DAG plan without breaking resumability
 ## Required reading
 
 - `../writing-dag-plans/plan-format.md` — canonical *structural* contract and validation rules.
-- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H11 and soft heuristics S1-S16 — S12-S15 are the acceptance-criteria falsifiability set, so re-run them on any task whose ACs you edit.
+- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H11 and soft heuristics S1-S18 — S12-S15 are the acceptance-criteria falsifiability set, so re-run them on any task whose ACs you edit.
 
 Updates that add new tasks or modify task bodies/scope must pass BOTH validations, same as fresh authoring.
 
@@ -58,6 +58,8 @@ If the user genuinely needs to mutate immutable history, the answer is to author
 
 No operation changes a task's `review_rounds:` field. It counts the task's fix rounds against the review cap, and lowering it would hand a looping task more rounds. Modify body replaces only the text after the YAML block, so the field stays.
 
+A task's `tests:` list may be edited on `pending` and `ready` tasks like any other field; `plan-state check` validates the result (rule 16). No operation writes or changes a task's `base_sha:` field. `plan-state set ... running` records it the first time a task runs, and `verify-tests` treats everything after that commit as the task's change; editing it would let a task's named tests be checked against the wrong starting point, the same reason `review_rounds:` is left alone.
+
 > **Why `ready` is mutable for tier hints:** Unlike `files:` (mutable only on `pending`, because a `ready` task queues for the next tick and a file-scope change could conflict with a running sibling), tier hints don't interact with the parallelism contract — mutating a `ready` task's tier between ticks is safe; the next tick reads fresh state and dispatches at the new resolved tier.
 
 > **Why `ready` is mutable for `review_mode`:** `ready` is mutable for `review_mode` for the same reason as tier hints — it doesn't interact with the parallelism contract; the next tick reads fresh state and dispatches the resolved review mode. `running`/`done`/`failed`/`skipped` remain immutable.
@@ -83,7 +85,7 @@ No operation changes a task's `review_rounds:` field. It counts the task's fix r
 
    If structural validation fails, refuse with a specific error pointing to the violation. Do not mutate the file.
 
-   Apply the mutation to a copy (`<plan>.draft.md`) and run `sh ../writing-dag-plans/plan-state check <copy>`. It covers these rules and rules 7–15 and prints one line per violation; any output is a refusal. Replace the plan with the copy only in step 9.
+   Apply the mutation to a copy (`<plan>.draft.md`) and run `sh ../writing-dag-plans/plan-state check <copy>`. It covers these rules and rules 7–17 and prints one line per violation; any output is a refusal. Replace the plan with the copy only in step 9.
 
    For every operation that adds a task, changes a task's body, `files:` or
    `depends_on:`, or removes a task, also run `sh ../writing-dag-plans/plan-state

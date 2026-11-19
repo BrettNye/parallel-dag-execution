@@ -109,6 +109,12 @@ A gate no task owns is a gate nobody runs. Per-task gates structurally cannot co
 |---|---|---|
 | S16 | **Rendered-output change with no verification owner** | Trigger: some task's `files:` contains a rendered-surface file — by extension `.tsx`, `.jsx`, `.vue`, `.svelte`, `.component.html`, `.html`; style files (`.css`, `.scss`) count only when the same task also carries one of the preceding — AND no task's acceptance criteria name a rendered-surface check. A gate no task owns is a gate nobody runs, and per-task gates structurally cannot cover a cross-task rendered result. **Suppressor:** any task already owns visual verification — judged by whether a criterion checks rendered output at all, *not* by whether it names all three parts of the fix shape. **Fires once per plan**, not once per task — a missing owner is a plan-level gap. Suggested fix: add a task owning visual verification, naming the surface, the entry point, and the actor. |
 
+### S17: test-like criterion with no named test
+
+| # | Heuristic | Detection |
+|---|---|---|
+| S17 | **Test-like criterion with no named test** | Trigger: a task's acceptance criteria name a test-like check — a command to run (a code span starting with a command name such as `bash`, `sh`, `rg`, `npm`), an expected output ("prints", "outputs", "stdout is"), or an exit code ("exits 1", "exit 0") — AND the task's YAML block has no `tests:` entries. A named test is checked by `verify-tests` (red before the task's change, green after); prose is checked only by a reviewer reading a report. **Suppressor:** the check cannot be a suite case: a `rg` count over documentation, or a manual step. **Fires once per task.** Suggested fix: add a `tests:` entry `<file> :: <case>` naming the case the task will write, unique in its file. |
+
 ### S18: prompt text that reads an input its reader is never given
 
 H10 refuses code that consumes a symbol no task produces. This is the same check for text that
@@ -127,7 +133,7 @@ neither the per-task nor the whole-branch review named it.
 
 1. Run `plan-format.md` structural validation (cycles, undefined deps, required fields, file-disjoint parallel branches). Any failure → refuse, exit.
 2. Run hard rules H1-H11. Any failure → refuse, explain which rule and which task, exit. Note: H10 requires a member-level index extension over H9 — extend the definer index built in H9 to include methods/fields/properties within exported classes/objects before running H10's member-access scan.
-3. Run soft heuristics S1-S16 and S18. Collect warnings. S12-S15 read each task's `## Acceptance criteria` bullets and, for S12/S15, cross-check them against that task's own sibling bullets and `files:` list.
+3. Run soft heuristics S1-S18. Collect warnings. S12-S15 read each task's `## Acceptance criteria` bullets and, for S12/S15, cross-check them against that task's own sibling bullets and `files:` list.
 4. Run **decomposition-principles audit** (see `SKILL.md` step 8): re-read the plan against DRY / SRP / SoC / repo-convention adherence with fresh eyes. This is judgment-based, LLM-driven, and complements the mechanical rules above. Collect warnings.
 5. If warnings exist (from step 3 or step 4): present grouped list, ask "save anyway? (y/N)" (default N).
 6. On user confirm OR no warnings: save plan file.

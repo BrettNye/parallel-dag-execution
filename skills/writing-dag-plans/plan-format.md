@@ -30,6 +30,9 @@ implementation: full                    # OPTIONAL. full | contracts-only. Defau
 default_model_hint: standard            # OPTIONAL. cheap | standard | opus. Default `standard`. Implementer tier.
 default_spec_reviewer_hint: standard    # OPTIONAL. cheap | standard | opus. Default `standard`.
 default_quality_reviewer_hint: standard # OPTIONAL. cheap | standard | opus. Default `standard`.
+test_command: bash {file}       # OPTIONAL. Default: bash {file}. Every {file} becomes the test file, single-quoted; runs as sh -c from the repository root.
+test_pass_prefix: "PASS: "      # OPTIONAL. Default "PASS: ". Quote it to keep the trailing space.
+test_fail_prefix: "FAIL: "      # OPTIONAL. Default "FAIL: ". A fail line may go on with " (" and detail.
 ---
 
 ```mermaid
@@ -107,6 +110,9 @@ review_mode: merged    # OPTIONAL. merged | split. Falls back to default_review_
 single_threaded: false # OPTIONAL. If true, task forces dispatch tick to itself. Use for scope-less/exploratory tasks.
 is_wiring_task: false  # OPTIONAL. If true, plan-quality.md H3 (single-subsystem in files:) is bypassed. Use only for tasks whose explicit purpose is to wire two subsystems together; should depend_on the tasks producing each side.
 review_rounds: 0       # OPTIONAL. Whole number 0-3. Fix rounds so far: re-dispatches of the implementer after a reviewer's ISSUES verdict. Absent = 0. Written by `plan-state round`; nothing lowers it.
+tests:                 # OPTIONAL. Block list only. Each entry "<file> :: <case>": the test cases that prove this task. <file> must be in files:. Checked by verify-tests.
+  - tests/plan-state/plan-state.test.sh :: round on "2" counts to 3
+base_sha: 1f3c9e0      # Written by plan-state set ... running, the first time only. Never hand-edited.
 ```
 
 ### Mixing implementers in a single plan
@@ -114,6 +120,21 @@ review_rounds: 0       # OPTIONAL. Whole number 0-3. Fix rounds so far: re-dispa
 When a plan has tasks for different specialized subagents, set `implementer:` per task. Example: a plan with backend tasks for `profile-charmeleon` and test-infrastructure tasks for `profile-gastly` declares each accordingly. The executor reads `implementer:` per dispatch and selects the subagent_type at runtime. Tasks without an `implementer:` field fall back to `default_implementer` (when set), then `dag-implementer`.
 
 The spec and quality reviewers (`dag-spec-reviewer`, `dag-quality-reviewer`) are persona-agnostic — they review the diff against the task spec and code quality regardless of which implementer wrote it. There's no per-task review override.
+
+### Named tests
+
+`tests:` names the test cases that prove a task, so the executor can check them instead of trusting a summary. It is a block list; each entry reads `<file> :: <case>`.
+
+- **Entry grammar.** The raw entry is taken literally. It is split at the first ` :: `. `<file>` is trimmed and a leading `./` is removed; `<case>` is trimmed. Two entries are the same when their normalised `(file, case)` pairs are equal. `<file>` must be listed in the task's `files:`.
+- **Unique case names.** A case name must be unique in its file: the test file prints one line per case, and the matcher finds a case by that line, so two cases with one name cannot be told apart.
+- **Matching rule.** The test file runs through `test_command` from the repository root. A case `passed` when a line equals `test_pass_prefix` followed by the case name. It `failed` when a line equals `test_fail_prefix` followed by the case name, optionally followed by ` (` and detail. It is `absent` when no line names it. It is `ambiguous` when its lines disagree, for example a pass line and a fail line, or the same line more than once.
+- **`base_sha`.** `plan-state set <plan> <id> running` writes `base_sha`, the commit the task started from, the first time only. A resume of the same task keeps the value it already has, so the red check always compares against the original start. Nobody edits it by hand.
+- **Labels.** `verify-tests` reports one label per entry:
+  - `ok` — the case fails (red) at `base_sha` and passes now.
+  - `ok-absent` — the case did not exist at `base_sha` (absent) and passes now.
+  - `not-red` — the case already passed at `base_sha`, so it proves nothing new.
+  - `not-green` — the case does not pass now (failed or absent).
+  - `ambiguous` — the case could not be matched to one result.
 
 ## Tier resolution
 
@@ -259,10 +280,18 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
 13. **`parent:` / `child:` placement** — when either is present, both MUST be present; `parent:` MUST resolve to a readable single file, and `child:` MUST appear in that file's `children:` frontmatter list. Any other case → refuse, naming the field and the offending value.
 14. **`implementation:` mode** — `implementation:`, when present in frontmatter, MUST be `full` or `contracts-only`. Under `contracts-only`, every task without `is_wiring_task: true` MUST have a `## Contracts` section and MUST NOT have a `## Implementation` section. Any other case → refuse, naming the field and its value, or the task and the section.
 15. **`review_rounds` count** — `review_rounds`, when present on any task, MUST be a whole number from 0 to 3. It counts fix rounds; absent means 0. `plan-state round <plan> <id>` raises it by one on a `running` task and refuses at 3 (exit 1), which is the review cap: the executor then marks the task `failed`. Any other value → refuse naming the task id, the field, and the bad value.
+16. **Named tests** — `tests:`, when present on a task, MUST be a block list of entries `<file> :: <case>`, each `<file>` MUST be in that task's `files:`, and no entry may repeat (after normalising). `test_command`, when present in frontmatter, MUST contain `{file}`. `test_pass_prefix` and `test_fail_prefix`, when present, MUST NOT be empty. Refusal lines:
+    - `rule 16: <id> tests entry "<entry>" is not "<file> :: <case>"`
+    - `rule 16: <id> test file <file> is not in its files:`
+    - `rule 16: <id> tests entry "<entry>" is repeated`
+    - `rule 16: <id> tests must be a block list`
+    - `rule 16: test_command has no {file}`
+    - `rule 16: test_pass_prefix is empty` (or `test_fail_prefix`)
+17. **`base_sha` shape** — `base_sha`, when present on any task, MUST be 7 to 40 lowercase hex characters. Any other value → `rule 17: <id> base_sha is <value>`.
 
-Rules #7–#15 use the same refusal-message format as rules 1–6.
+Rules #7–#17 use the same refusal-message format as rules 1–6.
 
-`plan-state check <plan>` (the script beside this file) enforces rules 1–5 and 7–15 and prints one line per violation; rule 6 needs the previous version of the plan and stays with `updating-dag-plans`. `plan-state round` counts a task's fix rounds against the cap of 3 (rule 15). `plan-state render` draws the mermaid block below and `plan-state tree` prints the ASCII tree, so both follow this spec exactly.
+`plan-state check <plan>` (the script beside this file) enforces rules 1–5 and 7–17 and prints one line per violation; rule 6 needs the previous version of the plan and stays with `updating-dag-plans`. `plan-state round` counts a task's fix rounds against the cap of 3 (rule 15). `plan-state render` draws the mermaid block below and `plan-state tree` prints the ASCII tree, so both follow this spec exactly.
 
 ## Why `files:` is the load-bearing field
 

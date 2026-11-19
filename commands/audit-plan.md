@@ -16,7 +16,7 @@ a subset), dispatch them in one message, then reconcile.
 
 If the user asks which lenses are worth running — or is weighing the cost against just
 executing — show them the overlap table in `auditing-artifacts` step 4. A plan from
-`writing-dag-plans` has already passed H1–H11 and S1–S16 and S18, which largely cover
+`writing-dag-plans` has already passed H1–H11 and S1–S18, which largely cover
 `dag-integrity` and `context-sufficiency`. S12–S15 also cover the four recurring
 acceptance-criteria failure shapes, and S16 covers rendered-surface verification
 ownership — but no rule touches `coverage` beyond S16, or `coherence` or `ambiguity`

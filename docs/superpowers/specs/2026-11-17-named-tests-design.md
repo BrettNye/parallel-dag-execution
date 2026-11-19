@@ -311,12 +311,16 @@ to `ready`; that is safer than today's opposite case, a subagent working on a ta
 
 After an implementer reports DONE or DONE_WITH_CONCERNS, and before any review, the controller
 runs `verify-tests <plan> <id>`, by its path under the plugin root as it runs `plan-state`, with
-an explicit Bash tool timeout of 600000 ms, in the foreground. A plan-state suite takes about
-85 s per run here and the check runs it twice, so the default 120 s limit is too short. A run
-that ends without exit 0, 1 or 2 (killed by the timeout, or interrupted) counts as exit 2. This
-is a deliberate trade-off: an implementer's code that loops forever halts the run as a tooling
-fault rather than costing one fix round, which is safe and visible, and the user decides from
-there.
+the Bash tool in the background, and acts on its exit status when the completion notice wakes it.
+
+Amended 2026-11-18 from the D2 runs. This text first said "in the foreground, with an explicit
+600000 ms timeout". On this repository the check took 606-1710 s. At its timeout the Bash tool
+sends no signal and returns no status: it moves the command to the background.
+
+A check still running 30 minutes after it started is stopped when the controller is next woken,
+and counts as exit 2, as does a run that ends without exit 0, 1 or 2. This is a deliberate
+trade-off: an implementer's code that loops forever halts the run as a tooling fault rather than
+costing one fix round, which is safe and visible, and the user decides from there.
 
 - **Exit 0:** reviews proceed as today. The `verify-tests` output goes into the reviewers'
   prompts.

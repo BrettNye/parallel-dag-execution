@@ -1,13 +1,14 @@
 #!/usr/bin/env sh
 # plan-state — the mechanical half of DAG-plan bookkeeping (see plan-format.md).
 # Usage:
-#   plan-state check  <plan>               validate rules 1-5 and 7-15, status values, mermaid block
+#   plan-state check  <plan>               validate rules 1-5 and 7-17, status values, mermaid block
 #   plan-state ready  <plan>               print the ids ready to dispatch, one per line
 #   plan-state set    <plan> <id> <status> change one status; failed cascades skipped; redraws mermaid
 #   plan-state render <plan>               redraw the mermaid block in place
 #   plan-state round  <plan> <id>          count one fix round on a running task; exit 1 at the cap
 #   plan-state tree   <plan>               print the ASCII status tree
 #   plan-state preflight <plan>            report path defects in unfinished tasks' text
+#   plan-state tests  <plan> <id>          print a task's named tests and test settings
 #   plan-state charter <charter>           check a superspec charter's children and contracts
 # Exit: 0 ok, 1 validation failure (check, charter), preflight error, or cap reached (round), 2 usage error or refused change.
 #
@@ -19,7 +20,7 @@ set -eu
 
 CAP=3   # review-round cap: round refuses at it, rule 15 bounds review_rounds by it
 
-usage() { sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '3,/^# Exit:/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ "$#" -ge 2 ] || usage
 cmd="$1"; plan="$2"; shift 2
 if [ -d "$plan" ] || [ ! -r "$plan" ]; then echo "plan-state: cannot read $plan" >&2; exit 2; fi
@@ -47,10 +48,15 @@ function inl(key, v,   n, i, a) {
   n = split(v, a, ","); for (i = 1; i <= n; i++) addlist(key, a[i])
 }
 function yamlline(l,   k, v) {
-  if (match(l, /^[ \t]+-[ \t]*/)) { if (ylist != "") addlist(ylist, stripc(substr(l, RLENGTH + 1))); return }
+  if (match(l, /^[ \t]+-[ \t]*/)) {
+    if (ylist == "tests") { raw = substr(l, RLENGTH + 1); sub(/[ \t\r]+$/, "", raw); nte[cur]++; traw[cur, nte[cur]] = raw; return }   # literal: no comment, no quotes
+    if (ylist != "") addlist(ylist, stripc(substr(l, RLENGTH + 1)))
+    return
+  }
   if (match(l, /^[A-Za-z_][A-Za-z0-9_]*:/)) {
     k = substr(l, 1, RLENGTH - 1); v = trim(stripc(substr(l, RLENGTH + 1))); ylist = ""
     has[cur, k] = 1
+    if (k == "tests") { if (v != "") tline[cur] = 1; else ylist = "tests"; return }
     if (k == "depends_on" || k == "files") { if (v == "") ylist = k; else inl(k, v); return }
     val[cur, k] = unq(v)
     if (k == "status") stl[cur] = FNR
@@ -58,7 +64,7 @@ function yamlline(l,   k, v) {
   }
 }
 function err(msg) { print "plan-state: " msg | "cat 1>&2" }
-function viol(rule, msg) { print "plan-state: rule " rule ": " msg; bad = 1 }
+function viol(rule, msg) { if (MODE == "tests") err("rule " rule ": " msg); else print "plan-state: rule " rule ": " msg; bad = 1 }
 function inset(v, set) { return index(" " set " ", " " v " ") > 0 }
 function st(t) { return (t in newst) ? newst[t] : val[t, "status"] }
 
@@ -85,6 +91,50 @@ function ancestors(   i, t, j, d, u, a) {
       for (a = 1; a <= nt; a++) if ((u, a) in anc) anc[t, a] = 1 } }
 }
 
+# Rule 16, one task: split a raw tests entry into TF (file, ./ removed) and TC (case); 0 when it does not split.
+function tsplit(raw,   i) {
+  i = index(raw, " :: "); if (!i) return 0
+  TF = trim(substr(raw, 1, i - 1)); while (substr(TF, 1, 2) == "./") TF = substr(TF, 3)
+  TC = trim(substr(raw, i + 4))
+  return TF != "" && TC != ""
+}
+# Returns how many rule 16 checks fail for task t; prints the lines only when say is 1.
+function r16task(t, say,   e, n, k, seen, j, inf) {
+  n = 0; k = val[t, "id"]
+  if (tline[t]) { n++; if (say) viol(16, k " tests must be a block list") }
+  for (e = 1; e <= nte[t]; e++) {
+    if (!tsplit(traw[t, e])) { n++; if (say) viol(16, k " tests entry \"" traw[t, e] "\" is not \"<file> :: <case>\""); continue }
+    inf = 0; for (j = 1; j <= nf[t]; j++) if (fil[t, j] == TF) inf = 1
+    if (!inf) { n++; if (say) viol(16, k " test file " TF " is not in its files:") }
+    if ((TF SUBSEP TC) in seen) { n++; if (say) viol(16, k " tests entry \"" traw[t, e] "\" is repeated") }
+    seen[TF SUBSEP TC] = 1
+  }
+  return n
+}
+# Returns how many plan-level rule 16 checks fail; prints the lines only when say is 1.
+function r16plan(say,   n) {
+  n = 0
+  if (("test_command" in fmset) && index(fm["test_command"], "{file}") == 0) { n++; if (say) viol(16, "test_command has no {file}") }
+  if (("test_pass_prefix" in fmset) && fm["test_pass_prefix"] == "") { n++; if (say) viol(16, "test_pass_prefix is empty") }
+  if (("test_fail_prefix" in fmset) && fm["test_fail_prefix"] == "") { n++; if (say) viol(16, "test_fail_prefix is empty") }
+  return n
+}
+
+# plan-state tests: print what verify-tests needs about task TID. Nothing reaches stdout until every check has passed.
+function testsout(   n, t, u, e, j, cmdv, pv, fv) {
+  n = 0; for (t = 1; t <= nt; t++) if (val[t, "id"] == TID) { n++; u = t }
+  if (n != 1) { err(n ? "id " TID " is not unique; run: plan-state check" : "no task with id " TID); exit 2 }
+  if (r16plan(0)) { r16plan(1); exit 2 }
+  if (r16task(u, 0)) { err(TID " has a bad tests entry; run: plan-state check"); exit 2 }
+  cmdv = ("test_command" in fmset) ? fm["test_command"] : "bash {file}"
+  pv = ("test_pass_prefix" in fmset) ? fm["test_pass_prefix"] : "PASS: "
+  fv = ("test_fail_prefix" in fmset) ? fm["test_fail_prefix"] : "FAIL: "
+  print "base " (has[u, "base_sha"] ? val[u, "base_sha"] : "-")
+  print "command " cmdv; print "pass " pv; print "fail " fv
+  for (j = 1; j <= nf[u]; j++) print "file " fil[u, j]
+  for (e = 1; e <= nte[u]; e++) { tsplit(traw[u, e]); print "test " TF "\t" TC }
+}
+
 function check(   t, k, i, j, f, a, b, v, list, owners, seen, own, hint, n) {
   if (nt == 0) viol(5, "no \"## Task:\" sections found")
   if (!ms) print "plan-state: format: no mermaid block (run: plan-state render)"; if (!ms) bad = 1
@@ -103,7 +153,11 @@ function check(   t, k, i, j, f, a, b, v, list, owners, seen, own, hint, n) {
     if (has[t, "review_mode"] && !inset(val[t, "review_mode"], "merged split")) viol(9, k " review_mode is " val[t, "review_mode"])
     v = val[t, "review_rounds"]
     if (has[t, "review_rounds"] && (v !~ /^[0-9]+$/ || v + 0 > CAP)) viol(15, k " review_rounds is " v)
+    r16task(t, 1)
+    v = val[t, "base_sha"]
+    if (has[t, "base_sha"] && (v !~ /^[0-9a-f]+$/ || length(v) < 7 || length(v) > 40)) viol(17, k " base_sha is " v)
   }
+  r16plan(1)
   split("default_model_hint default_spec_reviewer_hint default_quality_reviewer_hint", hint, " ")
   for (i = 1; i <= 3; i++) if ((hint[i] in fmset) && !inset(fm[hint[i]], "cheap standard opus")) viol(8, hint[i] " is " fm[hint[i]])
   if (("default_review_mode" in fmset) && !inset(fm["default_review_mode"], "merged split")) viol(10, "default_review_mode is " fm["default_review_mode"])
@@ -373,7 +427,9 @@ emitting {
     print l; next }
   if (RRID != "" && !rrl[ru] && FNR == stl[ru]) { print; ind = $0; sub(/[^ \t].*$/, "", ind)
     print ind "review_rounds: " RRVAL (($0 ~ /\r$/) ? "\r" : ""); next }
-  for (t = 1; t <= nt; t++) if (FNR == stl[t] && (t in newst)) { l = $0; sub(/status:[ \t]*[A-Za-z]+/, "status: " newst[t], l); print l; next }
+  for (t = 1; t <= nt; t++) if (FNR == stl[t] && (t in newst)) { l = $0; sub(/status:[ \t]*[A-Za-z]+/, "status: " newst[t], l); print l
+    if (BASESHA != "" && val[t, "id"] == SETID) { ind = $0; sub(/[^ \t].*$/, "", ind); print ind "base_sha: " BASESHA (($0 ~ /\r$/) ? "\r" : "") }
+    next }
   print
   if (FNR == fmend && !ms) { print EOL; mermaid() }
   next
@@ -384,6 +440,8 @@ END {
   graph()
   if (MODE == "check") { check(); exit bad }
   if (MODE == "round") { round(); exit }
+  if (MODE == "tests") { testsout(); exit }
+  if (MODE == "setq") { apply(); u = idx[SETID]; print (has[u, "base_sha"] ? 1 : 0) " " (nte[u] > 0 ? 1 : 0); exit }
   if (MODE == "pfpaths") { pfpaths(); exit }
   if (MODE == "preflight") { preflight(); exit }
   if (MODE == "ready") { ready(); exit }
@@ -459,7 +517,7 @@ emit() {  # rewrite the plan in place; keep its mode by writing through it
   tmpf=$(mktemp) || exit 2
   # BINMODE=3 on this call only: MSYS gawk reads in text mode and drops the CR, BINMODE=3
   # keeps the bytes, and other awks treat it as an unused variable.
-  if awk -v BINMODE=3 -v MODE=emit -v CAP="$CAP" -v SETID="${1:-}" -v SETST="${2:-}" -v RRID="${3:-}" -v RRVAL="${4:-}" \
+  if awk -v BINMODE=3 -v MODE=emit -v CAP="$CAP" -v SETID="${1:-}" -v SETST="${2:-}" -v RRID="${3:-}" -v RRVAL="${4:-}" -v BASESHA="${5:-}" \
        "$PROG" "$plan" "$plan" > "$tmpf"; then
     if ! { cat "$tmpf" > "$plan"; } 2>/dev/null; then
       rm -f "$tmpf"; echo "plan-state: cannot write $plan" >&2; exit 2
@@ -520,6 +578,7 @@ case "$cmd" in
   charter) [ "$#" -eq 0 ] || usage; awk -v MODE=check "$CPROG" "$plan" ;;
   ready)  awk -v MODE=ready "$PROG" "$plan" ;;
   tree)   awk -v MODE=tree "$PROG" "$plan" ;;
+  tests)  [ "$#" -eq 1 ] || usage; awk -v MODE=tests -v TID="$1" -v CAP="$CAP" "$PROG" "$plan" ;;
   render) [ "$#" -eq 0 ] || usage; emit ;;
   round)
     [ "$#" -eq 1 ] || usage
@@ -530,6 +589,20 @@ case "$cmd" in
   set)
     [ "$#" -eq 2 ] || usage
     case "$2" in pending|ready|running|done|failed|skipped) ;; *) echo "plan-state: unknown status $2" >&2; exit 2 ;; esac
-    emit "$1" "$2" ;;
+    base=""
+    if [ "$2" = running ]; then
+      # The checks in apply() run first, so an illegal move is refused before git is called.
+      # The answer is "<has base_sha> <has tests>".
+      q=$(awk -v MODE=setq -v SETID="$1" -v SETST="$2" -v CAP="$CAP" "$PROG" "$plan") || exit "$?"
+      case "$q" in
+        "0 "*) base=$(git -C "$(dirname -- "$plan")" rev-parse HEAD 2>/dev/null) || base=""
+               case "$base" in *[!0-9a-f]*) base="" ;; esac
+               [ "${#base}" -eq 40 ] || base=""
+               if [ -z "$base" ] && [ "${q#0 }" = 1 ]; then
+                 echo "plan-state: refused $1: cannot read HEAD for base_sha" >&2; exit 2
+               fi ;;
+      esac
+    fi
+    emit "$1" "$2" "" "" "$base" ;;
   *) usage ;;
 esac

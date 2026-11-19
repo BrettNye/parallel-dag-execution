@@ -66,7 +66,7 @@ different document.
 ## Two reference docs you MUST read first
 
 - **`./plan-format.md`** — canonical *structural* contract: top-of-file layout, per-task frontmatter schema (`id`, `depends_on`, `files`, `status`, `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`, `single_threaded`, `is_wiring_task`, `review_mode`), plan-level defaults (`default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint`, `default_review_mode`), §Tier resolution, §Review-mode resolution, status semantics, structural validation rules, mermaid block spec, ASCII tree spec.
-- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H11, refuse on violation) and soft heuristics (S1-S16 and S18, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, best-practice signals, and — S12-S15 — whether each acceptance criterion can actually **fail**.
+- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H11, refuse on violation) and soft heuristics (S1-S18, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, best-practice signals, and — S12-S15 — whether each acceptance criterion can actually **fail**.
 
 Every plan you author must pass BOTH structural validation AND quality validation. Structural validation catches "the file is malformed"; quality validation catches "the decomposition is sloppy."
 
@@ -141,6 +141,8 @@ files a cleanup task, the cleanup itself misses more files (Round 2), and
 the cycle repeats. Three rounds isn't uncommon for symbol bumps that
 permeate test fixtures. Pre-DAG grep kills the entire failure mode.
 
+3.6. **Name the tests that prove each task.** For each acceptance criterion a test can check, add a `tests:` entry to the task's YAML block: `<file> :: <case>`, where `<file>` is the suite file (it must be in the task's `files:`) and `<case>` is the name the task's new case will print, exactly. Block form only, one entry per `  - ` line. The executor's `verify-tests` checks each named case from committed work: red before the task's change, green after. A name must be unique in its file. If the suite already prints a case by that name (this repo's suites repeat `exit 0`), pick another name or make renaming the existing case part of the task. Criteria that cannot be tests stay prose; S17 warns about a test-like criterion left without an entry.
+
 4. **Build dependency edges.** Two sources:
    - **Logical:** task B requires task A's output (e.g., B uses a function A defined). User-declared.
    - **File-scope:** any two tasks sharing a `files:` entry MUST have a directed path between them. If the user-declared `depends_on:` doesn't already provide one, inject a serializing edge yourself.
@@ -211,7 +213,7 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
 
 7. **Run quality validation** per `plan-quality.md`:
    - Hard rules H1-H11 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence (`## Contracts` under `implementation: contracts-only`), import resolution, contract-sequencing, missing-producer index, bare-spec-pointer). Any failure → refuse, name the rule + task + fix, exit.
-   - Soft heuristics S1-S16 and S18 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch, review-mode sense-check, unanchored cross-cut contract, **crash-passing absence criterion, tautological criterion, quantifier mismatch, diff-property criterion, rendered-output change with no verification owner, prompt reads an input its reader is never given**). Collect as warnings.
+   - Soft heuristics S1-S18 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch, review-mode sense-check, unanchored cross-cut contract, **crash-passing absence criterion, tautological criterion, quantifier mismatch, diff-property criterion, rendered-output change with no verification owner, test-like criterion with no named test, prompt reads an input its reader is never given**). Collect as warnings.
    - S12-S15 are the acceptance-criteria falsifiability set. H4 only checks that criteria *exist*; these ask whether they can **fail**. They are the cheapest place to catch the defect class that most often survives into rework, so do not skip them on the grounds that a lens will find it later — a rule here runs free, a `verifiability` lens dispatch does not.
 
 8. **Decomposition-principles audit (LLM-judgment pass).** Re-read the full plan with fresh eyes and check it against the seven principles below. This step is judgment-driven — the mechanical rules in step 7 catch structural violations; this step catches *holistic* decomposition smells across the whole plan. Surface concerns as warnings (not refusals); the user confirms or revises.

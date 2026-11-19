@@ -220,7 +220,7 @@ digraph auditing_artifacts {
 
    ### What a gate-2 lens adds over `writing-dag-plans`' own validation
 
-   A plan authored by `writing-dag-plans` has already passed H1–H11, S1–S16, structural
+   A plan authored by `writing-dag-plans` has already passed H1–H11, S1–S18, structural
    validation, and its step-8 decomposition audit. Those overlap the plan lenses
    unevenly, so an author narrowing the set should know which lenses are genuinely
    additive:

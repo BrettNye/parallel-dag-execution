@@ -184,6 +184,7 @@ that check actually catch failure?
 For every task, find the stated completion check, then attack it:
 
 - **No observable check at all** — "done when implemented" is not a check.
+- **Named tests** — a task's `tests:` entries (`<file> :: <case>`) are checked by script at execution: red before the task's change, green after. A criterion with a `tests:` entry is verifiable when the entry names a case the task's own text says it will write. Flag an entry whose case name appears nowhere in the task's text (body, implementation sketch or acceptance criteria): the implementer has nothing telling it to write that case, so the check fails or tests something else. The script cannot judge whether the case tests its criterion; the other attacks in this list still apply to it.
 - **Tautological** — asserting a constant against the same constant the
   implementer will type.
 - **Passes on a crash** — "no row written", "field is undefined", "does not call
