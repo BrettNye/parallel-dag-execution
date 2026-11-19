@@ -16,6 +16,7 @@ The quality reviewer MUST receive:
 - This task's body (for context only — quality issues are not graded against the spec).
 - This task's `files:` list.
 - The git commit SHA produced by the implementer (the spec-approved version).
+- The implementer's red-to-green report (the RED-THEN-GREEN field from their DONE / DONE_WITH_CONCERNS report).
 
 ## Prompt template
 
@@ -23,7 +24,8 @@ The quality reviewer MUST receive:
      (1) stable preamble (role: quality review, independent of spec; spec reviewer already approved);
      (2) project conventions (if any); (3) output spec (APPROVED / ISSUES w/ severity format);
      (4) task spec (id, files); (5) task body (context only — NOT for compliance);
-     (6) implementation under review (commit SHA + git show); (7) re-dispatch addenda.
+     (6) implementation under review (commit SHA + git show);
+     (7) implementer's red-to-green report; (8) re-dispatch addenda.
      If the Agent tool later exposes `cache_control`, the breakpoint goes after section 3 — no re-architecture needed. -->
 
 ```
@@ -39,10 +41,42 @@ Use `superpowers:requesting-code-review` (auto-loaded for you via the `skills:` 
 Do NOT flag missing/extra requirements — that was the spec reviewer's job.
 Do NOT propose unrelated refactoring — stay within `files:` and within what was changed.
 
+## Project conventions
+
+{contents of repo's CLAUDE.md, if any, or "(none found)"}
+
+Charter sections for your role — reviewers: Enforcement map; Hard invariants;
+Recurring bug classes; Verification commands (verbatim, not summarized; matches
+`../auditing-artifacts/audit-charter-template.md` § Who reads what row for row):
+{charter_sections_for_role}
+{if no audit charter file exists in the repo: "(none found — proceed; do not substitute generic best practice)"}
+
+Citation freshness for the entries above:
+{charter_citation_table}
+{if the citation pre-pass (resolve-declared-paths) did not run or failed: "(citation pre-pass did not run — treat the charter entries above as unverified)"}
+An entry marked SUSPECT, MOVED or GONE may be stale — where a charter entry and
+the code disagree, the code wins. This is context for the review you already
+own; it does not widen what you may flag.
+
 ## Output
 
 - **APPROVED** — quality is solid. Suggestion-severity issues do NOT block approval; flag them but APPROVE.
 - **ISSUES** — list each as: "Severity: Important | Location: file:line | Issue: ... | Fix: ...". Important issues block approval; the implementer will be re-dispatched.
+
+End the report with one line that holds the verdict and nothing else: `VERDICT: APPROVED` or `VERDICT: ISSUES`. The executor reads only that line. Decide before you write it. If you list an issue and then find it is not one, mark it `withdrawn:` where it stands. An APPROVED line must not follow an Important issue you have not withdrawn.
+
+### Red-to-green evidence
+
+The implementer's red-to-green report (below) names a failing assertion — or,
+for tasks with no automated test framework, the exact acceptance check that
+failed — and its failure message or output. Confirm the named assertion/check
+exists in the diff and could have failed as reported. Missing, or incoherent
+with the diff, is ISSUES — a check that never failed proves nothing about
+what it guards.
+
+**Escalation:** where the task's stated value IS the guard (a regression
+test, a security assertion), run the mutation yourself rather than reading
+the report — then revert it after confirming the fail/pass pair.
 
 ## Task spec
 
@@ -59,6 +93,10 @@ Files reviewed (read ONLY these):
 Commit SHA: {commit_sha}
 
 Inspect the diff with: `git show {commit_sha} -- {space-separated task.files}`
+
+## Implementer's red-to-green report
+
+{red_to_green_report}
 ```
 
 ## Agent invocation example
@@ -76,7 +114,7 @@ Agent({
 
 ## Re-dispatch on implementer fix
 
-When ISSUES are reported, the implementer fixes them and re-commits. Re-dispatch the quality reviewer with the new commit SHA. Fresh review on the new diff.
+When ISSUES are reported, run `plan-state round` first (see Review-round cap in SKILL.md). Only on exit 0 does the implementer fix them and re-commit; then re-dispatch the quality reviewer with the new commit SHA. Fresh review on the new diff.
 
 ## Approval criteria
 
@@ -85,6 +123,7 @@ When ISSUES are reported, the implementer fixes them and re-commits. Re-dispatch
 - Tests verify behavior at the public interface, not internal implementation.
 - No magic numbers, hardcoded paths, or hidden coupling that will surprise the next reader.
 - Code is at least as readable as it was before the diff.
+- **Red-to-green evidence present and coherent** — enforced in the prompt template's `## Output → Red-to-green evidence` subsection above; see that section for the exact rule and escalation clause.
 
 Once the quality reviewer reports APPROVED, the executor:
 

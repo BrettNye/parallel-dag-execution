@@ -28,6 +28,8 @@ Return TWO verdicts:
 
 The task passes only if BOTH verdicts are APPROVED.
 
+End the report with two lines and nothing after them: `SPEC: APPROVED` or `SPEC: ISSUES`, then `QUALITY: APPROVED` or `QUALITY: ISSUES`. The executor reads only those lines. Decide before you write them. If you list an issue and then find it is not one, mark it `withdrawn:` where it stands. An APPROVED line must not follow a blocking issue of its kind that you have not withdrawn.
+
 ## Hard rules
 
 - Read only files in the task's `files:` list.

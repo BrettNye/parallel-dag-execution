@@ -1,0 +1,58 @@
+PASS mawk tests/commit-safe/concurrent-commit.test.sh
+PASS mawk tests/commit-safe/stale-lock.test.sh
+FAIL mawk tests/plan-state/plan-state.test.sh
+      PASS: negated then plain: P1
+      PASS: path before verb: silent
+      PASS: verb on the line above: silent
+      PASS: verb in a code block: P1
+      PASS: contains a verb 'See the changelog in': silent
+      PASS: contains a verb 'Open the editor at': silent
+      PASS: contains a verb 'The preupdate hook reads': silent
+      PASS: declared path: silent
+    tests/plan-state/plan-state.test.sh: line 732: rg: command not found
+    tests/plan-state/plan-state.test.sh: line 732: passes + : syntax error: operand expected (error token is "+ ")
+    tests/plan-state/plan-state.test.sh: line 733: rg: command not found
+    tests/plan-state/plan-state.test.sh: line 733: fails + : syntax error: operand expected (error token is "+ ")
+      PASS: P1 under dash
+      PASS: T25 under awk mawk gives the same output
+    RESULT: 121 passed, 0 failed
+PASS mawk tests/resolve-declared-paths/resolve-declared-paths.test.sh
+PASS gawk tests/commit-safe/concurrent-commit.test.sh
+PASS gawk tests/commit-safe/stale-lock.test.sh
+FAIL gawk tests/plan-state/plan-state.test.sh
+      PASS: negated then plain: P1
+      PASS: path before verb: silent
+      PASS: verb on the line above: silent
+      PASS: verb in a code block: P1
+      PASS: contains a verb 'See the changelog in': silent
+      PASS: contains a verb 'Open the editor at': silent
+      PASS: contains a verb 'The preupdate hook reads': silent
+      PASS: declared path: silent
+    tests/plan-state/plan-state.test.sh: line 732: rg: command not found
+    tests/plan-state/plan-state.test.sh: line 732: passes + : syntax error: operand expected (error token is "+ ")
+    tests/plan-state/plan-state.test.sh: line 733: rg: command not found
+    tests/plan-state/plan-state.test.sh: line 733: fails + : syntax error: operand expected (error token is "+ ")
+      PASS: P1 under dash
+      PASS: T25 under awk mawk gives the same output
+    RESULT: 121 passed, 0 failed
+PASS gawk tests/resolve-declared-paths/resolve-declared-paths.test.sh
+PASS busybox tests/commit-safe/concurrent-commit.test.sh
+PASS busybox tests/commit-safe/stale-lock.test.sh
+FAIL busybox tests/plan-state/plan-state.test.sh
+      PASS: negated then plain: P1
+      PASS: path before verb: silent
+      PASS: verb on the line above: silent
+      PASS: verb in a code block: P1
+      PASS: contains a verb 'See the changelog in': silent
+      PASS: contains a verb 'Open the editor at': silent
+      PASS: contains a verb 'The preupdate hook reads': silent
+      PASS: declared path: silent
+    tests/plan-state/plan-state.test.sh: line 732: rg: command not found
+    tests/plan-state/plan-state.test.sh: line 732: passes + : syntax error: operand expected (error token is "+ ")
+    tests/plan-state/plan-state.test.sh: line 733: rg: command not found
+    tests/plan-state/plan-state.test.sh: line 733: fails + : syntax error: operand expected (error token is "+ ")
+      PASS: P1 under sh
+      PASS: T25 under awk busybox gives the same output
+    RESULT: 121 passed, 0 failed
+PASS busybox tests/resolve-declared-paths/resolve-declared-paths.test.sh
+HIDDEN CHECK: 9 passed, 3 failed

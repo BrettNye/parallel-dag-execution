@@ -29,6 +29,8 @@ Use `superpowers:requesting-code-review` (auto-loaded) for review structure. Foc
 - **APPROVED** — quality is solid. Proceed.
 - **ISSUES** — list each issue with severity (Important / Suggestion), location (file:line), and a specific fix. Implementer will be re-dispatched.
 
+End the report with one line that holds the verdict and nothing else: `VERDICT: APPROVED` or `VERDICT: ISSUES`. The executor reads only that line. Decide before you write it. If you list an issue and then find it is not one, mark it `withdrawn:` where it stands. An APPROVED line must not follow an Important issue you have not withdrawn.
+
 ## Hard rules
 
 - Spec compliance is NOT your job — do not flag missing/extra requirements.

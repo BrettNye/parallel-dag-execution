@@ -1,0 +1,27 @@
+session 4663f9ee-be50-48f1-8043-879cd4e0ae97  result success  cli cost $13.21
+**Verdict: NOT READY, 1 blocking.** Round 1 had 3 blockers; this round has 1. All eight lenses ran in one dispatch and the reconciler merged them. I did not fix anything and did not commit.
+
+## The blocking finding
+
+**R2-B1 (task-round): the test for CRLF files can never pass on this machine.** The plan says the new `round` command must keep CRLF line endings, and its acceptance criterion checks that every line, including the one it inserts, still ends in `\r`.
+
+- **Why it fails:** the gawk here (MSYS 5.4.1) drops `\r` when it reads a file. So the write-back the plan prescribes produces plain LF, and the inserted line copies its line ending from text that has already lost the `\r`.
+- **The test fails too:** the suite's `has` helper uses grep, and the plan's extraction step uses plain awk. Both drop `\r`, so the test would fail even on a correct file.
+- **Evidence:** the reconciler ran a 382-line CRLF plan through `plan-state render`: 382 `\r` went in and 0 came out. With `-v BINMODE=3` on the write-back awk call, all 382 survived. I re-ran a minimal version myself and got the same result.
+- **Why it blocks:** task-round is the only task nothing else waits on. If it ends BLOCKED, the other nine tasks are all skipped.
+- **Where it came from:** this text has been in task-round since the first draft. Round 1's fixes didn't create it; round 1 had marked this case sound without running it.
+
+**Required fix (cluster R):** about 5 lines, all inside task-round, with no new tasks, files or dependencies.
+1. Add `-v BINMODE=3` to the write-back awk call only.
+2. In the CRLF test, check bytes with tools that keep `\r`: `tr -cd '\r' | wc -c` compared against `wc -l`, and `head | tail` or `awk -v BINMODE=3` to pull out the inserted line. Don't use grep, sed, plain awk or `has` there.
+
+## Other results
+
+- **Downgraded:** grounding and coherence both called the negated-verb bug in the edit-verb check (P1) blocking. The reconciler made it deferred: it is the same evidence as round 1's D2, and it would show up as a plain test failure inside its own task.
+- **Recommended, not required:** fixes to the preflight awk (including that `preflight()` never calls `ancestors()`), stating the test fixture's dependencies and expected exit codes, and a test for the mawk and busybox check (EU-A) that can't pass without actually settling it.
+- **Deferred:** 9 new low-severity findings, plus round 1's D1, D2, D4, D6, D7, D13 and D14. Round 1's fixes A.1–A.4 and B.1 did land; those items did not.
+- **Still unknown (EU-A):** whether the new awk works under mawk and busybox awk. Neither is installed here. It now also covers whether those two accept `BINMODE`, and whether busybox exits 1 on a runtime error, which `round` would read as "cap reached".
+
+## What was written
+
+- **Plan:** I appended a round-2 entry to `## Audit record` in `docs/superpowers/plans/2026-11-12-preflight-and-review-cap-dag.md`. The content hash stays `715f04941246` with the entry added, so the next audit can tell

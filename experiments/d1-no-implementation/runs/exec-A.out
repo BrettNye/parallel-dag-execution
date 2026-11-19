@@ -1,0 +1,2 @@
+Background tasks still running 10m after the last turn (subagent "Implement task-preflight-declared", shell "cd /c/Users/Brett/workspace/scratch/pde-d1-a; f=tests/plan-s", shell "cd /c/Users/Brett/workspace/scratch/pde-d1-a; cat > "$TMPDIR"); stopping them. Set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 to wait indefinitely.
+session 71f8e280-5d12-4547-8f81-67cfb0544089  result success  cli cost $4.68  turns 3

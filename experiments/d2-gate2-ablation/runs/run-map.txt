@@ -1,0 +1,6 @@
+none-1 8da8a8 d2/run-8da8a8 /c/Users/Brett/d2-runs/pde-d2-run-8da8a8
+round1-1 f2f843 d2/run-f2f843 /c/Users/Brett/d2-runs/pde-d2-run-f2f843
+full-1 5775ec d2/run-5775ec /c/Users/Brett/d2-runs/pde-d2-run-5775ec
+none-2 962d94 d2/run-962d94 /c/Users/Brett/d2-runs/pde-d2-run-962d94
+round1-2 9864cd d2/run-9864cd /c/Users/Brett/d2-runs/pde-d2-run-9864cd
+full-2 61cd84 d2/run-61cd84 /c/Users/Brett/d2-runs/pde-d2-run-61cd84

@@ -1,0 +1,36 @@
+session 79856bac-249b-4ea7-9342-8106f9b0679c  result success  cli cost $11.94
+## Gate 2 verdict: NOT READY, 4 blocking
+
+All eight lenses ran in one dispatch, and the reconciler merged their findings; the plan had no earlier audit, so they covered all of it. The lenses proposed 10 blocking findings between them. After duplicates were merged, 4 remain. I checked the lines cited for B1 and B4 against the plan, and they say what the reconciler reports.
+
+### Blocking
+
+1. **B1 · task-updater never states the refusal rule** (plan L669-677, L696-699).
+   - The acceptance criteria ask the step 5 paragraph to state "both refusal conditions", but the task never says what they are.
+   - The spec's rule (L146-150) has three parts: an error on a task the update changed refuses it; so does an error the plan didn't have before; everything else is shown with the existing soft warnings.
+   - The paragraph being edited currently says any output is a refusal. Every guess the implementer could make is wrong, and the reviewer, who sees only the task body, can't catch it.
+   - Raised by coverage, context-sufficiency and ambiguity.
+
+2. **B2 · task-exec-cap drops the spec's exit-1 rule** (L532-538).
+   - The spec (L176-179) says that when `round` exits 1, the line it printed becomes the failure reason in the final report and is not stored in the plan. The task omits this.
+   - Without it, a task failed by the cap looks like any other failure. An implementer who adds it anyway can be sent back for over-building.
+   - Raised by coverage and context-sufficiency.
+
+3. **B3 · task-exec-cap never defines a fix round** (L533-534).
+   - Only task-round defines it, and this implementer never sees that task.
+   - The plan's default review mode is `merged`, and a merged review returns two verdicts. If both are ISSUES, `round` gets called twice for one re-dispatch, so the task is failed one round early. That failure is permanent and blocks everything downstream of it.
+   - Raised by ambiguity. Context-sufficiency had it as deferred; the reconciler promoted it.
+
+4. **B4 · task-preflight-declared has an acceptance criterion that can't be met** (L397).
+   - It asks for "P2 prints before P3" on one path, but by the plan's own definitions those two checks never fire on the same path.
+   - The order that can actually happen, P3 before P4, goes untested.
+   - Raised by grounding, verifiability and ambiguity.
+
+### Fixes the reconciler recommends
+- **J1** fixes B2 and B3 in one rewrite of task-exec-cap.
+- **J2** fixes B1 by copying the spec's three-part rule into task-updater.
+- **J3** fixes B4 by replacing the L397 criterion with a P3-before-P4 case.
+- Together they add about 35 lines and no new tasks, files or dependency edges.
+
+### Also opened
+- **Awk portability is untested.** Verifiability called it blocking; charter called it deferred. The reconciler made it an open question to settle by running the tests. Its fix is an acceptance criterion: the four plan-state tasks rerun their new cases under mawk or busybox awk, or under a `gawk --posix` stand-in that prints w

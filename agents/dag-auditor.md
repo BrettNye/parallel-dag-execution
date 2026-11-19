@@ -35,7 +35,10 @@ padding your output makes the reconciler's job harder, not easier.
 
 ## Charter: the repo's own rules
 
-Before auditing, establish what this repo actually requires. Read, in order:
+Before auditing, establish what this repo actually requires. "Charter" here
+means these repo rules. It is not the superspec charter that `writing-dag-plans`
+writes when a spec fans out into several plans; that document is always named in
+full. Read, in order:
 
 1. Root `CLAUDE.md` / `AGENTS.md`, plus any nested one in a directory the
    artifact touches.

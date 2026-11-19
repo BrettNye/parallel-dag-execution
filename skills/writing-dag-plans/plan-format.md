@@ -22,9 +22,17 @@ Example skeleton:
 ---
 title: my-feature
 created: 2026-05-02
+spec: docs/superpowers/specs/2026-05-02-my-feature-design.md  # OPTIONAL. Single file path to the design this plan implements. A superspec charter when the design spans files. Never a directory — a directory cannot be diffed against a claim. An unresolvable `spec:` refuses (does not warn).
+default_implementer: dag-implementer    # OPTIONAL. subagent_type fallback for tasks lacking `implementer:`. Resolution order: task.implementer, then default_implementer, then dag-implementer.
+parent: docs/superpowers/specs/2026-05-01-platform-charter.md  # OPTIONAL. The superspec charter this plan is a child of. Set together with `child:`.
+child: api                              # OPTIONAL. This plan's id in the parent charter's `children:` list.
+implementation: full                    # OPTIONAL. full | contracts-only. Default full. EXPERIMENTAL (D1 experiment): contracts-only replaces each task's ## Implementation with ## Contracts. See "Contracts-only plans".
 default_model_hint: standard            # OPTIONAL. cheap | standard | opus. Default `standard`. Implementer tier.
 default_spec_reviewer_hint: standard    # OPTIONAL. cheap | standard | opus. Default `standard`.
 default_quality_reviewer_hint: standard # OPTIONAL. cheap | standard | opus. Default `standard`.
+test_command: bash {file}       # OPTIONAL. Default: bash {file}. Every {file} becomes the test file, single-quoted; runs as sh -c from the repository root.
+test_pass_prefix: "PASS: "      # OPTIONAL. Default "PASS: ". Quote it to keep the trailing space.
+test_fail_prefix: "FAIL: "      # OPTIONAL. Default "FAIL: ". A fail line may go on with " (" and detail.
 ---
 
 ```mermaid
@@ -78,6 +86,12 @@ All three `default_model_hint` / `default_spec_reviewer_hint` / `default_quality
 
 `default_review_mode: split` (OPTIONAL, `merged | split`, default `split`) sets the review mode for tasks lacking a per-task `review_mode`. Omitting it keeps `split` (today's two-call spec→quality chain).
 
+`spec:` (OPTIONAL) names a single file path to the design this plan implements — a superspec charter when the design spans files. It must be a single file, never a directory: a directory cannot be diffed against a claim. An unresolvable `spec:` (path does not exist) refuses rather than warns.
+
+`default_implementer:` (OPTIONAL, default `dag-implementer`) is the subagent_type fallback for tasks lacking a per-task `implementer:`. Resolution order: `task.implementer`, then `default_implementer`, then `dag-implementer` — matching the `default_*_hint` pattern documented above.
+
+`parent:` and `child:` (OPTIONAL, set together) place a plan inside a superspec charter: `parent:` is the charter's path and `child:` is this plan's id in the charter's `children:` frontmatter list. They are separate from `spec:`, which names the design this plan implements; for a charter child that is the child's own spec. A status board or a reader goes from charter to plans through `children:` and the Children table's `plan` column, and from a plan back to its charter through `parent:`.
+
 ## Per-task frontmatter schema
 
 Every `## Task: ...` heading is immediately followed by a YAML block:
@@ -88,20 +102,39 @@ depends_on: []         # REQUIRED. List of task ids this task depends on. [] = r
 files:                 # REQUIRED. Files this task creates or modifies.
   - path/to/file.ts
 status: pending        # REQUIRED. pending | ready | running | done | failed | skipped
-implementer: dag-implementer  # OPTIONAL. subagent_type to dispatch for this task. Defaults to dag-implementer. Use to route specialized tasks to persona-typed subagents (e.g., profile-charmeleon for backend, profile-gastly for tests). The named subagent must be available in the harness's agent registry at dispatch time.
+implementer: dag-implementer  # OPTIONAL. subagent_type to dispatch for this task. Falls back to `default_implementer`, then `dag-implementer`. Use to route specialized tasks to persona-typed subagents (e.g., profile-charmeleon for backend, profile-gastly for tests). The named subagent must be available in the harness's agent registry at dispatch time.
 model_hint: cheap             # OPTIONAL. cheap | standard | opus. Implementer model selection hint. Falls back to `default_model_hint`, then `standard`.
 spec_reviewer_hint: standard    # OPTIONAL. Spec reviewer tier. cheap | standard | opus. Falls back to default_spec_reviewer_hint, then `standard`.
 quality_reviewer_hint: standard # OPTIONAL. Quality reviewer tier. cheap | standard | opus. Falls back to default_quality_reviewer_hint, then `standard`.
 review_mode: merged    # OPTIONAL. merged | split. Falls back to default_review_mode, then `split`. `merged` runs one combined spec+quality reviewer instead of the two-call chain.
 single_threaded: false # OPTIONAL. If true, task forces dispatch tick to itself. Use for scope-less/exploratory tasks.
 is_wiring_task: false  # OPTIONAL. If true, plan-quality.md H3 (single-subsystem in files:) is bypassed. Use only for tasks whose explicit purpose is to wire two subsystems together; should depend_on the tasks producing each side.
+review_rounds: 0       # OPTIONAL. Whole number 0-3. Fix rounds so far: re-dispatches of the implementer after a reviewer's ISSUES verdict. Absent = 0. Written by `plan-state round`; nothing lowers it.
+tests:                 # OPTIONAL. Block list only. Each entry "<file> :: <case>": the test cases that prove this task. <file> must be in files:. Checked by verify-tests.
+  - tests/plan-state/plan-state.test.sh :: round on "2" counts to 3
+base_sha: 1f3c9e0      # Written by plan-state set ... running, the first time only. Never hand-edited.
 ```
 
 ### Mixing implementers in a single plan
 
-When a plan has tasks for different specialized subagents, set `implementer:` per task. Example: a plan with backend tasks for `profile-charmeleon` and test-infrastructure tasks for `profile-gastly` declares each accordingly. The executor reads `implementer:` per dispatch and selects the subagent_type at runtime. Tasks without an `implementer:` field fall back to `dag-implementer`.
+When a plan has tasks for different specialized subagents, set `implementer:` per task. Example: a plan with backend tasks for `profile-charmeleon` and test-infrastructure tasks for `profile-gastly` declares each accordingly. The executor reads `implementer:` per dispatch and selects the subagent_type at runtime. Tasks without an `implementer:` field fall back to `default_implementer` (when set), then `dag-implementer`.
 
 The spec and quality reviewers (`dag-spec-reviewer`, `dag-quality-reviewer`) are persona-agnostic — they review the diff against the task spec and code quality regardless of which implementer wrote it. There's no per-task review override.
+
+### Named tests
+
+`tests:` names the test cases that prove a task, so the executor can check them instead of trusting a summary. It is a block list; each entry reads `<file> :: <case>`.
+
+- **Entry grammar.** The raw entry is taken literally. It is split at the first ` :: `. `<file>` is trimmed and a leading `./` is removed; `<case>` is trimmed. Two entries are the same when their normalised `(file, case)` pairs are equal. `<file>` must be listed in the task's `files:`.
+- **Unique case names.** A case name must be unique in its file: the test file prints one line per case, and the matcher finds a case by that line, so two cases with one name cannot be told apart.
+- **Matching rule.** The test file runs through `test_command` from the repository root. A case `passed` when a line equals `test_pass_prefix` followed by the case name. It `failed` when a line equals `test_fail_prefix` followed by the case name, optionally followed by ` (` and detail. It is `absent` when no line names it. It is `ambiguous` when its lines disagree, for example a pass line and a fail line, or the same line more than once.
+- **`base_sha`.** `plan-state set <plan> <id> running` writes `base_sha`, the commit the task started from, the first time only. A resume of the same task keeps the value it already has, so the red check always compares against the original start. Nobody edits it by hand.
+- **Labels.** `verify-tests` reports one label per entry:
+  - `ok` — the case fails (red) at `base_sha` and passes now.
+  - `ok-absent` — the case did not exist at `base_sha` (absent) and passes now.
+  - `not-red` — the case already passed at `base_sha`, so it proves nothing new.
+  - `not-green` — the case does not pass now (failed or absent).
+  - `ambiguous` — the case could not be matched to one result.
 
 ## Tier resolution
 
@@ -168,6 +201,15 @@ Tasks with `is_wiring_task: true` skip the `## Implementation` subsection. Their
 
 Wiring tasks MAY include a code block showing the import/registration shape but it is optional.
 
+### Contracts-only plans (experimental)
+
+A plan whose frontmatter sets `implementation: contracts-only` replaces each task's
+`## Implementation` with a `## Contracts` section. Contracts hold signatures only:
+function names and arguments, command usage, exit codes, output and file formats. No
+function bodies, no test code. Fenced code blocks are allowed for the signatures. The
+implementer decides how; the task states what must hold. Wiring tasks stay exempt.
+The mode exists for the D1 experiment and is not a default.
+
 ### Example task body (canonical structure)
 
 ````markdown
@@ -218,7 +260,7 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
 | `ready` | All deps `done`. Awaiting next dispatch tick. | Yes |
 | `running` | Implementer subagent is currently executing. | No |
 | `done` | Implementer finished AND spec/quality reviewers approved. | No |
-| `failed` | After auto-retry-once, still BLOCKED or repeatedly failed review. | No |
+| `failed` | After auto-retry-once, still BLOCKED; or a reviewer's fourth ISSUES verdict, after 3 fix rounds (rule 15); or a reviewer gave no single verdict twice. | No |
 | `skipped` | Cascaded from a `failed` ancestor. Will not run. | No |
 
 ## Validation rules (enforced by writing-dag-plans + updating-dag-plans)
@@ -233,8 +275,23 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
 8. **Plan-level default enum** — `default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint`, when present in frontmatter, MUST be one of `cheap | standard | opus`. Any other value → refuse with the field name and the bad value.
 9. **Per-task review-mode enum** — `review_mode`, when present on any task, MUST be `merged | split`. Any other value → refuse naming the task id, field, and bad value.
 10. **Plan-level review-mode enum** — `default_review_mode`, when present in frontmatter, MUST be `merged | split`. Any other value → refuse naming the field and bad value.
+11. **`spec:` file validity** — `spec:`, when present, MUST resolve to a readable single file, not a directory. Any other case → refuse, naming the field and the offending path.
+12. **`default_implementer` type check** — `default_implementer`, when present in frontmatter, MUST be a non-empty string. Any other value → refuse with the field name and the bad value.
+13. **`parent:` / `child:` placement** — when either is present, both MUST be present; `parent:` MUST resolve to a readable single file, and `child:` MUST appear in that file's `children:` frontmatter list. Any other case → refuse, naming the field and the offending value.
+14. **`implementation:` mode** — `implementation:`, when present in frontmatter, MUST be `full` or `contracts-only`. Under `contracts-only`, every task without `is_wiring_task: true` MUST have a `## Contracts` section and MUST NOT have a `## Implementation` section. Any other case → refuse, naming the field and its value, or the task and the section.
+15. **`review_rounds` count** — `review_rounds`, when present on any task, MUST be a whole number from 0 to 3. It counts fix rounds; absent means 0. `plan-state round <plan> <id>` raises it by one on a `running` task and refuses at 3 (exit 1), which is the review cap: the executor then marks the task `failed`. Any other value → refuse naming the task id, the field, and the bad value.
+16. **Named tests** — `tests:`, when present on a task, MUST be a block list of entries `<file> :: <case>`, each `<file>` MUST be in that task's `files:`, and no entry may repeat (after normalising). `test_command`, when present in frontmatter, MUST contain `{file}`. `test_pass_prefix` and `test_fail_prefix`, when present, MUST NOT be empty. Refusal lines:
+    - `rule 16: <id> tests entry "<entry>" is not "<file> :: <case>"`
+    - `rule 16: <id> test file <file> is not in its files:`
+    - `rule 16: <id> tests entry "<entry>" is repeated`
+    - `rule 16: <id> tests must be a block list`
+    - `rule 16: test_command has no {file}`
+    - `rule 16: test_pass_prefix is empty` (or `test_fail_prefix`)
+17. **`base_sha` shape** — `base_sha`, when present on any task, MUST be 7 to 40 lowercase hex characters. Any other value → `rule 17: <id> base_sha is <value>`.
 
-Rules #7–#10 use the same refusal-message format as rules 1–6.
+Rules #7–#17 use the same refusal-message format as rules 1–6.
+
+`plan-state check <plan>` (the script beside this file) enforces rules 1–5 and 7–17 and prints one line per violation; rule 6 needs the previous version of the plan and stays with `updating-dag-plans`. `plan-state round` counts a task's fix rounds against the cap of 3 (rule 15). `plan-state render` draws the mermaid block below and `plan-state tree` prints the ASCII tree, so both follow this spec exactly.
 
 ## Why `files:` is the load-bearing field
 
@@ -278,7 +335,7 @@ classDef skipped fill:#d3d3d3,stroke:#333,stroke-dasharray: 5 5
 After every save, both writing/updating skills print an ASCII tree to the terminal. The format:
 
 ```
-DAG: <N> tasks · <D> done · <F> failed · <S> skipped · <P> pending
+DAG: <N> tasks · <D> done · <R> running · <F> failed · <S> skipped · <P> pending
 
 [task-id] short title              <icon> <status>
    │

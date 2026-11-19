@@ -1,0 +1,26 @@
+session d5131635-9593-4846-9a22-1db374e2e0a9  result success  cli cost $11.51
+The gate-2 audit's verdict is **NOT READY, with 3 blocking findings.** All eight lenses ran and the reconciler merged their reports. All three blockers are in the `plan-state` chain, and fixing them means editing text inside existing tasks; no tasks, files or dependency edges need adding. As you asked, I didn't fix anything or commit.
+
+## Blocking findings
+
+1. **B1. `preflight` crashes on its first finding** (task-preflight-core, plan L326). `note()` stores messages in an array called `ms`. But `plan-state` already uses `ms` as a plain variable (the line where the mermaid block starts, plan-state:84, :223, :241-247), and every command shares one awk program. I reproduced it under gawk 5.4.1: `fatal: attempt to use scalar 'ms' as an array`, exit 2. Grounding and charter found it independently.
+
+2. **B2. `preflight` never finishes** (task-preflight-core L321-323; the same pattern is in task-preflight-edit L528-529). `cands()` reads the match position after calling `addc()`, but `addc()` → `norm()` runs its own `match()`, which overwrites that position. When a candidate has no `:N` suffix the loop never advances. I reproduced it: on `sed -n 4p lib/a.sh more` it adds `sed` over and over. Coherence proposed this as non-blocking; the reconciler made it blocking because a hang with no error message is worse to debug than B1's crash.
+
+3. **B3. One acceptance criterion can never be met** (task-preflight-declared, L484 and L427-429). It says "for one path that draws both P2 and P3 lines in a task, P2 prints first." But P2 only fires on an absent path another task declares, and P3's absent-path branch only fires when no task declares it, so the two never share a path. The implementer could only write an empty test or bend P3. It would loop on spec-review ISSUES until the review cap fails the task, and that failure would take the five tasks after it down too. Verifiability, coherence and ambiguity all found it.
+
+## Fixes the reconciler proposes (each meant to land as one change)
+
+- **A (B1 + B2):**
+  - Rename the message array, and list the names the shared awk program already uses.
+  - Save the match position in local variables before calling `addc`, in both the core task and the edit task. Fixing only the core task brings the bug back in the edit task.
+  - Give `addc` a prefix parameter.
+  - Resume scanning after a negated verb.
+  - Have `run_check` return its code instead of exiting.
+  - Pass `-v CAP` on the `check` call.
+- **B (B3):** Replace the impossible P2/P3 ordering criterion with a case that can actually happen: P3 error before P4 warning on the same path. Also state the missing edge in the Mixed fixture, and make the "prints no line" cases assert exit 0.
+
+## Other findings
+
+- **Contradictions between lenses:**
+  - Grounding and charter said the `ms` clash breaks every command under gawk. The reconciler's own probe found only `preflight` breaks under gawk, because the failure happens at run time. Whether every command breaks under mawk is still op

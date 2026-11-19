@@ -5,7 +5,7 @@ description: Use to mutate a DAG plan mid-flight — add tasks, remove tasks, mo
 
 # Updating DAG Plans
 
-Mutate an in-flight or partially-executed DAG plan without breaking resumability. Apply between executor ticks (the executor naturally pauses awaiting the next user prompt — there's no concurrency to manage).
+Mutate an in-flight or partially-executed DAG plan without breaking resumability. Apply between executor ticks. The controller handles one turn at a time, so an update runs while no tick is in progress, and the next tick reads the updated plan. Subagents may still be working while you update, but their tasks are `running` and therefore immutable, so an update cannot change work under a running subagent.
 
 ## When to use
 
@@ -22,7 +22,7 @@ Mutate an in-flight or partially-executed DAG plan without breaking resumability
 ## Required reading
 
 - `../writing-dag-plans/plan-format.md` — canonical *structural* contract and validation rules.
-- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H11 and soft heuristics S1-S15 — S12-S15 are the acceptance-criteria falsifiability set, so re-run them on any task whose ACs you edit.
+- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H11 and soft heuristics S1-S18 — S12-S15 are the acceptance-criteria falsifiability set, so re-run them on any task whose ACs you edit.
 
 Updates that add new tasks or modify task bodies/scope must pass BOTH validations, same as fresh authoring.
 
@@ -48,13 +48,17 @@ If the user genuinely needs to mutate immutable history, the answer is to author
 |---|---|---|
 | **Add task** | None | Prompt for `id`, `depends_on`, `files`, body. Validate per `plan-format.md`. Insert into `## Tasks` section. New task starts `status: pending`. Re-render mermaid + ASCII. |
 | **Remove task** | Target's status is `pending`. No other non-`pending` task depends on it. | If other `pending` tasks depend on it, prompt user: rewire those deps to the target's parents, or refuse. Delete the task block. Re-render. |
-| **Modify body** | Target's status is `pending` or `ready`. | Replace the task body (everything after the YAML block). No re-validation needed. Re-render only if body change affects mermaid label. |
+| **Modify body** | Target's status is `pending` or `ready`. | Replace the task body (everything after the YAML block). No structural re-validation needed, except `plan-state preflight` (step 5). Re-render only if body change affects mermaid label. |
 | **Modify `files:`** | Target's status is `pending`. | Update the `files:` list in the YAML block. Re-run full file-scope conflict detection across the entire DAG. May surface new conflicts requiring additional `depends_on:` edges. |
 | **Rewire `depends_on:`** | All affected tasks' statuses are `pending`. | Update `depends_on:` for the target. Re-run topo-sort + cycle detection + file-scope conflict detection. |
 | **Modify tier hint** (`model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`) | Target's status is `pending` or `ready` | Update YAML field. Re-validate enum (`cheap | standard | opus`, rule #7). No mermaid re-render (label doesn't show tier). |
 | **Modify plan-level default hint** (`default_*_hint` in frontmatter) | At least one task is `pending` or `ready` | Update frontmatter field. Re-validate enum (rule #8). Affects all tasks lacking a per-task override and not yet `running`/`done`/`failed`/`skipped`. Refuse if every task is already immutable. |
 | **Modify review mode** (`review_mode`) | Target's status is `pending` or `ready` | Update YAML field. Re-validate enum (`merged | split`, rule #9). No mermaid re-render (label doesn't show review mode). |
 | **Modify plan-level default review mode** (`default_review_mode`) | At least one task is `pending`/`ready` | Update frontmatter. Re-validate enum (rule #10). Affects all tasks lacking a per-task override and not yet immutable. Refuse if every task is immutable. |
+
+No operation changes a task's `review_rounds:` field. It counts the task's fix rounds against the review cap, and lowering it would hand a looping task more rounds. Modify body replaces only the text after the YAML block, so the field stays.
+
+A task's `tests:` list may be edited on `pending` and `ready` tasks like any other field; `plan-state check` validates the result (rule 16). No operation writes or changes a task's `base_sha:` field. `plan-state set ... running` records it the first time a task runs, and `verify-tests` treats everything after that commit as the task's change; editing it would let a task's named tests be checked against the wrong starting point, the same reason `review_rounds:` is left alone.
 
 > **Why `ready` is mutable for tier hints:** Unlike `files:` (mutable only on `pending`, because a `ready` task queues for the next tick and a file-scope change could conflict with a running sibling), tier hints don't interact with the parallelism contract — mutating a `ready` task's tier between ticks is safe; the next tick reads fresh state and dispatches at the new resolved tier.
 
@@ -81,6 +85,18 @@ If the user genuinely needs to mutate immutable history, the answer is to author
 
    If structural validation fails, refuse with a specific error pointing to the violation. Do not mutate the file.
 
+   Apply the mutation to a copy (`<plan>.draft.md`) and run `sh ../writing-dag-plans/plan-state check <copy>`. It covers these rules and rules 7–17 and prints one line per violation; any output is a refusal. Replace the plan with the copy only in step 9.
+
+   For every operation that adds a task, changes a task's body, `files:` or
+   `depends_on:`, or removes a task, also run `sh ../writing-dag-plans/plan-state
+   preflight` on the copy, after `check`, and on the plan as it was before the edit.
+   Match findings on (check id, task id, path without its line suffix). An error on the
+   copy refuses the update when it is on a task the operation changed (added, or whose
+   body, `files:` or `depends_on:` it changed), or when the plan before the edit did not
+   have it as an error. If the plan before the edit fails `check`, every error on the
+   copy counts as new. Other errors, and all warnings, are shown with step 6's soft
+   warnings under its "save anyway? (y/N)" prompt.
+
 6. **Re-run quality validation** per `plan-quality.md` (only on the tasks affected by the operation — existing `pending`/`ready` tasks not touched by this update keep their previous state). Specifically:
    - On **add task**: run hard rules H1-H11 on the new task. Run soft heuristics S1, S5, S8, S11 on the updated DAG.
    - On **modify body**: run H1, H2, H4, H5, H9, H10, H11 on the modified task. Run S2-S4, S6, S8 on it.
@@ -92,11 +108,11 @@ If the user genuinely needs to mutate immutable history, the answer is to author
 
    Hard rule failure → refuse with rule + task + fix. Soft heuristic warnings → present and ask "save anyway? (y/N)" — default N.
 
-7. **Regenerate the mermaid block** from scratch with current statuses (preserving `done` / `failed` / `skipped` coloring on existing tasks).
+7. **Regenerate the mermaid block** from scratch with current statuses (preserving `done` / `failed` / `skipped` coloring on existing tasks): `plan-state render <copy>`.
 
-8. **Render the ASCII tree to terminal** so the user can sanity-check the new shape.
+8. **Render the ASCII tree to terminal** so the user can sanity-check the new shape: `plan-state tree <copy>`.
 
-9. **Write the plan file** in place.
+9. **Write the plan file** in place by replacing it with the copy.
 
 10. **Hand off** to the user: "Plan updated. Resume execution with `/parallel-dag-execution:execute <plan>`."
 

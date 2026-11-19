@@ -17,9 +17,11 @@ The implementer MUST receive:
 
 - This task's full body (everything after the YAML block, up to the next `## Task` heading).
 - This task's frontmatter (id, depends_on, files).
+- This task's `tests:` entries, when present.
 - An "upstream context" block: for each task id in `depends_on:`, a short summary of what that upstream task produced — paths created/modified, key types/contracts/exports, commit SHA. Pull these from the plan file's task body for `done` upstream tasks.
 - The repo's `CLAUDE.md` (if present) so it follows project conventions.
 - The absolute path to the `git-commit-safe` helper (`skills/executing-dag-plans/git-commit-safe`), substituted into the prompt as `{git_commit_safe_path}`. Implementers commit through it so concurrent implementers don't race on the shared git index.
+- The full name of the model this dispatch runs on, substituted as `{implementer_model}` (the model the resolved tier maps to, or the retry's model). A controller that adds its own attribution line to prompts would otherwise credit itself for commits a different model wrote.
 
 ## Prompt template
 
@@ -33,7 +35,18 @@ You are dispatched to implement one task in a DAG-aware execution plan.
 
 ## Project conventions
 
-{contents of repo's CLAUDE.md, if any}
+{contents of repo's CLAUDE.md, if any, or "(none found)"}
+
+Charter sections for your role — implementer: Hard invariants; Named reference implementations, per layer; Recurring bug classes; Verification gotchas; Verification commands (verbatim, not summarized — do not summarize these for the implementer; matches `../auditing-artifacts/audit-charter-template.md` § Who reads what row for row):
+{charter_sections_for_role}
+{if no audit charter file exists in the repo: "(none found — proceed; do not substitute generic best practice)"}
+
+Citation freshness for the entries above:
+{charter_citation_table}
+{if the citation pre-pass (resolve-declared-paths) did not run or failed: "(citation pre-pass did not run — treat the charter entries above as unverified)"}
+An entry marked SUSPECT, MOVED or GONE may be stale — where a charter entry and
+the code disagree, the code wins. This is context for implementing the task you
+already own to spec; it does not add new requirements beyond the task body.
 
 - Commit via the race-safe helper, NOT a bare `git commit`:
 
@@ -45,7 +58,21 @@ You are dispatched to implement one task in a DAG-aware execution plan.
   from your task's `files:` list. NEVER `git add -A` / `git add .`, and never a
   bare `git commit` — the shared index will lock-fail or bundle concurrent work.
 
+  Write the commit message in the repo's convention. If that convention adds a
+  co-author trailer for the model, name the model you run on, {implementer_model},
+  not the session that dispatched you.
+
   If `{git_commit_safe_path}` is missing/empty, STOP and report BLOCKED — the controller failed to inject the commit helper; do not hand-roll a commit (you would race other implementers on the shared index).
+
+## Named tests
+
+If the Task spec above lists `Named tests:`, each entry is `<file> :: <case>`. For each entry:
+
+- the case must exist in `<file>` with exactly that name, printed on one line as the suite prints its other cases (by default `PASS: <case>` or `FAIL: <case>`);
+- no other case in that file may print the same name;
+- it must fail before your change and pass after it.
+
+After you report, a script checks this from your committed work only: it runs each file once on the code as it was when your task started (with your finished test files) and once on your last commit. Uncommitted changes are not seen, so commit before you report. Do not try to run that check yourself. The RED-THEN-GREEN report below is still required for acceptance criteria that have no named test.
 
 ## Your output
 
@@ -54,6 +81,17 @@ Implement the task per your agent system prompt. Use TDD. Commit when green. Rep
 - DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED
 - Commit SHA (for DONE / DONE_WITH_CONCERNS)
 - One-line summary of what was implemented (for DONE / DONE_WITH_CONCERNS)
+- RED-THEN-GREEN (required when this task's acceptance criteria are test-bearing):
+  the assertion that failed before your fix, and its failure message, verbatim.
+  A grep-based or manual acceptance check counts as a test here: "assertion" is
+  the exact check you ran (the command, or the manual step, drawn from the
+  acceptance criteria) and "failure message" is its output or observed state
+  before your fix. Only write "not test-bearing" (and say why) when the task's
+  acceptance criteria carry no verifiable check at all — e.g., pure prose with
+  nothing to run or inspect. If some acceptance criteria are verifiable and
+  others are not, report the RED-THEN-GREEN pair for the verifiable ones and
+  note the non-verifiable ones separately rather than defaulting to "not
+  test-bearing".
 - Concerns / questions / blocker explanation (for the other statuses)
 
 Modify ONLY the files in your task's `files:` list. If you discover you need another file, STOP and report BLOCKED.
@@ -65,6 +103,10 @@ Files (you may modify ONLY these):
 {for each path in task.files: "  - " + path}
 
 depends_on: {task.depends_on or "[] (root task)"}
+
+{if task.tests is non-empty; otherwise omit these two lines:}
+Named tests:
+{for each entry in task.tests: "  - " + entry}
 
 ### Body
 
@@ -100,6 +142,8 @@ Note: This teaches the controller LLM to include `model:` at dispatch — the wi
 
 When the spec or quality reviewer reports ISSUES, re-dispatch the implementer with the same task context PLUS the issue list:
 
+Before each such re-dispatch, run `plan-state round <plan> <id>` and re-dispatch only on exit 0. Exit 1 means the task has had 3 fix rounds, across all its reviewers: mark it `failed` with `plan-state set <plan> <id> failed` and report the line `round` printed as the reason. Exit 2 halts the run. See `./SKILL.md` §Review-round cap.
+
 Review-issue re-dispatch uses the **original resolved tier**, not the BLOCKED-upgraded one.
 
 ```
@@ -119,20 +163,36 @@ You previously implemented {task.id} but the {spec / quality} reviewer found iss
 Report DONE / BLOCKED as before.
 ```
 
-## Re-dispatch on BLOCKED with model upgrade
+## Re-dispatch on BLOCKED
 
-When the implementer reports BLOCKED, re-dispatch ONCE with a more capable model:
+When the implementer reports BLOCKED, re-dispatch ONCE, one step up:
 
-| Resolved implementer tier | Retry model |
+| Resolved implementer tier | Retry dispatch |
 |---|---|
-| `cheap` | `standard` (sonnet) |
-| `standard` | `opus` |
-| `opus` | (no retry — go straight to `failed`) |
+| `cheap` | `model: "sonnet"` (the `standard` tier), agent's pinned effort |
+| `standard` | `model: "opus"`, agent's pinned effort |
+| `opus` | `model: "opus"`, `effort: "high"` |
 
-The retry prompt includes the original BLOCKED report so the next-tier model can see what stuck the first attempt:
+There is no model tier above `opus`, so its step is effort. `dag-implementer` pins `effort: medium`, so `high` is one level up. No retry for an `opus` task, straight to `failed`, when either of these holds:
+
+- the dispatched agent already pins `high` or above;
+- the harness's Agent tool has no `effort` parameter. In that case, without the parameter, the retry would only repeat the first attempt.
+
+```javascript
+// opus-tier retry
+Agent({
+  description: "Retry task-3 (BLOCKED)",
+  subagent_type: task.implementer ?? plan.default_implementer ?? "dag-implementer",
+  model: "opus",
+  effort: "high",
+  prompt: <retry prompt below + original task prompt>
+})
+```
+
+The retry prompt includes the original BLOCKED report so the retry can see what stuck the first attempt:
 
 ```
-Previous attempt by a {original-tier} model reported BLOCKED:
+Previous attempt by a {original-tier} model at {original-effort} effort reported BLOCKED:
 
 {original BLOCKED explanation}
 

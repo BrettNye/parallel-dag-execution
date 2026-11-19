@@ -1,0 +1,165 @@
+diff --git a/docs/superpowers/plans/2026-11-17-named-tests.md b/docs/superpowers/plans/2026-11-17-named-tests.md
+index f1d2f8c..be573f9 100644
+--- a/docs/superpowers/plans/2026-11-17-named-tests.md
++++ b/docs/superpowers/plans/2026-11-17-named-tests.md
+@@ -113,7 +113,9 @@ No one was available to answer questions. These are the decisions taken, and why
+    the `sh -c` process it started before removing the worktrees.
+ 7. **If the Bash tool's timeout sends a signal the trap cannot catch** (KILL), the
+    registrations are cleared by the next run's `git worktree prune`, which the spec already
+-   requires, and a temporary directory is left under `${TMPDIR:-/tmp}`. The implementer reports
++   requires, once the temporary directory left under `${TMPDIR:-/tmp}` is gone; until then they
++   stay listed. `verify-tests` never removes a worktree it did not create, because another
++   `verify-tests` may be using it at the same time. The implementer reports
+    that as DONE_WITH_CONCERNS so the executor text can be amended by `/update`; this plan does
+    not guess the answer in advance.
+ 8. **"S1–S16" references.** Places that enumerate the rule set (`writing-dag-plans/SKILL.md`,
+@@ -650,7 +652,7 @@ Steps, after `task-verify-args`'s steps 1-3:
+ 
+ 4. Find the repository with `git -C <plan's directory> rev-parse --show-toplevel` (failure:
+    exit 2). Run `git worktree prune` in it, to clear registrations left by an earlier run that
+-   was killed. Resolve `HEAD` to one commit SHA once; build both trees from that SHA. Check
++   was killed, once their directories are gone. Resolve `HEAD` to one commit SHA once; build both trees from that SHA. Check
+    that `base_sha` names a commit (`git cat-file -e <base>^{commit}`); if not, exit 2. From here
+    on, trap INT, TERM and HUP: the trap does step 9, prints `verify-tests: <id>: interrupted` on
+    stderr, and exits 2, whatever step it interrupted.
+@@ -741,10 +743,18 @@ each name appears once in the suite. Stdout is compared exactly; stderr is check
+ 
+ - "trees: red then green is ok": a case that prints a fail line before the change and a pass
+   line after gives `ok`, the total `1 ok, 0 failed`, exit 0.
+-- "trees: absent before is ok-absent": a case the suite does not print before the change (the
+-  test was added with the task) gives `ok-absent`, exit 0.
++- "trees: absent before is ok-absent": a case the suite does not print before the change because
++  the suite stops before reaching it (for example, it exits at its first line when a file the
++  task creates is missing) gives `ok-absent`, exit 0. The absence must come from the suite
++  stopping early, not from the test being added with the task: the before tree keeps the task's
++  finished test file (step 6), so a case added with the task is still run there.
+ - "trees: passing before is not-red": a case that passes at `base_sha` too gives `not-red`, the
+   total `0 ok, 1 failed`, exit 1.
++- "trees: new case passing on old code is not-red": at `base_sha` the suite exists without case
++  `y`; the task's commit adds case `y` to the suite, and `y` passes on the base code. The run
++  gives `not-red`, the total `0 ok, 1 failed`, exit 1. This pins step 6's rule that the task's
++  test files are not put back to `base_sha`: an implementation that restores them too would
++  label `y` `ok-absent`.
+ - "trees: failing after is not-green": a case that still prints a fail line after gives
+   `not-green`, exit 1; "trees: not-green wins over not-red": a case passing before and failing
+   after prints `not-green`.
+@@ -780,23 +790,34 @@ each name appears once in the suite. Stdout is compared exactly; stderr is check
+ - "signals: second signal during cleanup still exits 2": a second TERM sent while the trap is
+   cleaning up (make cleanup slow with a test-only hook, or send two signals back to back) does
+   not change the exit from 2 and leaves no worktree.
+-- "signals: KILL leaves a registration the next run prunes": after `kill -KILL` of a running
+-  `verify-tests`, the next run in the same repository exits 0 or 1 normally and afterwards
+-  `git worktree list` shows only the main tree.
++- "signals: KILL leaves a registration the next run prunes": this case runs `verify-tests` under
++  its own `TMPDIR`, so its leak cannot affect other cases. After `kill -KILL` of a running
++  `verify-tests`, the test deletes the leaked temporary directory under that `TMPDIR`, standing
++  in for the OS temp reaper (`git worktree prune` keeps a registration while its directory
++  exists). The next run in the same repository then exits 0 or 1 normally, and afterwards
++  `git worktree list` shows only the main tree. `verify-tests` never removes a worktree it did
++  not create: a stale registration whose directory still exists may be the live tree of a
++  `verify-tests` running at the same time for another task.
+ - "cleanup: failed removal exits 2": when a worktree cannot be removed (make it fail with a
+   test-only hook, or a read-only parent directory where the platform honours it), the run exits
+   2 with stderr containing `verify-tests: T1: cleanup failed`, even though every entry was ok.
+ - **Empirical unknown 1 — untracked and ignored dependencies.** "trees: ignored dependency is
+   not in the after tree": a suite that sources a git-ignored file present only in the shared
+-  working tree gives `not-green` (the fresh worktree lacks the file). And on this repository:
+-  with a plan under the ignored `.scratch/` directory whose running task declares
++  working tree gives `not-green` (the fresh worktree lacks the file). And on this repository,
++  as a one-off run made by the implementer (not a suite case: it depends on this repo's history
++  and runs the plan-state suite twice): with a plan under the ignored `.scratch/` directory
++  whose running task declares
+   `files: [skills/writing-dag-plans/plan-state, tests/plan-state/plan-state.test.sh]`,
+-  `tests: [tests/plan-state/plan-state.test.sh :: round on "2" counts to 3]` and
++  `tests: [tests/plan-state/plan-state.test.sh :: round on "2" writes review_rounds: 3]` and
+   `base_sha:` set to the full SHA of `76ed77d^` (the commit before quoted `review_rounds` were
+-  rewritten), `verify-tests` prints `ok` for that entry and exits 0. That shows this repo's own
+-  suites need nothing untracked to run in a fresh worktree. The script's header comment gains a
+-  line starting `# Untracked files:` stating that only committed files are in the trees and
+-  what the run on this repository showed.
++  rewritten), `verify-tests` prints the label `ok` exactly (not `ok-absent`) for that entry and
++  exits 0. That case was added in `76ed77d`, so the `ok` also shows that the before tree kept
++  the task's finished test file. The run shows this repo's own suites need nothing untracked to
++  run in a fresh worktree. Make the run with an explicit Bash tool timeout of 600000 ms, or in
++  the background. The script's header comment gains a line starting `# Untracked files:`
++  stating that only committed files are in the trees, what the run on this repository showed,
++  and its wall time. If the run takes more than about 540 s, report DONE_WITH_CONCERNS, so that
++  task-exec-verify's text ("about 85 s per run") can be amended by `/update`.
+ - **Empirical unknown 2 — the signal a Bash tool timeout sends.** Run this probe through the
+   Claude Code Bash tool with `timeout: 5000`, then read the log:
+   `sh -c 'trap "echo INT >> /tmp/vt-probe.log; exit 2" INT; trap "echo TERM >> /tmp/vt-probe.log; exit 2" TERM; trap "echo HUP >> /tmp/vt-probe.log; exit 2" HUP; sleep 60 & wait'`.
+@@ -1034,13 +1055,25 @@ runs the check itself: it is the party being checked. Spec: "The prompts", Imple
+ 
+ ## Implementation
+ 
+-In `skills/executing-dag-plans/implementer-prompt.md`, inside the prompt template, a new section
+-right before "## Your output":
++In `skills/executing-dag-plans/implementer-prompt.md`, three edits. The implementer sees no
++YAML block, only what the template renders, so the entries must be rendered for it.
++
++1. In the "The implementer MUST receive" list, after the frontmatter line (`implementer-prompt.md:19`),
++   add: `- This task's `tests:` entries, when present.`
++2. In the template's `## Task spec`, after the `depends_on:` line, add a `Named tests:` rendering,
++   omitted when the task has no `tests:`:
++
++   ```markdown
++   Named tests:
++   {for each entry in task.tests: "  - " + entry}
++   ```
++
++3. Inside the prompt template, a new section right before "## Your output":
+ 
+ ```markdown
+ ## Named tests
+ 
+-If your task's YAML block has a `tests:` list, each entry is `<file> :: <case>`. For each entry:
++If the Task spec above lists `Named tests:`, each entry is `<file> :: <case>`. For each entry:
+ 
+ - the case must exist in `<file>` with exactly that name, printed on one line as the suite prints its other cases (by default `PASS: <case>` or `FAIL: <case>`);
+ - no other case in that file may print the same name;
+@@ -1065,6 +1098,14 @@ rg -n '^## Named tests' skills/executing-dag-plans/implementer-prompt.md
+   criteria without named tests.
+ - `rg -c 'RED-THEN-GREEN \(required' skills/executing-dag-plans/implementer-prompt.md` still
+   prints `1`: the existing report field is kept.
++- The "The implementer MUST receive" list has a line naming this task's `tests:` entries, when
++  present: `rg -n 'tests:. entries, when present' skills/executing-dag-plans/implementer-prompt.md`
++  prints one line, and its line number is less than that of `^## Task spec`.
++- `## Task spec` renders the entries: `rg -c '^Named tests:$' skills/executing-dag-plans/implementer-prompt.md`
++  prints `1`, the next line is `{for each entry in task.tests: "  - " + entry}`, and both lie
++  between `^## Task spec` and `^### Body`. The `## Named tests` section keys on that rendered
++  list (`Named tests:`), not on the task's YAML block: `rg -c 'YAML block has a .tests:' skills/executing-dag-plans/implementer-prompt.md`
++  prints nothing.
+ 
+ Test file: none (the `rg` checks above).
+ 
+@@ -1421,3 +1462,30 @@ rg -n 'verify-tests' README.md CLAUDE.md
+   case must fail before the task's change and pass after.
+ 
+ Test file: none (the `rg` checks above).
++
++## Audit record
++
++- **2026-11-17** · rev `0e7cd18dd18f` · commit `dc30ba0` · gate 2 · lenses: coverage,
++  dag-integrity, grounding, charter, context-sufficiency, verifiability, coherence,
++  ambiguity (8/8 ran) · **NOT READY — 4 blocking**
++  - B1 task-verify-tests: the repo-run test `round on "2" counts to 3` already passes at
++    `76ed77d^`, so the "prints `ok`, exits 0" criterion cannot be met; use
++    `round on "2" writes review_rounds: 3`.
++  - B2 task-verify-tests / Context call 7: the KILL criterion assumes `git worktree prune`
++    clears a killed run's registration, but prune keeps it while the leaked temp directory
++    exists; the test must delete the leak first, and call 7 must say verify-tests never
++    removes a worktree it did not create.
++  - B3 task-implementer-prompt: the new `## Named tests` section acts on the task's
++    `tests:` list, which the implementer is never given (implementer-prompt.md:18-19,
++    88-98).
++  - B4 task-verify-tests: no test pins step 6's "keep the task's test files" rule; an
++    implementation that also reverts them passes every listed test.
++  - Joint resolutions: J1 (B1+B4), J2 (B2 + signal-test cluster), J3, J4 (B3), J5 —
++    see `.audit/2026-11-17-named-tests.md/reconciliation.md`.
++  - Deferred: 36 (2 downgraded from BLOCKING: task-exec-dispatch placement;
++    task-verify-tail loosening earlier exact-output tests).
++  - Empirical unknowns opened: EMP-1 plan-state suite wall time (4m06s observed vs spec's
++    ~85 s; probe: task-verify-tests records wall time); EMP-2 orphaned process blocking
++    worktree removal (settled by the existing signal tests).
++  - Author decision open (J4): the quality reviewer still marks a missing red-then-green
++    report as ISSUES; whether the implementer-prompt wording fix reopens the frozen spec.

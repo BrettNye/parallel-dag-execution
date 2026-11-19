@@ -12,6 +12,10 @@ The reconciler MUST receive:
 - The artifact path, and for a plan audit the parent spec path.
 - The repo root, so it can read code to settle a contested claim.
 - The names of any lenses that failed to run.
+- The **ground-truth tables** (declared-path and charter-citation) produced by
+  `SKILL.md` step 2.6's pre-pass. The downgrade rule — a lens's proposed finding
+  that contradicts a resolved `EXISTS` is downgraded, logged — turns on these
+  tables, and it has nothing to adjudicate against without them.
 
 The reconciler MUST NOT receive:
 
@@ -62,8 +66,11 @@ adjudicate.
 
 ## Prompt template
 
-<!-- Section order: (1) role; (2) coordinates; (3) unrun lenses; (4) the lens report
-     PATHS (short and stable — the reconciler reads the files itself). -->
+<!-- Section order: (1) role; (2) coordinates; (3) unrun lenses; (4) GROUND TRUTH
+     TABLES — the step 2.6 pre-pass tables, placed before the merge instructions
+     that reference the downgrade rule so the rule has something to point at;
+     (5) the lens report PATHS (short and stable — the reconciler reads the files
+     itself). -->
 
 ```
 You are reconciling a parallel {spec|plan} audit. {n} independent lenses each
@@ -76,12 +83,19 @@ REPO ROOT: {repo_root}    (branch: {branch})
 LENSES RUN: {lens_names}
 {if unrun}LENSES THAT FAILED TO RUN (treat as missing coverage, not as clean): {unrun_names}{/if}
 
+GROUND TRUTH TABLES (resolved before dispatch by step 2.6's pre-pass — facts, not
+claims; a lens's proposed finding that contradicts a resolved `EXISTS` is
+downgraded and logged, not upheld):
+{ground_truth_path_table}
+{ground_truth_charter_citation_table}
+
 Do your jobs in order: merge and dedupe (recording corroboration) · check every
 proposed BLOCKING against downstream artifacts — the plan that implements this spec
 (search by task id and symbol, not filename), its task statuses, and code landed
 since authoring · surface contradictions without resolving them by majority, reading
 the code to adjudicate · assign final severity, downgrading only with a logged
-reason · resolve interacting findings JOINTLY as one change per cluster · classify
+reason · resolve interacting findings JOINTLY as one change per cluster, each BLOCKING
+resolution naming the criterion or suite case that pins its fix · classify
 each finding DEFECT vs STALE · state the verdict.
 
 {if downstream}DOWNSTREAM ARTIFACTS: {plan_paths_and_statuses}; commits since authoring: {shas}{/if}

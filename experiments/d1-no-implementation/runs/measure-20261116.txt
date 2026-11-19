@@ -1,0 +1,42 @@
+
+## Arm A (plan 1068 lines; Implementation 348, Contracts 0)
+| stage | sessions | tokens | excl. cache reads | $ | controller $ | active | elapsed | events |
+|---|---|---|---|---|---|---|---|---|
+| plan-writing | 1 | 3.74M | 0.27M | $4.38 | $4.38 | 48m | 48m | - |
+| gate2-r1a | 1 | 12.89M | 1.29M | $13.42 | $2.71 | 41m | 41m | - |
+| gate2-r1b | 1 | 15.92M | 1.42M | $15.09 | $2.72 | 40m | 40m | - |
+| fix-r1 | 1 | 0.85M | 0.08M | $1.08 | $1.08 | 6m | 7m | - |
+| execution | 2 | 17.45M | 1.50M | $13.25 | $8.70 | 182m | 182m | - |
+| gate2-r2 | 1 | 16.96M | 1.49M | $15.70 | $2.29 | 46m | 46m | - |
+| fix-r2 | 1 | 1.13M | 0.09M | $1.28 | $1.28 | 6m | 6m | - |
+| gate2-r3 | 1 | 11.52M | 1.23M | $12.48 | $2.41 | 26m | 26m | - |
+
+Gate 2 (round 1 averaged): 42.88M, $42.44. Pipeline: 64.53M, $61.58, active 356m.
+Interventions 1 (re-invocations 1, extra prompts 0, NEEDS_CONTEXT 0); BLOCKED 0; reviewer ISSUES 0; reports without a verdict line 0.
+
+## Arm B (plan 843 lines; Implementation 0, Contracts 151)
+| stage | sessions | tokens | excl. cache reads | $ | controller $ | active | elapsed | events |
+|---|---|---|---|---|---|---|---|---|
+| plan-writing | 1 | 3.74M | 0.27M | $4.38 | $4.38 | 48m | 48m | - |
+| conversion | 1 | 0.98M | 0.11M | $1.48 | $1.48 | 6m | 6m | - |
+| gate2-r1a | 1 | 14.39M | 1.27M | $14.28 | $2.54 | 45m | 46m | - |
+| gate2-r1b | 1 | 14.08M | 1.26M | $14.48 | $2.85 | 43m | 44m | - |
+| fix-r1 | 1 | 1.09M | 0.09M | $1.25 | $1.25 | 7m | 7m | - |
+| execution | 1 | 15.49M | 1.34M | $11.65 | $7.14 | 141m | 141m | - |
+| gate2-r2 | 1 | 11.54M | 1.21M | $12.66 | $2.78 | 38m | 38m | - |
+
+Gate 2 (round 1 averaged): 25.77M, $27.04. Pipeline: 47.23M, $45.70, active 286m.
+Interventions 0 (re-invocations 0, extra prompts 0, NEEDS_CONTEXT 0); BLOCKED 0; reviewer ISSUES 0; reports without a verdict line 0.
+
+## Arm B0 (plan 743 lines; Implementation 0, Contracts 151)
+| stage | sessions | tokens | excl. cache reads | $ | controller $ | active | elapsed | events |
+|---|---|---|---|---|---|---|---|---|
+| plan-writing | 1 | 3.74M | 0.27M | $4.38 | $4.38 | 48m | 48m | - |
+| conversion | 1 | 0.98M | 0.11M | $1.48 | $1.48 | 6m | 6m | - |
+| execution | 4 | 20.39M | 2.17M | $17.26 | $10.98 | 248m | 248m | - |
+
+Gate 2 (round 1 averaged): 0.00M, $0.00. Pipeline: 25.11M, $23.12, active 302m.
+Interventions 3 (re-invocations 3, extra prompts 0, NEEDS_CONTEXT 0); BLOCKED 0; reviewer ISSUES 0; reports without a verdict line 0.
+
+## B / A
+Gate-2 tokens 0.60 (pilot passes at <= 0.50). Pipeline tokens 0.73, $ 0.74, active time 0.80 (big run passes at <= 0.50 each). Interventions B 0 vs A 1 (passes at B <= A).
