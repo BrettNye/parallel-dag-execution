@@ -1,0 +1,56 @@
+diff --git a/docs/superpowers/plans/2026-11-17-named-tests.md b/docs/superpowers/plans/2026-11-17-named-tests.md
+index be573f9..74ec533 100644
+--- a/docs/superpowers/plans/2026-11-17-named-tests.md
++++ b/docs/superpowers/plans/2026-11-17-named-tests.md
+@@ -661,8 +661,9 @@ Steps, after `task-verify-args`'s steps 1-3:
+    the shared working tree are ignored.
+ 6. **Before tree:** a second detached worktree at the same SHA. Every `file` path that is not
+    the `<file>` of one of the task's `test` lines is put back to its content at `base_sha`
+-   (`git -C <before> checkout <base> -- <path>`); a path that did not exist at `base_sha`
+-   (`git cat-file -e <base>:<path>` fails) is deleted. So the before tree has the task's
++   (`git -C <before> checkout <base> -- <path>`); such a path that did not exist at `base_sha`
++   (`git cat-file -e <base>:<path>` fails) is deleted. A test file is never put back or
++   deleted, even one the task created. So the before tree has the task's
+    finished tests and everyone else's work, but this task's code as it was when it started.
+ 7. In each tree, run each distinct `<file>` once: every `{file}` in `test_command` is replaced
+    by `<file>` single-quoted for the shell (a `'` inside becomes `'\''`), and the result runs as
+@@ -755,6 +756,12 @@ each name appears once in the suite. Stdout is compared exactly; stderr is check
+   gives `not-red`, the total `0 ok, 1 failed`, exit 1. This pins step 6's rule that the task's
+   test files are not put back to `base_sha`: an implementation that restores them too would
+   label `y` `ok-absent`.
++- "trees: new suite file is kept in the before tree": at `base_sha` the suite file does not
++  exist (a mkrepo variant that does not commit the suite before `base_sha`); it is in T1's
++  `files:`, as rule 16 requires. The task's commit adds it with case `y`, which passes on the
++  base code. The run gives `not-red`, the total `0 ok, 1 failed`, exit 1. This pins step 6's
++  rule that a test file the task created is not deleted: an implementation that deletes it
++  from the before tree would label `y` `ok-absent`.
+ - "trees: failing after is not-green": a case that still prints a fail line after gives
+   `not-green`, exit 1; "trees: not-green wins over not-red": a case passing before and failing
+   after prints `not-green`.
+@@ -1489,3 +1496,26 @@ Test file: none (the `rg` checks above).
+     worktree removal (settled by the existing signal tests).
+   - Author decision open (J4): the quality reviewer still marks a missing red-then-green
+     report as ISSUES; whether the implementer-prompt wording fix reopens the frozen spec.
++- **2026-11-17** · rev `83a4984ba45e` · commit `09fed21` · gate 2 round 2 (diff-scoped) ·
++  lenses: coverage, grounding, context-sufficiency, verifiability, coherence, ambiguity
++  (6/6 ran; carried: dag-integrity, charter — the diff changes no `depends_on`, `files:`, task
++  id, or convention claim) · **NOT READY — 1 blocking**
++  - Round-1 B1, B2, B3 resolved. B4 is only partly resolved.
++  - B1 task-verify-tests: step 6's "a path that did not exist at `base_sha` ... is deleted" is
++    not limited to non-test paths, and no case covers a test file the task creates. An
++    implementation that deletes new suites from the before tree labels every case `ok-absent`
++    and never reports `not-red`. Fix (JR1): "such a path"; "a test file is never put back or
++    deleted, even one the task created"; add case "trees: new suite file is kept in the before
++    tree" (suite absent at base, `y` passes on base code → `not-red`, `0 ok, 1 failed`, exit 1).
++  - Joint resolutions: JR1 (B1 + D8), JR2 (D1-D3, task-implementer-prompt wording/criteria,
++    optional), JR3 (D4, D9, EU1 block-form `tests:` and wall-time trigger, optional) — see
++    `.audit/2026-11-17-named-tests.md/round-2/reconciliation.md`.
++  - Deferred: 10 new (46 total with round 1's 36). Downgrades: none.
++  - Empirical unknowns: EMP-1 still open (D9: the 540 s trigger cannot fire at ~246 s per suite
++    run); EMP-2 settled by the existing signal tests. Settled this round: the renamed EU1 case
++    is red at `76ed77d^` and green at HEAD; `git worktree prune` keeps a registration only while
++    its directory exists.
++  - Author decision still open (J4): whether the implementer prompt tells named cases to report
++    their fail and pass lines as the RED-THEN-GREEN pair.
++  - Convergence: partial. Blocking count 4 → 1; 7 of the 10 new deferred items sit in text the
++    round-1 fixes wrote. Recommend scoping round 3 to JR1's diff only.
