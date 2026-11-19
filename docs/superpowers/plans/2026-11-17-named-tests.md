@@ -7,22 +7,22 @@ default_review_mode: merged
 
 ```mermaid
 flowchart TD
-    task-tests-field["task-tests-field: parse tests entries with rule 16 in plan-state check<br/>files: skills/writing-dag-plans/plan-state, tests/plan-state/plan-state.test.sh"]
-    task-base-sha["task-base-sha: record base_sha when plan-state sets a task running<br/>files: skills/writing-dag-plans/plan-state, tests/plan-state/plan-state.test.sh"]
-    task-tests-cmd["task-tests-cmd: add the plan-state tests command<br/>files: skills/writing-dag-plans/plan-state, tests/plan-state/plan-state.test.sh"]
-    task-verify-args["task-verify-args: create verify-tests with its argument checks<br/>files: skills/executing-dag-plans/verify-tests +2 more"]
-    task-verify-tests["task-verify-tests: label each named case red-before, green-after in verify-tests<br/>files: skills/executing-dag-plans/verify-tests, tests/verify-tests/verify-tests.test.sh"]
-    task-verify-tail["task-verify-tail: print the output tails in verify-tests<br/>files: skills/executing-dag-plans/verify-tests, tests/verify-tests/verify-tests.test.sh"]
-    task-exec-dispatch["task-exec-dispatch: mark a task running before its implementer dispatch<br/>files: skills/executing-dag-plans/SKILL.md"]
-    task-exec-verify["task-exec-verify: run verify-tests before review in the executor<br/>files: skills/executing-dag-plans/SKILL.md"]
-    task-implementer-prompt["task-implementer-prompt: tell implementers how their named tests are checked<br/>files: skills/executing-dag-plans/implementer-prompt.md"]
-    task-reviewer-prompts["task-reviewer-prompts: give spec reviewers the verify-tests output<br/>files: skills/executing-dag-plans/spec-reviewer-prompt.md, skills/executing-dag-plans/merged-reviewer-prompt.md"]
-    task-format["task-format: document the named-test fields in the plan format<br/>files: skills/writing-dag-plans/plan-format.md"]
-    task-s17["task-s17: add soft heuristic S17 for a test-like criterion with no named test<br/>files: skills/writing-dag-plans/plan-quality.md"]
-    task-writer["task-writer: teach the planner to name the tests that prove a task<br/>files: skills/writing-dag-plans/SKILL.md"]
-    task-updater["task-updater: let plan updates edit tests but never base_sha<br/>files: skills/updating-dag-plans/SKILL.md"]
-    task-lens["task-lens: anchor the verifiability lens on named tests<br/>files: skills/auditing-artifacts/lenses-plan.md"]
-    task-repo-docs["task-repo-docs: list verify-tests in the repo docs<br/>files: README.md, CLAUDE.md"]
+    task-tests-field["task-tests-field: parse tests entries with rule 16 in plan-state check<br/>files: skills/writing-dag-plans/plan-state, tests/plan-state/plan-state.test.sh"]:::done
+    task-base-sha["task-base-sha: record base_sha when plan-state sets a task running<br/>files: skills/writing-dag-plans/plan-state, tests/plan-state/plan-state.test.sh"]:::done
+    task-tests-cmd["task-tests-cmd: add the plan-state tests command<br/>files: skills/writing-dag-plans/plan-state, tests/plan-state/plan-state.test.sh"]:::done
+    task-verify-args["task-verify-args: create verify-tests with its argument checks<br/>files: skills/executing-dag-plans/verify-tests +2 more"]:::done
+    task-verify-tests["task-verify-tests: label each named case red-before, green-after in verify-tests<br/>files: skills/executing-dag-plans/verify-tests, tests/verify-tests/verify-tests.test.sh"]:::done
+    task-verify-tail["task-verify-tail: print the output tails in verify-tests<br/>files: skills/executing-dag-plans/verify-tests, tests/verify-tests/verify-tests.test.sh"]:::done
+    task-exec-dispatch["task-exec-dispatch: mark a task running before its implementer dispatch<br/>files: skills/executing-dag-plans/SKILL.md"]:::done
+    task-exec-verify["task-exec-verify: run verify-tests before review in the executor<br/>files: skills/executing-dag-plans/SKILL.md"]:::done
+    task-implementer-prompt["task-implementer-prompt: tell implementers how their named tests are checked<br/>files: skills/executing-dag-plans/implementer-prompt.md"]:::done
+    task-reviewer-prompts["task-reviewer-prompts: give spec reviewers the verify-tests output<br/>files: skills/executing-dag-plans/spec-reviewer-prompt.md, skills/executing-dag-plans/merged-reviewer-prompt.md"]:::done
+    task-format["task-format: document the named-test fields in the plan format<br/>files: skills/writing-dag-plans/plan-format.md"]:::done
+    task-s17["task-s17: add soft heuristic S17 for a test-like criterion with no named test<br/>files: skills/writing-dag-plans/plan-quality.md"]:::done
+    task-writer["task-writer: teach the planner to name the tests that prove a task<br/>files: skills/writing-dag-plans/SKILL.md"]:::done
+    task-updater["task-updater: let plan updates edit tests but never base_sha<br/>files: skills/updating-dag-plans/SKILL.md"]:::done
+    task-lens["task-lens: anchor the verifiability lens on named tests<br/>files: skills/auditing-artifacts/lenses-plan.md"]:::done
+    task-repo-docs["task-repo-docs: list verify-tests in the repo docs<br/>files: README.md, CLAUDE.md"]:::done
     task-tests-field --> task-base-sha
     task-base-sha --> task-tests-cmd
     task-tests-cmd --> task-verify-args
@@ -147,7 +147,7 @@ depends_on: []
 files:
   - skills/writing-dag-plans/plan-state
   - tests/plan-state/plan-state.test.sh
-status: pending
+status: done
 review_mode: split
 ```
 
@@ -280,7 +280,7 @@ depends_on: [task-tests-field]
 files:
   - skills/writing-dag-plans/plan-state
   - tests/plan-state/plan-state.test.sh
-status: pending
+status: done
 review_mode: split
 ```
 
@@ -388,7 +388,7 @@ depends_on: [task-base-sha]
 files:
   - skills/writing-dag-plans/plan-state
   - tests/plan-state/plan-state.test.sh
-status: pending
+status: done
 review_mode: split
 ```
 
@@ -520,7 +520,7 @@ files:
   - skills/executing-dag-plans/verify-tests
   - tests/verify-tests/verify-tests.test.sh
   - .gitattributes
-status: pending
+status: done
 review_mode: split
 ```
 
@@ -636,7 +636,7 @@ depends_on: [task-verify-args]
 files:
   - skills/executing-dag-plans/verify-tests
   - tests/verify-tests/verify-tests.test.sh
-status: pending
+status: done
 review_mode: split
 model_hint: opus
 ```
@@ -847,7 +847,7 @@ depends_on: [task-verify-tests]
 files:
   - skills/executing-dag-plans/verify-tests
   - tests/verify-tests/verify-tests.test.sh
-status: pending
+status: done
 review_mode: split
 ```
 
@@ -938,7 +938,7 @@ id: task-exec-dispatch
 depends_on: []
 files:
   - skills/executing-dag-plans/SKILL.md
-status: pending
+status: done
 ```
 
 In the executor's step 4, the controller runs `plan-state set <plan> <id> running` before the
@@ -985,7 +985,7 @@ id: task-exec-verify
 depends_on: [task-exec-dispatch, task-verify-args]
 files:
   - skills/executing-dag-plans/SKILL.md
-status: pending
+status: done
 ```
 
 Add the named-test check to the executor. After an implementer reports DONE or
@@ -1053,7 +1053,7 @@ id: task-implementer-prompt
 depends_on: []
 files:
   - skills/executing-dag-plans/implementer-prompt.md
-status: pending
+status: done
 ```
 
 When a task has `tests:` entries, the implementer is told what the script will check, so it
@@ -1124,7 +1124,7 @@ depends_on: []
 files:
   - skills/executing-dag-plans/spec-reviewer-prompt.md
   - skills/executing-dag-plans/merged-reviewer-prompt.md
-status: pending
+status: done
 ```
 
 The spec reviewer and the merged reviewer receive the named-test check's output through a
@@ -1180,7 +1180,7 @@ id: task-format
 depends_on: []
 files:
   - skills/writing-dag-plans/plan-format.md
-status: pending
+status: done
 ```
 
 Document `tests:`, `base_sha:`, `test_command`, `test_pass_prefix`, `test_fail_prefix`, and
@@ -1251,7 +1251,7 @@ id: task-s17
 depends_on: []
 files:
   - skills/writing-dag-plans/plan-quality.md
-status: pending
+status: done
 ```
 
 Add S17 to the plan-quality reference. It warns about a task whose acceptance criteria name a
@@ -1300,7 +1300,7 @@ id: task-writer
 depends_on: []
 files:
   - skills/writing-dag-plans/SKILL.md
-status: pending
+status: done
 ```
 
 For each acceptance criterion a test can check, the planner adds a `tests:` entry naming the
@@ -1346,7 +1346,7 @@ id: task-updater
 depends_on: []
 files:
   - skills/updating-dag-plans/SKILL.md
-status: pending
+status: done
 ```
 
 `updating-dag-plans` may edit `tests:` on pending and ready tasks like any field, and no
@@ -1392,7 +1392,7 @@ id: task-lens
 depends_on: []
 files:
   - skills/auditing-artifacts/lenses-plan.md
-status: pending
+status: done
 ```
 
 The gate-2 `verifiability` lens gets a mechanical anchor: a criterion with a `tests:` entry is
@@ -1433,7 +1433,7 @@ depends_on: [task-verify-args]
 files:
   - README.md
   - CLAUDE.md
-status: pending
+status: done
 ```
 
 Name the new helper where the repo lists its helpers and features. `CLAUDE.md`'s Conventions
