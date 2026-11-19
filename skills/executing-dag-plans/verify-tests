@@ -167,7 +167,9 @@ rc=$?
 # why an entry got its label. not-green and ambiguous read the after run; not-red and ok-absent read the before run.
 tail_block() {
   printf '%s\n' "$1"
-  if [ -s "$2" ]; then tail -n 20 "$2" | sed 's/^/  | /'; else printf '  | (no output)\n'; fi
+  # awk, not sed: awk ends every line it prints, so output with no final newline cannot glue the
+  # next header onto its last line.
+  if [ -s "$2" ]; then tail -n 20 "$2" | awk '{ print "  | " $0 }'; else printf '  | (no output)\n'; fi
 }
 n=0
 while IFS= read -r f; do

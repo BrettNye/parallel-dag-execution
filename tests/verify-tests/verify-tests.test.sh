@@ -301,6 +301,20 @@ r="$(vtfull "$tmp/q5/plan.md")"
 chk "tails: file order follows tests:" "$(printf '%s\n' "${r#*:}" | rg '^---')" "--- t/b.sh (after)
 --- t/a.sh (after)"
 
+# t/a.sh's output has no final newline: its tail line must still end, before t/b.sh's header.
+newrepo "$tmp/q8"; put "$tmp/q8" t/a.sh 'printf "FAIL: p"'; put "$tmp/q8" t/b.sh 'echo "FAIL: p"'; commit "$tmp/q8" base
+B=$(git -C "$tmp/q8" rev-parse HEAD); put "$tmp/q8" new.sh 'x=1'; commit "$tmp/q8" task
+writeplan "$tmp/q8" "$B" '  - new.sh
+  - t/a.sh
+  - t/b.sh' '  - t/a.sh :: p
+  - t/b.sh :: p'
+TMPDIR="$VT_T" sh "$SCRIPT" "$tmp/q8/plan.md" T1 > "$tmp/q8.out" 2>"$tmp/e"
+last=$(tail -c 1 "$tmp/q8.out" | od -An -c | tr -d ' ')
+chk "tails: output with no final newline" "$(sed '1,/^verify-tests: T1: /d' "$tmp/q8.out")|$last" "--- t/a.sh (after)
+  | FAIL: p
+--- t/b.sh (after)
+  | FAIL: p|\\n"
+
 # t/gone.sh is listed in files: and named in tests:, but was never committed.
 mkrepo "$tmp/q6"
 B=$(git -C "$tmp/q6" rev-list --max-parents=0 HEAD); writeplan "$tmp/q6" "$B" "$FILES2
