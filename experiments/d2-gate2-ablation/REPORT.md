@@ -222,3 +222,5 @@ Also correct the "about 85 s" figure.
   - `trace/<L>/diff.patch`, `hidden-check.txt` and `blind-review.md`.
 - `hidden/`: the hidden functional suite (was `scratch/d2-hidden`).
 - Not committed: the trace transcripts (80 MB, in `scratch/d2-trace-transcripts/`).
+- `final-plans/`: the plan each arm executed: S0 (dc30ba0), S1 (09fed21) and S2 (4589c15).
+  The tags and the `d2/gate2` branch were deleted after the merge, so these copies are the record.
