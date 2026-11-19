@@ -109,11 +109,25 @@ A gate no task owns is a gate nobody runs. Per-task gates structurally cannot co
 |---|---|---|
 | S16 | **Rendered-output change with no verification owner** | Trigger: some task's `files:` contains a rendered-surface file — by extension `.tsx`, `.jsx`, `.vue`, `.svelte`, `.component.html`, `.html`; style files (`.css`, `.scss`) count only when the same task also carries one of the preceding — AND no task's acceptance criteria name a rendered-surface check. A gate no task owns is a gate nobody runs, and per-task gates structurally cannot cover a cross-task rendered result. **Suppressor:** any task already owns visual verification — judged by whether a criterion checks rendered output at all, *not* by whether it names all three parts of the fix shape. **Fires once per plan**, not once per task — a missing owner is a plan-level gap. Suggested fix: add a task owning visual verification, naming the surface, the entry point, and the actor. |
 
+### S18: prompt text that reads an input its reader is never given
+
+H10 refuses code that consumes a symbol no task produces. This is the same check for text that
+an agent reads. A prompt section that says "if your task has `tests:`" is a consumer: if nothing
+puts `tests:` in front of that agent, the section silently never applies. No test exercises it.
+A per-task reviewer approves it too, because the section matches the task's own text, and the
+gap only shows when you read the template that fills the prompt. In the D2 experiment
+(`experiments/d2-gate2-ablation/REPORT.md`, F3), this shipped in both runs without gate 2, and
+neither the per-task nor the whole-branch review named it.
+
+| # | Heuristic | Detection |
+|---|---|---|
+| S18 | **Prompt reads an input its reader is never given** | Judgment call, like S1 and S13. **Trigger:** a task adds or changes text in a file that an agent or a dispatch step reads as its instructions: a `*-prompt.md` template, an agent definition, or a skill section that is pasted into a dispatch. The new text tells the reader to act on a named input: a field, a list, a block, an output of another step, or a `{placeholder}`. ("If your task's YAML block has a `tests:` list", "read the `{verify_tests_output}` below".) **Check:** does that input reach the reader? Read the template's MUST-receive list and the section that renders the dispatch, as they stand plus any task in this plan that changes them. **Fires** when no task in the plan delivers the input and the template does not already. **Suppressor:** the task names where the input is delivered, by file and line or by the task that adds it, and the input is in that place. Fires once per input, not once per mention. **Suggested fix:** in the same task, add the input to the MUST-receive list and render it in the dispatch template, or add `depends_on` to the task that does. |
+
 ## Detection algorithm (run on every save)
 
 1. Run `plan-format.md` structural validation (cycles, undefined deps, required fields, file-disjoint parallel branches). Any failure → refuse, exit.
 2. Run hard rules H1-H11. Any failure → refuse, explain which rule and which task, exit. Note: H10 requires a member-level index extension over H9 — extend the definer index built in H9 to include methods/fields/properties within exported classes/objects before running H10's member-access scan.
-3. Run soft heuristics S1-S16. Collect warnings. S12-S15 read each task's `## Acceptance criteria` bullets and, for S12/S15, cross-check them against that task's own sibling bullets and `files:` list.
+3. Run soft heuristics S1-S16 and S18. Collect warnings. S12-S15 read each task's `## Acceptance criteria` bullets and, for S12/S15, cross-check them against that task's own sibling bullets and `files:` list.
 4. Run **decomposition-principles audit** (see `SKILL.md` step 8): re-read the plan against DRY / SRP / SoC / repo-convention adherence with fresh eyes. This is judgment-based, LLM-driven, and complements the mechanical rules above. Collect warnings.
 5. If warnings exist (from step 3 or step 4): present grouped list, ask "save anyway? (y/N)" (default N).
 6. On user confirm OR no warnings: save plan file.

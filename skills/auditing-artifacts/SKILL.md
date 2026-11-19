@@ -233,7 +233,7 @@ digraph auditing_artifacts {
    | `grounding` | Step 3.5's symbol-consumer grep; "do not fabricate file paths". | **Mostly** |
    | `verifiability` | H4 (an AC *exists*), S4 (vague), and **S12–S15** — the falsifiability set: crash-passing absence, tautology, quantifier mismatch, diff-property. Those are the four *recurring* shapes. | Partly — for **novel** unfalsifiability the rules do not pattern-match: a spy blind to the real mechanism, an assertion a normalizing library defeats, a DOM binding left unpinned, a gate that reports success after its checker died |
    | `charter` | Step 8's repo-convention pass, incl. the named per-layer reference implementation. | Partly |
-   | `context-sufficiency` | H11 **is** the bare-spec-pointer rule; plus H2, S2/S3 sizing, step 8's elided-sibling completeness. | Largely covered |
+   | `context-sufficiency` | H11 **is** the bare-spec-pointer rule; plus H2, S2/S3 sizing, step 8's elided-sibling completeness, and S18 for a prompt section whose input its reader never gets. | Largely covered |
    | `dag-integrity` | Structural validation (cycles, file-disjoint parallel branches) + H8 import resolution + H9 contract sequencing + H10 missing-producer index + step 5's file-scope conflict loop. | Largely covered |
 
    So if cost forces a subset, the top rows are where the un-checked risk lives — and

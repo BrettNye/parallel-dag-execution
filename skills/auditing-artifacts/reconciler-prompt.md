@@ -94,7 +94,8 @@ proposed BLOCKING against downstream artifacts — the plan that implements this
 (search by task id and symbol, not filename), its task statuses, and code landed
 since authoring · surface contradictions without resolving them by majority, reading
 the code to adjudicate · assign final severity, downgrading only with a logged
-reason · resolve interacting findings JOINTLY as one change per cluster · classify
+reason · resolve interacting findings JOINTLY as one change per cluster, each BLOCKING
+resolution naming the criterion or suite case that pins its fix · classify
 each finding DEFECT vs STALE · state the verdict.
 
 {if downstream}DOWNSTREAM ARTIFACTS: {plan_paths_and_statuses}; commits since authoring: {shas}{/if}

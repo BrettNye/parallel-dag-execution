@@ -137,6 +137,21 @@ is a scope change for the author to accept, not a detail to absorb quietly.
 Where two findings' fixes genuinely conflict, say so and present the trade-off.
 Do not invent a compromise the evidence doesn't support.
 
+**Every BLOCKING finding's resolution names the check that pins its fix.** That is an
+acceptance criterion or suite case that fails on the wrong build the finding
+describes, and passes on the right one. Write it into the resolution, in the
+owning task, as concretely as the finding's own failure.
+
+Where no executable check is possible, say so, and name the criterion that checks it
+instead (an `rg` count, a review point). An example is wording that only an agent reads.
+
+Why: without the pin, a fix lands as prose, and nothing stops the next edit, or an
+implementer's reading, from undoing it. In the D2 experiment, the implementers who
+ran from a once-audited plan built the round-2 fix's behaviour correctly anyway. What
+they did not have was the suite case that would keep it correct. That case was the
+only thing later rounds bought (`experiments/d2-gate2-ablation/REPORT.md`). Pinning
+every fix in the round that makes it moves that value into round 1.
+
 **Then check your own resolutions against each other.** Two individually-correct
 resolutions can compose into a worse defect than either fixed. Observed: one
 resolution made a close-predicate exhaustive, another made a read path
@@ -193,7 +208,8 @@ State it in one line, first, before the detail.
 
 ### Blocking findings
 (each starts with a bold line at the start of the line, `**B1. <claim>**`, then: artifact
- quote · union of evidence · concrete failure · resolution · and one line
+ quote · union of evidence · concrete failure · resolution, naming the check that pins
+ it · and one line
  `- Lenses: <lens>, <lens>` naming every lens that reported it, at any severity, before
  any prose. Keep this heading even for one finding. `audit-stats` counts findings and
  lenses from exactly this shape.)
