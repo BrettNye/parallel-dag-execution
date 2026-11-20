@@ -402,7 +402,7 @@ NR == FNR {
     next
   }
   if (match(line, /^## Task:[ \t]*/)) { intext = 0; nt++; cur = nt; title[cur] = trim(substr(line, RLENGTH + 1)); pend = 1; next }
-  if (line ~ /^##? / && line !~ /^## (Implementation|Contracts|Acceptance criteria)[ \t]*$/) intext = 0
+  if (line ~ /^##? / && line !~ /^## (Implementation|Acceptance criteria)[ \t]*$/) intext = 0
   if (line ~ /^##? /) pend = 0
   if (intext) addtx(line, 0)
   next

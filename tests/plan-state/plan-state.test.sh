@@ -603,9 +603,10 @@ pf_run "$pf" st.md
 chk "done text not judged, pending text is" "$rc:$out" "1:plan-state: preflight: P3: task-p cites lib/gone.sh:4, which does not exist and no task creates"
 
 pf_head "$pf/sec.md"; pf_task "$pf/sec.md" task-x pending "out.txt"
-printf 'Body.\n\n## Implementation\n\nUse `a/impl.sh:1`.\n\n## Contracts\n\nUse `a/con.sh:1`.\n\n## Acceptance criteria\n\nUse `a/acc.sh:1`.\n\n### Example\n\nUse `a/ex.sh:1`.\n\n## Notes\n\nUse `a/notes.sh:1`.\n' >> "$pf/sec.md"
+printf 'Body.\n\n## Implementation\n\nUse `a/impl.sh:1`.\n\n## Acceptance criteria\n\nUse `a/acc.sh:1`.\n\n### Example\n\nUse `a/ex.sh:1`.\n\n## Contracts\n\nUse `a/con.sh:1`.\n\n## Notes\n\nUse `a/notes.sh:1`.\n' >> "$pf/sec.md"
 pf_run "$pf" sec.md
-chk "four sections read" "$rc:$(printf '%s\n' "$out" | rg -c 'P3: task-x cites a/(impl|con|acc|ex)\.sh:1,')" "1:4"
+chk "preflight reads three sections, not Contracts" "$rc:$(printf '%s\n' "$out" | rg -c 'P3: task-x cites a/(impl|con|acc|ex)\.sh:1,')" "1:3"
+hasnt "text under ## Contracts is not read" "$out" "con.sh"
 hasnt "text after ## Notes is not read" "$out" "notes.sh"
 
 pf_head "$pf/ord.md"; pf_task "$pf/ord.md" task-x pending "out.txt"
