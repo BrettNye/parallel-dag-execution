@@ -32,9 +32,10 @@ message naming its removal.
 
 The plan is also the first real execution of named tests (E3): both `plan-state` tasks carry a
 `tests:` list in `tests/plan-state/plan-state.test.sh`, the slowest suite, so `verify-tests`
-runs on them. Every named case is a new case name, so the expected label for each is
-`ok-absent` (absent at `base_sha`, passing after). That is expected, not a defect: the suite at
-`base_sha` does not print these names.
+runs on them. `verify-tests` runs the task's new suite in both trees, and only the non-test
+files go back to `base_sha`. A named case must therefore fail against the base script and pass
+after the change; its expected label is `ok`. A case that also passes against the base script (a
+preservation guard) stays in the suite but is not listed in `tests:`.
 
 Out of scope, per the spec: anything under `experiments/`, `plan-state charter` and its
 `## Contracts between children` table (a superspec charter section, a different thing with the
@@ -50,7 +51,7 @@ The spec is approved and asked for no questions; these are the planner's decisio
    `experiments/d1-no-implementation/final-plans/`. Superspec charters use
    `## Contracts between children`, which never matched. So it goes, in its own task
    (`task-preflight-sections`), and the suite's "four sections read" case is replaced by two new
-   names, since keeping the old name with a new expected value would be labelled `not-red`.
+   names, since the old name says "four" and the case now counts three.
 2. **`secimpl` goes with `seccon`.** The spec names only `seccon`, but `secimpl` is set on the
    line beside it and read only by the same rule 14 loop. Leaving it would leave dead
    bookkeeping.
@@ -89,8 +90,8 @@ for t in tests/*/*.test.sh; do bash "$t" || exit 1; done
 ```
 
 `CLAUDE.md` asks that the helper scripts run under dash and under gawk, mawk and busybox awk;
-the suites cover dash through their alternate-shell cases, and the awk variants are run where
-installed.
+the suites cover dash through their alternate-shell cases, and the mawk and busybox awk runs
+are an acceptance criterion of `task-rule14`.
 
 ## Tasks
 
@@ -107,9 +108,6 @@ review_mode: split
 tests:
   - tests/plan-state/plan-state.test.sh :: rule 14: contracts-only names its removal
   - tests/plan-state/plan-state.test.sh :: rule 14: contracts-only with Contracts sections still exits 1
-  - tests/plan-state/plan-state.test.sh :: rule 14: bogus value is named
-  - tests/plan-state/plan-state.test.sh :: rule 14: implementation full is clean
-  - tests/plan-state/plan-state.test.sh :: rule 14: no implementation key is clean
   - tests/plan-state/plan-state.test.sh :: rule 14: removal message under the alternate shell
 ```
 
@@ -130,7 +128,7 @@ The exact lines, on stdout, with `check` exiting 1:
 ## Implementation
 
 ```awk
-# skills/writing-dag-plans/plan-state, in the check pass: replaces the block at :165-172
+# skills/writing-dag-plans/plan-state, in the check pass: replaces the block at :165-173
   if (("implementation" in fmset) && fm["implementation"] != "full")
     viol(14, "implementation is " fm["implementation"] \
       (fm["implementation"] == "contracts-only" ? " (removed after the D1 pilot; use full)" : ""))
@@ -158,9 +156,11 @@ The variable name `gone` and the fixture file names are illustrative; the helper
 
 ## Acceptance criteria
 
-Each criterion is a case in `tests/plan-state/plan-state.test.sh` with the quoted name, each
-name appears once in the suite, and each compares `"$rc:$out"` exactly, so an extra line (a
-leftover per-task rule 14 line) fails it.
+Each quoted name below is a case in `tests/plan-state/plan-state.test.sh`, each name appears
+once in the suite, and each compares `"$rc:$out"` exactly, so an extra line (a leftover per-task
+rule 14 line) fails it. Only the three cases that fail against the base script are in `tests:`.
+"bogus value is named", "implementation full is clean" and "no implementation key is clean" also
+pass against the base script, so they are preservation guards: in the suite, not named.
 
 - "rule 14: contracts-only names its removal": `clean_plan` plus `implementation: contracts-only`
   gives exactly `1:plan-state: rule 14: implementation is contracts-only (removed after the D1 pilot; use full)`.
@@ -180,6 +180,13 @@ leftover per-task rule 14 line) fails it.
 - `rg -n 'seccon|secimpl' skills/writing-dag-plans/plan-state` prints nothing. (A source search,
   not a suite case.)
 - `bash tests/plan-state/plan-state.test.sh` ends with `RESULT: N passed, 0 failed` and exits 0.
+- `sh skills/executing-dag-plans/verify-tests docs/superpowers/plans/2026-11-20-remove-contracts-only.md task-rule14`
+  labels all 3 entries `ok` and exits 0.
+- For each of `mawk` and `busybox` that is present: in a `mktemp -d` directory `$shim`, an
+  executable `awk` that runs `exec mawk "$@"` (or `exec busybox awk "$@"`), then
+  `PATH="$shim:$PATH" bash tests/plan-state/plan-state.test.sh` ends with
+  `RESULT: N passed, 0 failed`. The DONE report names the awks that ran and has one `NOTE:` line
+  for each one that was missing.
 
 Test file: `tests/plan-state/plan-state.test.sh`.
 
@@ -209,29 +216,36 @@ sentence; the decision is recorded in this plan's Context, call 1.
 ## Implementation
 
 ```awk
-# skills/writing-dag-plans/plan-state, parse pass (line 413 at HEAD; 411 once task-rule14 lands)
+# skills/writing-dag-plans/plan-state, parse pass: the line that clears intext on a heading,
+# found by content (the one with "Implementation|Contracts|Acceptance criteria"); drop Contracts
   if (line ~ /^##? / && line !~ /^## (Implementation|Acceptance criteria)[ \t]*$/) intext = 0
 ```
 
-```bash
-# tests/plan-state/plan-state.test.sh: the existing "sec.md" fixture, the case renamed and re-pinned
-pf_run "$pf" sec.md
-re='P3: task-x cites a/(impl|con|acc|ex)[.]sh'   # keep the suite's existing regex; this is its shape
-chk "preflight reads three sections, not Contracts" "$rc:$(printf '%s\n' "$out" | rg -c "$re")" "1:3"
-hasnt "text under ## Contracts is not read" "$out" "con.sh"
-```
+In `tests/plan-state/plan-state.test.sh`, edit the `sec.md` fixture's `printf` line (the one
+after `pf_task "$pf/sec.md" task-x`): move its `## Contracts` section, with that section's one
+`Use` line, from after `## Implementation` to after `### Example` and before `## Notes`. Leave
+every cited path and the `pf_run` line as they are. Replace the case `chk "four sections read"`
+with `chk "preflight reads three sections, not Contracts"`, same count expression, expecting
+`1:3`. Add, after it, `hasnt "text under ## Contracts is not read" "$out"` with the fixture's
+Contracts file name (the one starting `con`) as the third argument. The fixture's paths are
+described here rather than quoted, because preflight would read a quoted fixture path as a
+citation of a real file.
 
-The fixture stays as it is (it already has prose, `## Implementation`, `## Contracts`,
-`## Acceptance criteria`, `### Example` and `## Notes`, each citing a missing file). The old case
-"four sections read" is replaced, not edited in place: a case whose name existed at `base_sha`
-and passed there would be labelled `not-red`.
+The count reuses the suite's existing regex (test.sh:628) unchanged. Preflight turns reading on
+only at a task's YAML fence close, so a heading that clears it ends the read text for the rest
+of the task. That is why `## Contracts` moves to just before `## Notes`: in the old order it
+would stop the read before `## Acceptance criteria` and `### Example`. The old case "four
+sections read" is replaced, not edited in place, because its name says "four" and the case now
+counts three. Both named cases fail against the base script (it reads Contracts: count 4, and
+`con.sh` is printed) and pass after, so each is labelled `ok`.
 
 ## Acceptance criteria
 
 Each criterion is a case in `tests/plan-state/plan-state.test.sh` with the quoted name, and each
 name appears once in the suite.
 
-- "preflight reads three sections, not Contracts": on the `sec.md` fixture, preflight exits 1
+- "preflight reads three sections, not Contracts": on the reordered `sec.md` fixture (body,
+  `## Implementation`, `## Acceptance criteria`, `### Example`, `## Contracts`, `## Notes`), preflight exits 1
   and the suite's existing count (the regex over the fixture's impl, con, acc and ex citations)
   is exactly 3: the citations under `## Implementation`, `## Acceptance criteria` and
   `### Example`. The regex still matches the con citation, so reading the Contracts text would
@@ -241,6 +255,8 @@ name appears once in the suite.
 - The existing case "text after ## Notes is not read" still passes.
 - The name "four sections read" no longer appears in the suite.
 - `bash tests/plan-state/plan-state.test.sh` ends with `RESULT: N passed, 0 failed` and exits 0.
+- `sh skills/executing-dag-plans/verify-tests docs/superpowers/plans/2026-11-20-remove-contracts-only.md task-preflight-sections`
+  labels both entries `ok` and exits 0.
 
 Test file: `tests/plan-state/plan-state.test.sh`.
 
@@ -391,3 +407,23 @@ rg -n -i 'contracts-only|## Contracts|needs-implementation' skills/auditing-arti
   cases.)
 
 Test file: none; the check is the `rg` search above.
+
+## Audit record
+
+- **2026-11-20** · gate 2 · rev `42f17e0c5bab` · commit `a77f7fa` · lenses: coverage,
+  dag-integrity, grounding, charter, context-sufficiency, verifiability, coherence,
+  ambiguity (8/8 ran) · **NOT READY — 2 blocking**
+  - B1 (task-rule14): three of the six named cases already pass against the base script;
+    `verify-tests` keeps test files at HEAD in the before tree, so they label `not-red`
+    (not `ok-absent`) and the task fails.
+  - B2 (task-preflight-sections): with `sec.md` unchanged, the regex edit stops reading at
+    `## Contracts`; the named case gets `1:1`, not `1:3`.
+  - Joint resolution J1 covers B1, B2, D1, D2, D5; J2 owns EU1. Full set in
+    `.audit/2026-11-20-remove-contracts-only.md/reconciliation.md`.
+  - Deferred (not yet accepted): D1 rule 14 range ends :173 not :172; D2 stale :411
+    pointer; D3 task-lens-doc before-count is 4 not 3; D4 open-ended old T21 name list;
+    D5 preflight sketch regex differs from the suite's; D6 frontmatter comment keeps a
+    contracts-only clause; D7 trial measurement steps unowned; D8 `plan-format.md:134` and
+    reviewer prompts misdescribe `ok-absent` (out of scope, backlog).
+  - Empirical unknowns opened: EU1 — mawk/busybox awk runs of the plan-state suite; owner
+    task-rule14 (per J2).
