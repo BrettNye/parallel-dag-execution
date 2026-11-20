@@ -26,7 +26,7 @@ spec: docs/superpowers/specs/2026-05-02-my-feature-design.md  # OPTIONAL. Single
 default_implementer: dag-implementer    # OPTIONAL. subagent_type fallback for tasks lacking `implementer:`. Resolution order: task.implementer, then default_implementer, then dag-implementer.
 parent: docs/superpowers/specs/2026-05-01-platform-charter.md  # OPTIONAL. The superspec charter this plan is a child of. Set together with `child:`.
 child: api                              # OPTIONAL. This plan's id in the parent charter's `children:` list.
-implementation: full                    # OPTIONAL. full | contracts-only. Default full. EXPERIMENTAL (D1 experiment): contracts-only replaces each task's ## Implementation with ## Contracts. See "Contracts-only plans".
+implementation: full                    # OPTIONAL. Only `full` is valid; the key is kept so older plans that set it still pass. contracts-only was removed after the D1 pilot (rule 14).
 default_model_hint: standard            # OPTIONAL. cheap | standard | opus. Default `standard`. Implementer tier.
 default_spec_reviewer_hint: standard    # OPTIONAL. cheap | standard | opus. Default `standard`.
 default_quality_reviewer_hint: standard # OPTIONAL. cheap | standard | opus. Default `standard`.
@@ -201,15 +201,6 @@ Tasks with `is_wiring_task: true` skip the `## Implementation` subsection. Their
 
 Wiring tasks MAY include a code block showing the import/registration shape but it is optional.
 
-### Contracts-only plans (experimental)
-
-A plan whose frontmatter sets `implementation: contracts-only` replaces each task's
-`## Implementation` with a `## Contracts` section. Contracts hold signatures only:
-function names and arguments, command usage, exit codes, output and file formats. No
-function bodies, no test code. Fenced code blocks are allowed for the signatures. The
-implementer decides how; the task states what must hold. Wiring tasks stay exempt.
-The mode exists for the D1 experiment and is not a default.
-
 ### Example task body (canonical structure)
 
 ````markdown
@@ -278,7 +269,7 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
 11. **`spec:` file validity** — `spec:`, when present, MUST resolve to a readable single file, not a directory. Any other case → refuse, naming the field and the offending path.
 12. **`default_implementer` type check** — `default_implementer`, when present in frontmatter, MUST be a non-empty string. Any other value → refuse with the field name and the bad value.
 13. **`parent:` / `child:` placement** — when either is present, both MUST be present; `parent:` MUST resolve to a readable single file, and `child:` MUST appear in that file's `children:` frontmatter list. Any other case → refuse, naming the field and the offending value.
-14. **`implementation:` mode** — `implementation:`, when present in frontmatter, MUST be `full` or `contracts-only`. Under `contracts-only`, every task without `is_wiring_task: true` MUST have a `## Contracts` section and MUST NOT have a `## Implementation` section. Any other case → refuse, naming the field and its value, or the task and the section.
+14. **`implementation:` mode** — `implementation:`, when present in frontmatter, MUST be `full`. `contracts-only` was removed after the D1 pilot and is refused with `plan-state: rule 14: implementation is contracts-only (removed after the D1 pilot; use full)`. Any other value → `plan-state: rule 14: implementation is <value>`.
 15. **`review_rounds` count** — `review_rounds`, when present on any task, MUST be a whole number from 0 to 3. It counts fix rounds; absent means 0. `plan-state round <plan> <id>` raises it by one on a `running` task and refuses at 3 (exit 1), which is the review cap: the executor then marks the task `failed`. Any other value → refuse naming the task id, the field, and the bad value.
 16. **Named tests** — `tests:`, when present on a task, MUST be a block list of entries `<file> :: <case>`, each `<file>` MUST be in that task's `files:`, and no entry may repeat (after normalising). `test_command`, when present in frontmatter, MUST contain `{file}`. `test_pass_prefix` and `test_fail_prefix`, when present, MUST NOT be empty. Refusal lines:
     - `rule 16: <id> tests entry "<entry>" is not "<file> :: <case>"`
