@@ -7,11 +7,11 @@ default_review_mode: merged
 
 ```mermaid
 flowchart TD
-    task-rule14["task-rule14: narrow plan-state rule 14 to full<br/>files: skills/writing-dag-plans/plan-state, tests/plan-state/plan-state.test.sh"]
-    task-preflight-sections["task-preflight-sections: stop preflight reading Contracts sections<br/>files: skills/writing-dag-plans/plan-state, tests/plan-state/plan-state.test.sh"]
-    task-format-doc["task-format-doc: remove contracts-only from the plan format<br/>files: skills/writing-dag-plans/plan-format.md"]
-    task-planner-docs["task-planner-docs: remove contracts-only from the planner guidance<br/>files: skills/writing-dag-plans/SKILL.md, skills/writing-dag-plans/plan-quality.md"]
-    task-lens-doc["task-lens-doc: remove the contracts-only section from the plan lenses<br/>files: skills/auditing-artifacts/lenses-plan.md"]
+    task-rule14["task-rule14: narrow plan-state rule 14 to full<br/>files: skills/writing-dag-plans/plan-state, tests/plan-state/plan-state.test.sh"]:::done
+    task-preflight-sections["task-preflight-sections: stop preflight reading Contracts sections<br/>files: skills/writing-dag-plans/plan-state, tests/plan-state/plan-state.test.sh"]:::done
+    task-format-doc["task-format-doc: remove contracts-only from the plan format<br/>files: skills/writing-dag-plans/plan-format.md"]:::done
+    task-planner-docs["task-planner-docs: remove contracts-only from the planner guidance<br/>files: skills/writing-dag-plans/SKILL.md, skills/writing-dag-plans/plan-quality.md"]:::done
+    task-lens-doc["task-lens-doc: remove the contracts-only section from the plan lenses<br/>files: skills/auditing-artifacts/lenses-plan.md"]:::done
     task-rule14 --> task-preflight-sections
 
     classDef done fill:#90ee90,stroke:#333
@@ -103,7 +103,8 @@ depends_on: []
 files:
   - skills/writing-dag-plans/plan-state
   - tests/plan-state/plan-state.test.sh
-status: pending
+status: done
+base_sha: e8fd7f518c5c413ec55f7dbebc94c50cac4fd070
 review_mode: split
 tests:
   - tests/plan-state/plan-state.test.sh :: rule 14: contracts-only names its removal
@@ -198,7 +199,8 @@ depends_on: [task-rule14]
 files:
   - skills/writing-dag-plans/plan-state
   - tests/plan-state/plan-state.test.sh
-status: pending
+status: done
+base_sha: 563a90484bbc3626ed84e7563b6b0faf0f164ea8
 review_mode: split
 tests:
   - tests/plan-state/plan-state.test.sh :: preflight reads three sections, not Contracts
@@ -267,7 +269,8 @@ id: task-format-doc
 depends_on: []
 files:
   - skills/writing-dag-plans/plan-format.md
-status: pending
+status: done
+base_sha: e8fd7f518c5c413ec55f7dbebc94c50cac4fd070
 model_hint: cheap
 ```
 
@@ -314,7 +317,8 @@ depends_on: []
 files:
   - skills/writing-dag-plans/SKILL.md
   - skills/writing-dag-plans/plan-quality.md
-status: pending
+status: done
+base_sha: e8fd7f518c5c413ec55f7dbebc94c50cac4fd070
 model_hint: cheap
 ```
 
@@ -368,7 +372,8 @@ id: task-lens-doc
 depends_on: []
 files:
   - skills/auditing-artifacts/lenses-plan.md
-status: pending
+status: done
+base_sha: e8fd7f518c5c413ec55f7dbebc94c50cac4fd070
 model_hint: cheap
 ```
 
