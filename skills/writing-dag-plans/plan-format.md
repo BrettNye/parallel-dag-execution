@@ -129,10 +129,11 @@ The spec and quality reviewers (`dag-spec-reviewer`, `dag-quality-reviewer`) are
 - **Unique case names.** A case name must be unique in its file: the test file prints one line per case, and the matcher finds a case by that line, so two cases with one name cannot be told apart.
 - **Matching rule.** The test file runs through `test_command` from the repository root. A case `passed` when a line equals `test_pass_prefix` followed by the case name. It `failed` when a line equals `test_fail_prefix` followed by the case name, optionally followed by ` (` and detail. It is `absent` when no line names it. It is `ambiguous` when its lines disagree, for example a pass line and a fail line, or the same line more than once.
 - **`base_sha`.** `plan-state set <plan> <id> running` writes `base_sha`, the commit the task started from, the first time only. A resume of the same task keeps the value it already has, so the red check always compares against the original start. Nobody edits it by hand.
+- **Before and after.** "Before" is not the repository at `base_sha`. It is `HEAD` with the task's non-test files put back to `base_sha`, so the task's **current** test files run against the **old** code. A case added by the task therefore exists in both runs.
 - **Labels.** `verify-tests` reports one label per entry:
-  - `ok` — the case fails (red) at `base_sha` and passes now.
-  - `ok-absent` — the case did not exist at `base_sha` (absent) and passes now.
-  - `not-red` — the case already passed at `base_sha`, so it proves nothing new.
+  - `ok` — the case fails (red) against the old code and passes now.
+  - `ok-absent` — the case prints no result against the old code (absent), for example because the suite stops before reaching it, and passes now.
+  - `not-red` — the case already passes against the old code, so it proves nothing about the change. This includes a new case that only guards behaviour the old code already had: keep such a case in the suite, but leave it out of `tests:`.
   - `not-green` — the case does not pass now (failed or absent).
   - `ambiguous` — the case could not be matched to one result.
 
