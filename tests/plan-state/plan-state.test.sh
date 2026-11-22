@@ -609,6 +609,18 @@ chk "preflight reads three sections, not Contracts" "$rc:$(printf '%s\n' "$out" 
 hasnt "text under ## Contracts is not read" "$out" "con.sh"
 hasnt "text after ## Notes is not read" "$out" "notes.sh"
 
+# A fenced block whose info string has the word "fixture" is test data, not citations.
+pf_head "$pf/fix.md"; pf_task "$pf/fix.md" task-x pending "out.txt"
+printf 'Body.\n\n## Implementation\n\n```bash fixture\nprintf %s a/fake.sh:1\n```\n\n```bash\nUse a/real.sh:1\n```\n\n```fixture\nb/also-fake.sh:2\n```\n' "'x'" >> "$pf/fix.md"
+pf_run "$pf" fix.md
+chk "fixture block: only the plain block is cited" "$rc:$(printf '%s\n' "$out" | rg -c 'P3: task-x cites')" "1:1"
+has "fixture block: the plain block's path is cited" "$out" "a/real.sh:1"
+hasnt "fixture block: a path in a bash fixture block is not cited" "$out" "fake.sh"
+pf_head "$pf/fix2.md"; pf_task "$pf/fix2.md" task-x pending "out.txt"
+printf 'Body.\n\n## Implementation\n\n```bash fixtures\nUse a/word.sh:1\n```\n' >> "$pf/fix2.md"
+pf_run "$pf" fix2.md
+has "fixture block: only the whole word fixture counts" "$out" "a/word.sh:1"
+
 pf_head "$pf/ord.md"; pf_task "$pf/ord.md" task-x pending "out.txt"
 printf 'First `zz/last.sh:1` then `aa/first.sh:1`.\n' >> "$pf/ord.md"
 pf_run "$pf" ord.md

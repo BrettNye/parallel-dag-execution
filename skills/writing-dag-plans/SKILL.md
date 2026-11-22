@@ -184,6 +184,11 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
    marked `warning:` join step 7's soft-heuristic warnings under the same "save anyway?
    (y/N)" prompt.
 
+   Preflight reads every path-like word in a task's code blocks as a citation. When a block
+   is test data, such as a fixture whose made-up paths must not exist, add the word
+   `fixture` to its info string (` ```bash fixture `) and preflight skips the block. Use it
+   only for data: a real path in a fixture block goes unchecked.
+
    Any failure → refuse, explain, exit. Do NOT write the file.
 
 6.5. **Identify contract surface.** Walk each task's `## Implementation` block and extract defined contract symbols (interfaces, types, exported function signatures, schema definitions) per the H9 detection patterns in `plan-quality.md`. For each consumer task, identify which other tasks define symbols it imports or references. If any consumer task references a contract from a non-dependency, surface as a planner-level decision: either add the `depends_on:` edge or refactor to remove the cross-task reference. Loop until clean. (This is the planner-side mirror of H9 — catch the issue before it becomes a refusal at validation time.) Note: capabilities referenced only in prose or acceptance criteria — not in code blocks — are not visible to this symbol-walk; H10 (missing-producer index) and the step-8 prose-consumption sweep together cover that blind spot.
