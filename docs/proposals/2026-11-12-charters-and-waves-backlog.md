@@ -251,6 +251,47 @@ is finished.
   blocking findings. Lenses can then be merged down to the ones that need judgment, starting
   with the two that rarely catch anything alone.
 
+## F. Places a run can stall unseen (added 2026-11-24)
+
+Found while drawing the plan, audit and execute flows as diagrams for the desk. Each item is a
+point where the run stops or loses information and nothing outside the controller's own session
+says so. The review-round cap and advance-on-completion (C3) were on this list until a check
+showed master already has them; F1 is why they still looked missing.
+
+### F1. The installed plugin is months behind master
+- **Evidence:** `~/.claude/plugins/installed_plugins.json` pins this plugin at version 0.6.0,
+  commit `e1d1be1`, installed 2026-09-17. `.claude-plugin/plugin.json` on master still says
+  0.6.0: the last bump was `0506228` on 2026-08-28. So the installed copy has no `plan-state`,
+  no `verify-tests`, no review-round cap, and still ends every tick waiting for "continue".
+  Every session that runs `/execute` gets the old executor, and nothing warns about it.
+- **Proposal:** bump the version in `plugin.json` on every merge that changes `skills/`,
+  `agents/` or `commands/`, then update the installed plugin. A test could check the
+  version: it fails when those folders changed since the last version tag and `plugin.json`
+  has the same version.
+
+### F2. A `running` task after the controller dies looks live
+- **Evidence:** a killed session leaves its tasks `running` in the plan file. Resume resets
+  them to `ready`, but only once someone runs `/execute` again. Until then, `plan-state tree`
+  and anyone reading the plan see work in progress that is not happening.
+- **Proposal:** `plan-state set ... running` also writes a start time to the task. `tree` marks
+  a `running` task older than a limit as possibly stale. Low cost for one person. It matters
+  once something else reads plans, such as the desk's plan-collision check (desk backlog items
+  25 and 49).
+
+### F3. DONE_WITH_CONCERNS observations have nowhere to go
+- **Evidence:** the status table says "If observations only, log and proceed", but nothing says
+  where the log goes. The concerns live only in the controller's context and are lost when the
+  session ends.
+- **Proposal:** the final report lists every task's observations. Once the desk has a tracker
+  seam (desk backlog item 12), the observations become follow-ups filed through that seam.
+
+### F4. A failed task's reason is not in the plan
+- **Evidence:** the review-round cap says "Do not write the reason into the plan"; the reason
+  goes only into the final report. A reader of the plan after the session sees `failed` with no
+  why: a review cap, a second BLOCKED, or a reviewer with no verdict.
+- **Open:** why the reason was kept out of the plan. If the reason was parsing (`set` rewrites
+  only the status line), a `failed_reason:` field written by `plan-state` would fix it.
+
 ## v0.6.0 (merged 2026-11-12)
 
 `docs/superpowers/plans/2026-08-27-seams-and-ground-truth-dag.md` was executed (15/15) on
