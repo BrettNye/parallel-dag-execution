@@ -352,6 +352,29 @@ chk "signals: TERM mid-run cleans up" "$(sigrun sh TERM TERM1)|$(sigrun "$ALTSH"
 chk "signals: INT mid-run cleans up" "$(sigrun sh INT INT1)|$(sigrun "$ALTSH" INT INT2)" "2:1:1:0|2:1:1:0"
 chk "signals: HUP mid-run cleans up" "$(sigrun sh HUP HUP1)|$(sigrun "$ALTSH" HUP HUP2)" "2:1:1:0|2:1:1:0"
 
+# suitegone <shell> <tag> <nojc>: TERM mid-run, then is the process the suite started still alive?
+# Prints "rc:alive". <nojc>=1 sets VERIFY_TESTS_NO_JOBCTL, standing in for a shell where set -m
+# cannot turn job control on (no terminal), so the suite shares verify-tests' process group.
+# The suite starts sleep as its own child and waits, so the sleeping process is a grandchild of
+# verify-tests' child: stopping only the child would leave it running.
+mkspawner() {
+  newrepo "$1"; put "$1" lib.sh "$LIB_BAD"
+  put "$1" t/demo.test.sh "if [ -f '$1.flag' ]; then sleep 30 & echo \$! > '$1.mark'; wait; exit 1; fi
+$DEMO"
+  commit "$1" base; B=$(git -C "$1" rev-parse HEAD); put "$1" lib.sh "$LIB_GOOD"; commit "$1" task
+  writeplan "$1" "$B" "$FILES2" '  - t/demo.test.sh :: adds'; : > "$1.flag"
+}
+suitegone() {
+  local d="$tmp/sg$2" T="$tmp/Tsg$2" rc a; mkdir -p "$T"; mkspawner "$d"
+  VERIFY_TESTS_NO_JOBCTL="$3" startvt "$1" "$d" "$T"; waitfile "$d.mark" || echo "(suite never started)"
+  kill -s TERM "$pid"; wait "$pid"; rc=$?; sleep 1
+  if kill -0 "$(cat "$d.mark")" 2>/dev/null; then a=1; kill "$(cat "$d.mark")" 2>/dev/null; else a=0; fi
+  cat "$d.so" >> "$tmp/allout"
+  printf '%s:%s' "$rc" "$a"
+}
+chk "signals: TERM stops a process the suite started" "$(suitegone sh a '')|$(suitegone "$ALTSH" b '')" "2:0|2:0"
+chk "signals: TERM stops a process the suite started, without job control" "$(suitegone sh c 1)|$(suitegone "$ALTSH" d 1)" "2:0|2:0"
+
 # A cleanup hook that writes <dir>.clean and then sleeps keeps the trap busy while a second TERM arrives.
 sig2() {
   local d="$tmp/s2$2" T="$tmp/Ts2$2" rc; mkdir -p "$T"; mksleepy "$d"

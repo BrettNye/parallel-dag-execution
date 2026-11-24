@@ -16,8 +16,8 @@
 # Bash tool timeout: the probe log stayed empty (2026-11-18): the Claude Code Bash tool sends no
 #   signal on timeout; it moves the command to the background and lets it run on. Probe, run with
 #   timeout 5000: sh -c 'trap "echo INT >> /tmp/vt-probe.log; exit 2" INT; trap "echo TERM >> /tmp/vt-probe.log; exit 2" TERM; trap "echo HUP >> /tmp/vt-probe.log; exit 2" HUP; sleep 60 & wait'
-# Test hook: VERIFY_TESTS_CLEANUP_HOOK, when set, runs as sh -c "$hook" with $1 the repository and
-#   $2 the temporary directory, at the start of every cleanup. Only the test suite sets it.
+# Test hooks: VERIFY_TESTS_NO_JOBCTL=1 skips set -m before each suite run. VERIFY_TESTS_CLEANUP_HOOK, when set, runs as sh -c "$hook" with $1 the repository and
+#   $2 the temporary directory, at the start of every cleanup. Only the test suite sets either.
 set -u
 usage() { sed -n '3,5p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ "$#" -eq 2 ] || usage
@@ -59,9 +59,29 @@ bail() {
   cleanup || echo "verify-tests: $id: cleanup failed" >&2
   exit 2
 }
+# descendants <pid>: print the pids below <pid>, one per line. POSIX ps first; Cygwin and MSYS ps
+# reject -A and -o, so fall back to "ps -e", whose first two numeric columns are PID and PPID
+# (a leading status letter, such as I, is skipped).
+descendants() {
+  { ps -A -o pid= -o ppid= 2>/dev/null || ps -e 2>/dev/null; } | awk -v root="$1" '
+    { f = ($1 ~ /^[0-9]+$/) ? 1 : 2; p = $f; q = $(f + 1) }
+    p ~ /^[0-9]+$/ && q ~ /^[0-9]+$/ { n++; id[n] = p; par[p] = q }
+    END { want[root] = 1
+      do { more = 0
+        for (i = 1; i <= n; i++) if (!(id[i] in want) && (par[id[i]] in want)) { want[id[i]] = 1; more = 1; print id[i] }
+      } while (more) }'
+}
 on_signal() {
   trap '' INT TERM HUP
-  if [ -n "$child" ]; then kill -s TERM -- "-$child" 2>/dev/null || kill -s TERM "$child" 2>/dev/null; wait "$child" 2>/dev/null; fi
+  # The process group reaches the whole suite when set -m took effect. Without a terminal some
+  # shells (dash among them) leave job control off, and the suite shares this script's group, so
+  # its processes are also found by parent pid and stopped one by one.
+  if [ -n "$child" ]; then
+    kids=$(descendants "$child")
+    kill -s TERM -- "-$child" 2>/dev/null
+    kill -s TERM "$child" $kids 2>/dev/null
+    wait "$child" 2>/dev/null
+  fi
   cleanup || echo "verify-tests: $id: cleanup failed" >&2
   echo "verify-tests: $id: interrupted" >&2
   exit 2
@@ -110,7 +130,8 @@ for tree in after before; do
       esac
     done
     # Job control gives the suite its own process group, so the trap can stop all of it.
-    set -m
+    # VERIFY_TESTS_NO_JOBCTL=1 (test suite only) leaves it off, as a shell with no terminal may.
+    [ "${VERIFY_TESTS_NO_JOBCTL:-}" = 1 ] || set -m
     (cd "$work/$tree" && exec sh -c "$run") < /dev/null > "$out" 2>&1 &
     child=$!
     set +m
