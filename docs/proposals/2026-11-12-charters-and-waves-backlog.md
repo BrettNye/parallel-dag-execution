@@ -147,6 +147,11 @@ Sonnet 5.5 changes, and pressure language is rare. What is left is mostly in the
   docs-only tasks.
 - **Proposal:** run the audit and review fixtures at the alternative settings and change a
   default only where the fixtures hold.
+- **Parked (2026-11-24), for gate 2's first round with D3 folded in:** designed in
+  `docs/superpowers/specs/2026-11-19-c5-gate2-settings-design.md` (4 settings x 2 draws on D2's
+  frozen plan, about $100). Not run: the best case saves about $9 of round 1's $17 per plan, so
+  it pays back only after a dozen or so plans, and a setting that misses a finding fails
+  silently. Revisit when plans are written often enough for that saving to matter.
 
 ### C6. Say which model runs the controller
 - **Evidence:** the README does not say. Fable 5.2 delegates readily and at high effort reviews
@@ -186,6 +191,7 @@ Not placed in the order below; D2 and D3 belong with C5.
 - **Evidence:** OpenAI's reviewer recovered known bugs less well in model-written code than in
   human-written code. Implementers and reviewers here are the same model family.
 - **Proposal:** add this as one of C5's alternative settings.
+- **Parked with C5 (2026-11-24):** the sonnet-lenses setting in C5's design answers it for gate 2.
 
 ## E. Spec and plan process (added 2026-11-12)
 
