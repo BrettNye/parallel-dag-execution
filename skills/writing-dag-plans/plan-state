@@ -48,7 +48,8 @@ function inl(key, v,   n, i, a) {
   n = split(v, a, ","); for (i = 1; i <= n; i++) addlist(key, a[i])
 }
 function yamlline(l,   k, v) {
-  if (match(l, /^[ \t]+-[ \t]*/)) {
+  # A list item may sit at column 0 (valid YAML) once a list key has opened the list.
+  if (match(l, /^[ \t]+-[ \t]*/) || (ylist != "" && match(l, /^-[ \t]+/))) {
     if (ylist == "tests") { raw = substr(l, RLENGTH + 1); sub(/[ \t\r]+$/, "", raw); nte[cur]++; traw[cur, nte[cur]] = raw; return }   # literal: no comment, no quotes
     if (ylist != "") addlist(ylist, stripc(substr(l, RLENGTH + 1)))
     return
@@ -63,6 +64,9 @@ function yamlline(l,   k, v) {
     if (k == "review_rounds") rrl[cur] = FNR
   }
 }
+# A mermaid block that never closes, or runs into a heading, swallows the plan text after it,
+# and a rewrite would then delete that text. Returns the complaint, or "" when the block is sound.
+function merbad() { return (ms && (!me || merhd)) ? "mermaid block opened at line " ms " is not closed before the next heading; add its closing fence" : "" }
 function err(msg) { print "plan-state: " msg | "cat 1>&2" }
 function viol(rule, msg) { if (MODE == "tests") err("rule " rule ": " msg); else print "plan-state: rule " rule ": " msg; bad = 1 }
 function inset(v, set) { return index(" " set " ", " " v " ") > 0 }
@@ -138,6 +142,7 @@ function testsout(   n, t, u, e, j, cmdv, pv, fv) {
 function check(   t, k, i, j, f, a, b, v, list, owners, seen, own, hint, n) {
   if (nt == 0) viol(5, "no \"## Task:\" sections found")
   if (!ms) print "plan-state: format: no mermaid block (run: plan-state render)"; if (!ms) bad = 1
+  if (merbad() != "") { print "plan-state: format: " merbad(); bad = 1 }
   for (t = 1; t <= nt; t++) {
     k = has[t, "id"] ? val[t, "id"] : "\"" title[t] "\""
     if (!has[t, "id"] || val[t, "id"] == "") viol(5, "task " k " has no id")
@@ -226,7 +231,7 @@ function apply(   t, from, to, j, q, h, n, u, k, c, sk) {
     err("refused " SETID ": " from " -> " to ". Allowed: pending->ready, ready->running, running->done|failed|ready; skipped comes only from a failed ancestor"); exit 2
   }
   if (to == "ready") for (j = 1; j <= nd[u]; j++)
-    if (!(dep[u, j] in idx) || val[idx[dep[u, j]], "status"] != "done") { err("refused " SETID ": pending -> ready while " dep[u, j] " is not done"); exit 2 }
+    if (!(dep[u, j] in idx) || val[idx[dep[u, j]], "status"] != "done") { err("refused " SETID ": " from " -> ready while " dep[u, j] " is not done"); exit 2 }
   newst[u] = to
   if (to != "failed") return
   h = 1; n = 0; q[++n] = u; sk = ""
@@ -398,6 +403,7 @@ NR == FNR {
     if (runlen(line, fch) >= flen && trim(substr(line, runlen(line, fch) + 1)) == "") {
       fence = 0; infix = 0; if (inmer) { me = FNR; inmer = 0 }; if (inyaml && cur) intext = 1; inyaml = 0; next
     }
+    if (inmer && line ~ /^#+ /) merhd = 1
     if (inyaml) yamlline(line)
     else if (intext && !infix) addtx(line, 1)
     next
@@ -409,7 +415,7 @@ NR == FNR {
   next
 }
 
-FNR == 1 && NR != FNR { graph(); apply(); emitting = 1; if (RRID != "") for (t = 1; t <= nt; t++) if (val[t, "id"] == RRID) ru = t; if (!fmend && !ms) { mermaid(); print EOL } }
+FNR == 1 && NR != FNR { if (merbad() != "") { err(merbad()); exit 2 }; graph(); apply(); emitting = 1; if (RRID != "") for (t = 1; t <= nt; t++) if (val[t, "id"] == RRID) ru = t; if (!fmend && !ms) { mermaid(); print EOL } }
 emitting {
   if (FNR == ms) { mermaid(); skip = 1; if (ms == me) skip = 0; next }
   if (skip) { if (FNR == me) skip = 0; next }
@@ -420,7 +426,10 @@ emitting {
     print l; next }
   if (RRID != "" && !rrl[ru] && FNR == stl[ru]) { print; ind = $0; sub(/[^ \t].*$/, "", ind)
     print ind "review_rounds: " RRVAL (($0 ~ /\r$/) ? "\r" : ""); next }
-  for (t = 1; t <= nt; t++) if (FNR == stl[t] && (t in newst)) { l = $0; sub(/status:[ \t]*[A-Za-z]+/, "status: " newst[t], l); print l
+  for (t = 1; t <= nt; t++) if (FNR == stl[t] && (t in newst)) { l = $0
+    # The parser accepts a quoted status, so the rewrite must match one too, or refuse.
+    if (!sub("status:[ \t]*[\"\047]?[A-Za-z]+[\"\047]?", "status: " newst[t], l)) { err("cannot rewrite status for " val[t, "id"]); rrbad = 1 }
+    print l
     if (BASESHA != "" && val[t, "id"] == SETID) { ind = $0; sub(/[^ \t].*$/, "", ind); print ind "base_sha: " BASESHA (($0 ~ /\r$/) ? "\r" : "") }
     next }
   print

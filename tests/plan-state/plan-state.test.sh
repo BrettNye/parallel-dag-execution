@@ -962,6 +962,32 @@ plan-state: rule 16: test_pass_prefix is empty"
 ps tests "$tmp/t35.md" task-c >"$tmp/t35.out" 2>"$tmp/t35.err"; rc=$?
 chk "tests: bad entry in this task" "$rc:$(wc -c < "$tmp/t35.out" | tr -d ' '):$(cat "$tmp/t35.err")" "2:0:plan-state: task-c has a bad tests entry; run: plan-state check"
 ps tests "$tmp/t35.md" task-d >/dev/null 2>&1; chk "tests: bad entry in another task is ignored" "$?" "0"
+echo
+echo "T36: review fixes on PR #6"
+# A quoted status must be rewritten by set, or set must refuse.
+clean_plan "$tmp/t36a.md"; first_status "$tmp/t36a.md" 'status: "pending"'
+ps set "$tmp/t36a.md" task-b ready; rc=$?
+chk "set rewrites a quoted status" "$rc:$(rg -c '^status: ready$' "$tmp/t36a.md")" "0:1"
+# A list item at column 0 is still a list item.
+clean_plan "$tmp/t36b.md"; sed -i 's/^  - task-a$/- task-a/; s/^status: done$/status: pending/' "$tmp/t36b.md"
+chk "column-0 depends_on item is kept" "$(ps ready "$tmp/t36b.md")" "task-a"
+clean_plan "$tmp/t36c.md"; sed -i 's/^files: \[docs\/install.md\]$/files: [docs\/install.md, docs\/install.test.sh]\ntests:\n- docs\/install.test.sh :: renders/' "$tmp/t36c.md"
+has "column-0 tests item is kept" "$(ps tests "$tmp/t36c.md" task-b 2>&1)" "test docs/install.test.sh	renders"
+# An unclosed mermaid block: render and set refuse and leave the file as it was.
+clean_plan "$tmp/t36d.md"; awk 'NR == 9 { next } { print }' "$tmp/t36d.md" > "$tmp/t36d.t" && mv "$tmp/t36d.t" "$tmp/t36d.md"
+cp "$tmp/t36d.md" "$tmp/t36d.orig"
+ps render "$tmp/t36d.md" >/dev/null 2>"$tmp/t36d.err"; rc=$?
+chk "render refuses an unclosed mermaid block" "$rc:$(cmp -s "$tmp/t36d.md" "$tmp/t36d.orig" && echo same)" "2:same"
+has "render names the mermaid block" "$(cat "$tmp/t36d.err")" "mermaid block"
+ps set "$tmp/t36d.md" task-b ready >/dev/null 2>&1; rc=$?
+chk "set refuses an unclosed mermaid block" "$rc:$(cmp -s "$tmp/t36d.md" "$tmp/t36d.orig" && echo same)" "2:same"
+has "check reports an unclosed mermaid block" "$(ps check "$tmp/t36d.md" 2>&1)" "mermaid block"
+# The refusal names the transition that was asked for.
+clean_plan "$tmp/t36e.md"; sed -i 's/^status: done$/status: pending/' "$tmp/t36e.md"
+awk '/^id: task-b$/ { b = 1 } b && /^status: / { print "status: running"; b = 0; next } { print }' "$tmp/t36e.md" > "$tmp/t36e.t" && mv "$tmp/t36e.t" "$tmp/t36e.md"
+out="$(ps set "$tmp/t36e.md" task-b ready 2>&1)"; rc=$?
+chk "running -> ready names its transition" "$rc:$out" "2:plan-state: refused task-b: running -> ready while task-a is not done"
+
 out="$(sh "$SCRIPT" 2>&1)"
 has "usage lists tests" "$out" "plan-state tests"
 chk "usage ends at Exit" "$(printf '%s\n' "$out" | tail -n 1 | cut -c1-5)" "Exit:"
