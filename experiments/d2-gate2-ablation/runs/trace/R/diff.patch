@@ -1,0 +1,1399 @@
+diff --git a/.gitattributes b/.gitattributes
+index de3085e..bb4c00a 100644
+--- a/.gitattributes
++++ b/.gitattributes
+@@ -25,6 +25,7 @@
+ 
+ # Extensionless shell script.
+ skills/executing-dag-plans/git-commit-safe text eol=lf
++skills/executing-dag-plans/verify-tests text eol=lf
+ skills/auditing-artifacts/resolve-declared-paths text eol=lf
+ skills/writing-dag-plans/plan-state text eol=lf
+ skills/auditing-artifacts/audit-stats text eol=lf
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 3157824..94e0947 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -6,6 +6,7 @@ A Claude Code plugin: skills, agents and commands that write, audit and execute
+ 
+ - The helper scripts (`skills/writing-dag-plans/plan-state`,
+   `skills/executing-dag-plans/git-commit-safe`,
++  `skills/executing-dag-plans/verify-tests`,
+   `skills/auditing-artifacts/resolve-declared-paths`,
+   `skills/auditing-artifacts/audit-stats`) are POSIX sh and awk. They must run under
+   dash as well as bash, and under gawk, mawk and busybox awk: no bash-only syntax, no
+diff --git a/README.md b/README.md
+index eea7850..28c8c36 100644
+--- a/README.md
++++ b/README.md
+@@ -8,8 +8,8 @@ Where `superpowers:subagent-driven-development` dispatches one implementer subag
+ 
+ ## Skills
+ 
+-- **`writing-dag-plans`** — author a plan with explicit `depends_on` and `files` per task. Enforces file-disjoint parallel branches **and contract coherence** at authoring time via a hard/soft rule set (H1–H11 / S1–S16): refuses compound tasks, missing or absent producers for consumed contracts, and bare spec-pointer acceptance criteria; warns on unanchored cross-cut interfaces and decomposition smells. **S12–S15 ask whether each acceptance criterion can actually fail** — flagging absence assertions that pass on a crash, tautologies, universal claims proved by existential assertions, and criteria that assert a property of the commit rather than of behaviour. **S16 flags a rendered-output change with no task owning its visual verification.**
+-- **`executing-dag-plans`** — read a DAG plan, topo-sort, dispatch ready tasks in parallel. Per-task review (two-stage spec→quality, or a merged single-pass review for small/mechanical tasks). Auto-retry-once on `BLOCKED`, one step up: the next model tier, or higher effort for a task already on `opus`. Advances as subagents finish, without waiting for "continue". Before the first dispatch, and on every resume, `plan-state preflight` checks the unfinished tasks' text for path defects (a file the text edits but `files:` omits, a missing file no task creates, a stale line citation); an error halts the run. A task whose review still returns ISSUES after 3 fix rounds is marked `failed`. Halt-downstream on failure; let parallel branches finish.
++- **`writing-dag-plans`** — author a plan with explicit `depends_on` and `files` per task. Enforces file-disjoint parallel branches **and contract coherence** at authoring time via a hard/soft rule set (H1–H11 / S1–S17): refuses compound tasks, missing or absent producers for consumed contracts, and bare spec-pointer acceptance criteria; warns on unanchored cross-cut interfaces and decomposition smells. **S12–S15 ask whether each acceptance criterion can actually fail** — flagging absence assertions that pass on a crash, tautologies, universal claims proved by existential assertions, and criteria that assert a property of the commit rather than of behaviour. **S16 flags a rendered-output change with no task owning its visual verification.** **S17 flags a test-like acceptance criterion with no named test.** A task can name the test cases that prove it in a `tests:` list.
++- **`executing-dag-plans`** — read a DAG plan, topo-sort, dispatch ready tasks in parallel. Per-task review (two-stage spec→quality, or a merged single-pass review for small/mechanical tasks). Auto-retry-once on `BLOCKED`, one step up: the next model tier, or higher effort for a task already on `opus`. Advances as subagents finish, without waiting for "continue". Before the first dispatch, and on every resume, `plan-state preflight` checks the unfinished tasks' text for path defects (a file the text edits but `files:` omits, a missing file no task creates, a stale line citation); an error halts the run. A task's named tests are checked by `verify-tests` before review: each case must fail on the code as it was when the task started and pass on its last commit, built in throwaway worktrees; a failed check is a fix round. A task whose review still returns ISSUES after 3 fix rounds is marked `failed`. Halt-downstream on failure; let parallel branches finish.
+ - **`updating-dag-plans`** — mutate `pending`/`ready` tasks mid-flight. `running`/`done`/`failed`/`skipped` are immutable history.
+ - **`auditing-artifacts`** — audit a spec (gate 1) or a plan (gate 2) by fanning out independent single-concern **lenses in parallel**, then reconciling them into one severity-classified verdict. See below.
+ 
+diff --git a/skills/auditing-artifacts/lenses-plan.md b/skills/auditing-artifacts/lenses-plan.md
+index 94b33fb..46116e2 100644
+--- a/skills/auditing-artifacts/lenses-plan.md
++++ b/skills/auditing-artifacts/lenses-plan.md
+@@ -184,6 +184,7 @@ that check actually catch failure?
+ For every task, find the stated completion check, then attack it:
+ 
+ - **No observable check at all** — "done when implemented" is not a check.
++- **Named tests** — a task's `tests:` entries (`<file> :: <case>`) are checked by script at execution: red before the task's change, green after. A criterion with a `tests:` entry is verifiable when the entry names a case the task's own text says it will write. Flag an entry whose case name appears nowhere in the task's text (body, implementation sketch or acceptance criteria): the implementer has nothing telling it to write that case, so the check fails or tests something else. The script cannot judge whether the case tests its criterion; the other attacks in this list still apply to it.
+ - **Tautological** — asserting a constant against the same constant the
+   implementer will type.
+ - **Passes on a crash** — "no row written", "field is undefined", "does not call
+diff --git a/skills/executing-dag-plans/SKILL.md b/skills/executing-dag-plans/SKILL.md
+index b7d1119..97f7365 100644
+--- a/skills/executing-dag-plans/SKILL.md
++++ b/skills/executing-dag-plans/SKILL.md
+@@ -32,7 +32,9 @@ The bookkeeping is done by `plan-state`, a script at `skills/writing-dag-plans/p
+ 1. Run `plan-state check <plan>`. It reads the plan fresh, so `/update` changes made between ticks are picked up. Any output halts the run and is shown to the user. This is also the **file-scope tripwire**: a ready task that shares a file with a running task has no dependency path to it, which is rule 4.
+ 2. Run `plan-state ready <plan>`. It prints the ids of tasks whose dependencies are all `done`.
+ 3. Promote each listed `pending` task with `plan-state set <plan> <id> ready`.
+-4. **Dispatch in parallel:** for each ready task, dispatch a fresh implementer subagent via the Agent tool. Pass `model: resolve_model(resolve_tier(task, 'model'))` (resolver defined in `../writing-dag-plans/plan-format.md` §Tier resolution). The implementer's per-task field is `model_hint`; absent that, `default_model_hint`; absent that, `standard`. The dispatched `subagent_type` resolves in order: the task's `implementer:` field, then the plan-level `default_implementer`, then `dag-implementer` (see `../writing-dag-plans/plan-format.md` §Per-task frontmatter schema). Mark it with `plan-state set <plan> <id> running`. **All ready tasks dispatch in the same tick — that's the parallelism.** The BLOCKED retry is one step above the original resolved tier (cheap→standard, standard→opus), not a fixed override; for an `opus` task the step is effort, not model (see Implementer status handling).
++4. **Dispatch in parallel:** for each ready task, dispatch a fresh implementer subagent via the Agent tool. Pass `model: resolve_model(resolve_tier(task, 'model'))` (resolver defined in `../writing-dag-plans/plan-format.md` §Tier resolution). The implementer's per-task field is `model_hint`; absent that, `default_model_hint`; absent that, `standard`. The dispatched `subagent_type` resolves in order: the task's `implementer:` field, then the plan-level `default_implementer`, then `dag-implementer` (see `../writing-dag-plans/plan-format.md` §Per-task frontmatter schema). **All ready tasks dispatch in the same tick — that's the parallelism.** The BLOCKED retry is one step above the original resolved tier (cheap→standard, standard→opus), not a fixed override; for an `opus` task the step is effort, not model (see Implementer status handling).
++   **Mark running first.** For each ready task, run `plan-state set <plan> <id> running` *before* its Agent dispatch, never after. `set ... running` records the task's `base_sha:` (the commit at `HEAD`) the first time a task runs, and named tests are checked against it; a harness that runs subagents in the foreground would otherwise record it after the implementer has committed, and every named case would read `not-red`. If `set` exits 2 (for example `plan-state: refused <id>: cannot read HEAD for base_sha`), halt the run and do not dispatch. If a dispatch then fails, the task stays `running` with no subagent until the next resume resets it to `ready`; that is safer than the opposite, a subagent working on a task still marked `ready`.
++
+ 
+    When constructing each implementer dispatch, substitute the absolute path to `skills/executing-dag-plans/git-commit-safe` into the prompt's `{git_commit_safe_path}` placeholder (resolve it from the plugin root). Implementers commit through this helper so concurrent dispatches in the same tick never race on the shared git index.
+ 
+@@ -52,7 +54,8 @@ Once an implementer reports DONE, branch on `resolve_review_mode(task)` (resolve
+ `split` (default) — the two-call chain:
+ ```
+ implementer DONE
+-  → dispatch dag-spec-reviewer  (model: resolve_model(resolve_tier(task, 'spec_reviewer')))
++  → verify-tests exit 1 → plan-state round → exit 0: re-dispatch implementer with the verify-tests output → loop
++  → verify-tests → exit 0 → dispatch dag-spec-reviewer  (model: resolve_model(resolve_tier(task, 'spec_reviewer')))
+       → APPROVED → dispatch dag-quality-reviewer  (model: resolve_model(resolve_tier(task, 'quality_reviewer')))
+           → APPROVED → mark task `done`, persist status
+           → ISSUES → plan-state round → exit 0: re-dispatch implementer with quality feedback → loop
+@@ -62,14 +65,21 @@ implementer DONE
+ `merged` — one combined call:
+ ```
+ implementer DONE
+-  → dispatch dag-merged-reviewer  (model: resolve_model(resolve_tier(task, 'quality_reviewer')))
++  → verify-tests exit 1 → plan-state round → exit 0: re-dispatch implementer with the verify-tests output → loop
++  → verify-tests → exit 0 → dispatch dag-merged-reviewer  (model: resolve_model(resolve_tier(task, 'quality_reviewer')))
+       → BOTH verdicts APPROVED → mark task `done`, persist status
+       → EITHER verdict ISSUES → plan-state round → exit 0: re-dispatch implementer with the combined feedback → merged re-review → loop
+ ```
+ 
++**Named-test check.** After an implementer reports DONE or DONE_WITH_CONCERNS, and before any review, run `sh <plugin root>/skills/executing-dag-plans/verify-tests <plan> <id>` with the Bash tool in the foreground and an explicit `timeout` of 600000 ms. The default 120 s limit is too short: a plan-state suite takes about 85 s per run here, and the check runs it twice. A run that ends without exit 0, 1 or 2 (killed by the timeout, or interrupted) counts as exit 2. It is a deliberate trade-off: an implementer's code that loops forever halts the run as a tooling fault rather than costing one fix round, which is safe and visible, and the user decides from there. A task with no `tests:` prints `no named tests` and exits 0.
++
++- exit 0: reviews proceed as before; substitute the `verify-tests` output into the reviewer prompt's `{verify_tests_output}` placeholder.
++- exit 1: a fix round, exactly as for an ISSUES verdict. Run `plan-state round <plan> <id>`: exit 0, re-dispatch the implementer with the `verify-tests` output as the issue list, and run `verify-tests` again after it reports; exit 1 (cap reached), run `plan-state set <plan> <id> failed` and give the printed line as the reason; exit 2, halt.
++- exit 2: halt the run and print the reason, as for `plan-state round` exit 2. A broken check is a tooling fault, not the implementer's.
++
+ **Reading a verdict.** Take it from the report's closing line, `VERDICT: APPROVED` or `VERDICT: ISSUES` (a merged review closes with a `SPEC:` line and a `QUALITY:` line), not from the prose above it. A report is malformed when that line is missing, holds anything else, or appears more than once. Re-dispatch the reviewer once, fresh, on the same commit. If the second report is malformed too, mark the task `failed` with the reason "reviewer gave no single verdict". Do not settle it by checking the work yourself: a verdict the controller reaches is a skipped review.
+ 
+-**Review-round cap.** A fix round is one re-dispatch of the implementer in response to an ISSUES verdict from any reviewer: spec, quality, or merged (a merged review with either verdict ISSUES is one fix round). A reviewer re-run because its report had no single verdict line is not a fix round, and neither is the fresh dispatch of a `running` task after a restart. `plan-state` owns the count, in the task's `review_rounds:` field, and the cap of 3; never read or compare the count yourself. On every ISSUES verdict, run `plan-state round <plan> <id>` before anything else:
++**Review-round cap.** A fix round is one re-dispatch of the implementer after an ISSUES verdict or a failed `verify-tests`: from any reviewer, spec, quality, or merged (a merged review with either verdict ISSUES is one fix round), or from the named-test check (exit 1). A reviewer re-run because its report had no single verdict line is not a fix round, and neither is the fresh dispatch of a `running` task after a restart. `plan-state` owns the count, in the task's `review_rounds:` field, and the cap of 3; never read or compare the count yourself. On every ISSUES verdict, run `plan-state round <plan> <id>` before anything else:
+ 
+ - exit 0 (it prints the new count): re-dispatch the implementer as before;
+ - exit 1 (it prints `plan-state: <id>: review cap reached (3 fix rounds)`): run `plan-state set <plan> <id> failed`, which cascades to downstream tasks as any failure does, and give the printed line as the task's reason in the final report, the same way as "reviewer gave no single verdict". Do not write the reason into the plan;
+@@ -88,6 +98,7 @@ Reviewer tiers fall back per-task → plan-level default → `standard`. Review-
+ | **NEEDS_CONTEXT** | Provide missing context, re-dispatch. |
+ | **BLOCKED** | Auto-retry once, one step up. `cheap` and `standard` tasks retry on the next model tier (cheap→standard, standard→opus). An `opus` task has no tier above it, so it retries on `opus` with `effort: "high"` on the Agent call. If the agent's pinned effort is already `high` or above, or the harness's Agent tool has no `effort` parameter, an `opus` task gets no retry and is marked `failed`. If the retry also reports BLOCKED, mark task `failed`. Table and retry prompt: `./implementer-prompt.md` §Re-dispatch on BLOCKED. |
+ | **ISSUES** (a reviewer's verdict) | Run `plan-state round <plan> <id>` first. Exit 0: re-dispatch with the issue list. Exit 1: `plan-state set <plan> <id> failed`; the reason is the line `round` printed. Exit 2: halt. See Review-round cap. |
++| **verify-tests exit 1** (a named case failed) | Same as ISSUES: run `plan-state round <plan> <id>` first; re-dispatch with the `verify-tests` output on exit 0. See Named-test check. |
+ 
+ ## Failure handling — D + B
+ 
+diff --git a/skills/executing-dag-plans/implementer-prompt.md b/skills/executing-dag-plans/implementer-prompt.md
+index e3c4314..0502b4e 100644
+--- a/skills/executing-dag-plans/implementer-prompt.md
++++ b/skills/executing-dag-plans/implementer-prompt.md
+@@ -17,6 +17,7 @@ The implementer MUST receive:
+ 
+ - This task's full body (everything after the YAML block, up to the next `## Task` heading).
+ - This task's frontmatter (id, depends_on, files).
++- This task's `tests:` entries, when present.
+ - An "upstream context" block: for each task id in `depends_on:`, a short summary of what that upstream task produced — paths created/modified, key types/contracts/exports, commit SHA. Pull these from the plan file's task body for `done` upstream tasks.
+ - The repo's `CLAUDE.md` (if present) so it follows project conventions.
+ - The absolute path to the `git-commit-safe` helper (`skills/executing-dag-plans/git-commit-safe`), substituted into the prompt as `{git_commit_safe_path}`. Implementers commit through it so concurrent implementers don't race on the shared git index.
+@@ -63,6 +64,16 @@ already own to spec; it does not add new requirements beyond the task body.
+ 
+   If `{git_commit_safe_path}` is missing/empty, STOP and report BLOCKED — the controller failed to inject the commit helper; do not hand-roll a commit (you would race other implementers on the shared index).
+ 
++## Named tests
++
++If the Task spec above lists `Named tests:`, each entry is `<file> :: <case>`. For each entry:
++
++- the case must exist in `<file>` with exactly that name, printed on one line as the suite prints its other cases (by default `PASS: <case>` or `FAIL: <case>`);
++- no other case in that file may print the same name;
++- it must fail before your change and pass after it.
++
++After you report, a script checks this from your committed work only: it runs each file once on the code as it was when your task started (with your finished test files) and once on your last commit. Uncommitted changes are not seen, so commit before you report. Do not try to run that check yourself. The RED-THEN-GREEN report below is still required for acceptance criteria that have no named test.
++
+ ## Your output
+ 
+ Implement the task per your agent system prompt. Use TDD. Commit when green. Report:
+@@ -93,6 +104,9 @@ Files (you may modify ONLY these):
+ 
+ depends_on: {task.depends_on or "[] (root task)"}
+ 
++Named tests:
++{for each entry in task.tests: "  - " + entry}
++
+ ### Body
+ 
+ {task.body}
+diff --git a/skills/executing-dag-plans/merged-reviewer-prompt.md b/skills/executing-dag-plans/merged-reviewer-prompt.md
+index 540b1ec..be486cc 100644
+--- a/skills/executing-dag-plans/merged-reviewer-prompt.md
++++ b/skills/executing-dag-plans/merged-reviewer-prompt.md
+@@ -5,7 +5,7 @@ This is the prompt template for dispatching the `dag-merged-reviewer` subagent w
+ ## Context construction rules
+ 
+ The merged reviewer must NOT receive: other tasks' content, the full plan file, conversation history.
+-The merged reviewer MUST receive: this task's body, its `files:` list, the git commit SHA produced by the implementer, and the implementer's red-to-green report (the RED-THEN-GREEN field from their DONE / DONE_WITH_CONCERNS report).
++The merged reviewer MUST receive: this task's body, its `files:` list, the git commit SHA produced by the implementer, the implementer's red-to-green report (the RED-THEN-GREEN field from their DONE / DONE_WITH_CONCERNS report), and the `verify-tests` output, or `no named tests` when the task has none.
+ 
+ ## Prompt template
+ 
+@@ -83,6 +83,12 @@ Commit SHA: {commit_sha}
+ 
+ Inspect the diff with: `git show {commit_sha} -- {space-separated task.files}`
+ 
++## Named-test check
++
++{verify_tests_output}
++
++A script produced the lines above from the implementer's commits: each `ok` or `ok-absent` entry was red before the task's change and green after it. Do not re-run or re-derive those results. For each acceptance criterion that has a named test, judge only whether that test really tests the criterion; one that does not is an ISSUES finding. For an `ok-absent` entry, also read the file's `(before)` tail and judge whether the case was red for the right reason (missing because the task had not built it yet). If the suite broke before reaching the case for another reason, such as a missing fixture or a syntax error, that is an ISSUES finding. Review criteria without a named test as before.
++
+ ## Implementer's red-to-green report
+ 
+ {red_to_green_report}
+diff --git a/skills/executing-dag-plans/spec-reviewer-prompt.md b/skills/executing-dag-plans/spec-reviewer-prompt.md
+index 8ae4bcb..397287f 100644
+--- a/skills/executing-dag-plans/spec-reviewer-prompt.md
++++ b/skills/executing-dag-plans/spec-reviewer-prompt.md
+@@ -16,13 +16,14 @@ The spec reviewer MUST receive:
+ - This task's full body (everything after the YAML block, up to the next `## Task` heading).
+ - This task's `files:` list.
+ - The git commit SHA that the implementer produced.
++- The `verify-tests` output, or `no named tests` when the task has none.
+ 
+ ## Prompt template
+ 
+ <!-- Section order (cache-friendly: stable content leads, volatile content trails):
+      (1) stable preamble; (2) project conventions (if any); (3) output spec (APPROVED/ISSUES);
+      (4) task spec (id, files); (5) task body (the binding spec);
+-     (6) implementation under review; (7) re-dispatch addenda.
++     (6) implementation under review; (6b) named-test check; (7) re-dispatch addenda.
+      If the Agent tool later exposes `cache_control`, the breakpoint goes after section 3 — no re-architecture needed. -->
+ 
+ ```
+@@ -80,6 +81,12 @@ Files reviewed (read ONLY these):
+ Commit SHA: {commit_sha}
+ 
+ Inspect the diff with: `git show {commit_sha} -- {space-separated task.files}`
++
++## Named-test check
++
++{verify_tests_output}
++
++A script produced the lines above from the implementer's commits: each `ok` or `ok-absent` entry was red before the task's change and green after it. Do not re-run or re-derive those results. For each acceptance criterion that has a named test, judge only whether that test really tests the criterion; one that does not is an ISSUES finding. For an `ok-absent` entry, also read the file's `(before)` tail and judge whether the case was red for the right reason (missing because the task had not built it yet). If the suite broke before reaching the case for another reason, such as a missing fixture or a syntax error, that is an ISSUES finding. Review criteria without a named test as before.
+ ```
+ 
+ ## Agent invocation example
+diff --git a/skills/executing-dag-plans/verify-tests b/skills/executing-dag-plans/verify-tests
+new file mode 100644
+index 0000000..59b8463
+--- /dev/null
++++ b/skills/executing-dag-plans/verify-tests
+@@ -0,0 +1,181 @@
++#!/usr/bin/env sh
++# verify-tests — check that a task's named test cases were red before its change and green after.
++# Usage: verify-tests <plan> <id>
++# Exit: 0 every entry ok, or no entries; 1 at least one entry failed;
++#       2 usage, plan-state tests error, no base_sha, git failure, interrupt, or cleanup failure.
++# It never writes to the plan, touches the shared working tree or index, or commits.
++#
++# It builds two detached worktrees of HEAD under a mktemp -d directory: "after" as committed,
++# and "before", where every task file that is not a named test file is put back to base_sha
++# (or deleted when it did not exist there). Each test file runs once per tree; each entry is
++# labelled ambiguous, not-green, not-red, ok-absent or ok, and printed as
++# "<label><TAB><file><TAB><case>", then "verify-tests: <id>: <n> ok, <m> failed".
++# After the total line it prints the last 20 lines of the runs that explain the labels.
++# Both worktrees and the temporary directory are removed on every exit path, including
++# INT, TERM and HUP. A KILL leaks them; the next run's "git worktree prune" drops the
++# registration once the directory is gone. It never removes a worktree it did not create.
++# Untracked files: only committed files are in the trees; untracked and ignored files in
++#   the shared working tree are not. On this repository (2026-11-17) a run of the plan-state
++#   suite entry "round on "2" writes review_rounds: 3" with base_sha 76ed77d^ labelled it ok
++#   and exited 0: the repo's own suites need nothing untracked. Wall time: 400 s (two
++#   plan-state suite runs, Windows, Git Bash).
++# Bash tool timeout: on 2026-11-17 the Claude Code Bash tool, at a 5000 ms timeout, sent no
++#   signal: the log stayed empty, and the command was moved to the background and ran to its
++#   end. Probe: sh -c 'trap "echo INT >> /tmp/vt-probe.log; exit 2" INT; trap "echo TERM >>
++#   /tmp/vt-probe.log; exit 2" TERM; trap "echo HUP >> /tmp/vt-probe.log; exit 2" HUP;
++#   sleep 60 & wait' run with timeout: 5000, then read /tmp/vt-probe.log.
++# Test hook: VERIFY_TESTS_CLEANUP_HOOK, when set, runs as sh -c with $1 the temporary
++#   directory at the start of cleanup. Only the test suite sets it.
++set -u
++usage() { sed -n '3,5p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
++[ "$#" -eq 2 ] || usage
++plan=$1; id=$2
++here=$(cd "$(dirname -- "$0")" && pwd)
++ps="$here/../writing-dag-plans/plan-state"
++work=$(mktemp -d) || exit 2
++repo=""; child=""; cmd=""
++
++# Step 9. Returns non-zero, and says so, when anything is left behind.
++cleanup() {
++  [ -n "${VERIFY_TESTS_CLEANUP_HOOK:-}" ] && sh -c "$VERIFY_TESTS_CLEANUP_HOOK" sh "$work"
++  crc=0
++  if [ -n "$repo" ]; then
++    for w in "$work/after" "$work/before"; do
++      if [ -d "$w" ]; then git -C "$repo" worktree remove --force "$w" >/dev/null 2>&1 || crc=1; fi
++    done
++  fi
++  rm -rf "$work" 2>/dev/null || crc=1
++  [ -e "$work" ] && crc=1
++  [ "$crc" -eq 0 ] || echo "verify-tests: $id: cleanup failed" >&2
++  return "$crc"
++}
++# Clean up and exit with $1; a failed cleanup makes it 2.
++finish() { cleanup || exit 2; exit "$1"; }
++fault() { echo "verify-tests: $id: $1" >&2; finish 2; }
++on_signal() {
++  trap '' INT TERM HUP
++  if [ -n "$child" ]; then kill "$child" 2>/dev/null; wait "$child" 2>/dev/null; fi
++  cleanup
++  echo "verify-tests: $id: interrupted" >&2
++  exit 2
++}
++trap on_signal INT TERM HUP
++
++rec="$work/rec"; perr="$work/err"
++if ! sh "$ps" tests "$plan" "$id" > "$rec" 2> "$perr"; then cat "$perr" >&2; finish 2; fi
++base=""; ntest=0
++while IFS= read -r line; do
++  case $line in
++    "base "*) base=${line#base } ;;
++    "command "*) cmd=${line#command } ;;
++    "test "*) ntest=$((ntest + 1)) ;;
++  esac
++done < "$rec"
++if [ "$ntest" -eq 0 ]; then echo "verify-tests: $id: no named tests"; finish 0; fi
++if [ "$base" = "-" ]; then fault "no base_sha (set the task running first)"; fi
++
++# Step 4.
++repo=$(git -C "$(dirname -- "$plan")" rev-parse --show-toplevel 2>/dev/null) || { repo=""; fault "not in a git repository"; }
++git -C "$repo" worktree prune >/dev/null 2>&1
++head=$(git -C "$repo" rev-parse --verify -q "HEAD^{commit}" 2>/dev/null) || fault "cannot read HEAD"
++git -C "$repo" cat-file -e "$base^{commit}" 2>/dev/null || fault "base_sha $base is not a commit"
++
++# Steps 5 and 6.
++git -C "$repo" worktree add --detach "$work/after" "$head" >&2 || fault "cannot create the after tree"
++git -C "$repo" worktree add --detach "$work/before" "$head" >&2 || fault "cannot create the before tree"
++# The rest is read from plan-state's output with awk: "file <path>" and "test <file>\t<case>".
++# MODE=files prints "<n>\t<file>" per distinct test file; MODE=restore prints the task's
++# other files, one per line.
++AWK_LISTS='
++  /^test / { r = substr($0, 6); i = index(r, "\t"); f = substr(r, 1, i - 1)
++             if (!(f in num)) { num[f] = ++n; ord[n] = f }; next }
++  /^file / { nf++; fl[nf] = substr($0, 6) }
++  END {
++    if (MODE == "files") { for (i = 1; i <= n; i++) print i "\t" ord[i]; exit }
++    for (i = 1; i <= nf; i++) if (!(fl[i] in num)) print fl[i]
++  }'
++awk -v MODE=restore "$AWK_LISTS" "$rec" > "$work/restore"
++while IFS= read -r p; do
++  [ -n "$p" ] || continue
++  rm -rf "$work/before/$p"
++  if git -C "$repo" cat-file -e "$base:$p" 2>/dev/null; then
++    git --literal-pathspecs -C "$work/before" checkout "$base" -- "$p" >/dev/null 2>&1 || fault "cannot restore $p in the before tree"
++  fi
++done < "$work/restore"
++
++# Step 7. squote prints $1 single-quoted for the shell.
++squote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
++awk -v MODE=files "$AWK_LISTS" "$rec" > "$work/files"
++while IFS= read -r line; do
++  n=${line%%"	"*}; f=${line#*"	"}
++  q=$(squote "$f"); rest=$cmd; c=""
++  while :; do
++    case $rest in
++      *"{file}"*) c=$c${rest%%"{file}"*}$q; rest=${rest#*"{file}"} ;;
++      *) c=$c$rest; break ;;
++    esac
++  done
++  for tree in after before; do
++    o="$work/out.$tree.$n"
++    if [ ! -f "$work/$tree/$f" ]; then : > "$o"; continue; fi
++    (cd "$work/$tree" && exec sh -c "$c") < /dev/null > "$o" 2>&1 &
++    child=$!; wait "$child"; child=""
++  done
++done < "$work/files"
++
++# Step 8. Compared with substr and ==: prefixes and case names are user text.
++VT_WORK=$work VT_ID=$id awk '
++  function norm(s) { sub(/[ \t\r]+$/, "", s); sub(/^[ \t]+/, "", s); return s }
++  # state of case c in one run file: P passed, F failed, A absent, M ambiguous
++  function state(fn, c,   line, k, res, pl, fl, fp) {
++    k = 0; pl = P c; fl = F c; fp = F c " ("
++    while ((getline line < fn) > 0) {
++      line = norm(line)
++      if (line == pl) { k++; res = "P" }
++      else if (line == fl || substr(line, 1, length(fp)) == fp) { k++; res = "F" }
++    }
++    close(fn)
++    return k == 0 ? "A" : (k == 1 ? res : "M")
++  }
++  /^pass / { P = substr($0, 6); next }
++  /^fail / { F = substr($0, 6); next }
++  /^test / { r = substr($0, 6); i = index(r, "\t"); f = substr(r, 1, i - 1)
++             if (!(f in num)) num[f] = ++n
++             ne++; ef[ne] = f; ec[ne] = substr(r, i + 1) }
++  END {
++    W = ENVIRON["VT_WORK"]; ok = 0; bad = 0
++    for (e = 1; e <= ne; e++) {
++      a = state(W "/out.after." num[ef[e]], ec[e]); b = state(W "/out.before." num[ef[e]], ec[e])
++      if (a == "M" || b == "M") l = "ambiguous"
++      else if (a != "P") l = "not-green"
++      else if (b == "P") l = "not-red"
++      else if (b == "A") l = "ok-absent"
++      else l = "ok"
++      if (l == "ok" || l == "ok-absent") ok++; else bad++
++      printf "%s\t%s\t%s\n", l, ef[e], ec[e]
++      printf "%s\t%s\n", l, ef[e] >> (W "/labels")
++    }
++    close(W "/labels")
++    printf "verify-tests: %s: %d ok, %d failed\n", ENVIRON["VT_ID"], ok, bad
++    exit (bad > 0 ? 1 : 0)
++  }' "$rec"
++rc=$?
++
++# Step 8b. The tail of each run a reader needs to see why an entry got its label. The tails
++# follow the printed label: not-green and ambiguous show the after run, not-red and
++# ok-absent the before run. One block per file and run, files in tests: order.
++: >> "$work/labels"
++tail_block() {  # $1 header, $2 output file
++  printf '%s\n' "$1"
++  if [ -s "$2" ]; then tail -n 20 "$2" | sed 's/^/  | /'; else printf '  | (no output)\n'; fi
++}
++while IFS= read -r line; do
++  n=${line%%"	"*}; f=${line#*"	"}
++  want=$(VT_F=$f awk -F '\t' '
++    $2 == ENVIRON["VT_F"] && ($1 == "not-green" || $1 == "ambiguous") { a = 1 }
++    $2 == ENVIRON["VT_F"] && ($1 == "not-red" || $1 == "ok-absent") { b = 1 }
++    END { printf "%s%s", a ? "a" : "", b ? "b" : "" }' "$work/labels")
++  case $want in *a*) tail_block "--- $f (after)" "$work/out.after.$n" ;; esac
++  case $want in *b*) tail_block "--- $f (before)" "$work/out.before.$n" ;; esac
++done < "$work/files"
++finish "$rc"
+diff --git a/skills/updating-dag-plans/SKILL.md b/skills/updating-dag-plans/SKILL.md
+index 31a1546..6f447a5 100644
+--- a/skills/updating-dag-plans/SKILL.md
++++ b/skills/updating-dag-plans/SKILL.md
+@@ -22,7 +22,7 @@ Mutate an in-flight or partially-executed DAG plan without breaking resumability
+ ## Required reading
+ 
+ - `../writing-dag-plans/plan-format.md` — canonical *structural* contract and validation rules.
+-- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H11 and soft heuristics S1-S16 — S12-S15 are the acceptance-criteria falsifiability set, so re-run them on any task whose ACs you edit.
++- `../writing-dag-plans/plan-quality.md` — canonical *decomposition-quality* contract (DRY, Single Responsibility, SoC, best-practice signals). Hard rules H1-H11 and soft heuristics S1-S17 — S12-S15 are the acceptance-criteria falsifiability set, so re-run them on any task whose ACs you edit.
+ 
+ Updates that add new tasks or modify task bodies/scope must pass BOTH validations, same as fresh authoring.
+ 
+@@ -58,6 +58,8 @@ If the user genuinely needs to mutate immutable history, the answer is to author
+ 
+ No operation changes a task's `review_rounds:` field. It counts the task's fix rounds against the review cap, and lowering it would hand a looping task more rounds. Modify body replaces only the text after the YAML block, so the field stays.
+ 
++A task's `tests:` list may be edited on `pending` and `ready` tasks like any other field; `plan-state check` validates the result (rule 16). No operation writes or changes a task's `base_sha:` field. `plan-state set ... running` records it the first time a task runs, and `verify-tests` treats everything after that commit as the task's change; editing it would let a task's named tests be checked against the wrong starting point, the same reason `review_rounds:` is left alone.
++
+ > **Why `ready` is mutable for tier hints:** Unlike `files:` (mutable only on `pending`, because a `ready` task queues for the next tick and a file-scope change could conflict with a running sibling), tier hints don't interact with the parallelism contract — mutating a `ready` task's tier between ticks is safe; the next tick reads fresh state and dispatches at the new resolved tier.
+ 
+ > **Why `ready` is mutable for `review_mode`:** `ready` is mutable for `review_mode` for the same reason as tier hints — it doesn't interact with the parallelism contract; the next tick reads fresh state and dispatches the resolved review mode. `running`/`done`/`failed`/`skipped` remain immutable.
+@@ -83,7 +85,7 @@ No operation changes a task's `review_rounds:` field. It counts the task's fix r
+ 
+    If structural validation fails, refuse with a specific error pointing to the violation. Do not mutate the file.
+ 
+-   Apply the mutation to a copy (`<plan>.draft.md`) and run `sh ../writing-dag-plans/plan-state check <copy>`. It covers these rules and rules 7–15 and prints one line per violation; any output is a refusal. Replace the plan with the copy only in step 9.
++   Apply the mutation to a copy (`<plan>.draft.md`) and run `sh ../writing-dag-plans/plan-state check <copy>`. It covers these rules and rules 7–17 and prints one line per violation; any output is a refusal. Replace the plan with the copy only in step 9.
+ 
+    For every operation that adds a task, changes a task's body, `files:` or
+    `depends_on:`, or removes a task, also run `sh ../writing-dag-plans/plan-state
+diff --git a/skills/writing-dag-plans/SKILL.md b/skills/writing-dag-plans/SKILL.md
+index 0baf02d..dcf8760 100644
+--- a/skills/writing-dag-plans/SKILL.md
++++ b/skills/writing-dag-plans/SKILL.md
+@@ -66,7 +66,7 @@ different document.
+ ## Two reference docs you MUST read first
+ 
+ - **`./plan-format.md`** — canonical *structural* contract: top-of-file layout, per-task frontmatter schema (`id`, `depends_on`, `files`, `status`, `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`, `single_threaded`, `is_wiring_task`, `review_mode`), plan-level defaults (`default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint`, `default_review_mode`), §Tier resolution, §Review-mode resolution, status semantics, structural validation rules, mermaid block spec, ASCII tree spec.
+-- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H11, refuse on violation) and soft heuristics (S1-S16, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, best-practice signals, and — S12-S15 — whether each acceptance criterion can actually **fail**.
++- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H11, refuse on violation) and soft heuristics (S1-S17, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, best-practice signals, and — S12-S15 — whether each acceptance criterion can actually **fail**.
+ 
+ Every plan you author must pass BOTH structural validation AND quality validation. Structural validation catches "the file is malformed"; quality validation catches "the decomposition is sloppy."
+ 
+@@ -141,6 +141,8 @@ files a cleanup task, the cleanup itself misses more files (Round 2), and
+ the cycle repeats. Three rounds isn't uncommon for symbol bumps that
+ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
+ 
++3.6. **Name the tests that prove each task.** For each acceptance criterion a test can check, add a `tests:` entry to the task's YAML block: `<file> :: <case>`, where `<file>` is the suite file (it must be in the task's `files:`) and `<case>` is the name the task's new case will print, exactly. Block form only, one entry per `  - ` line. The executor's `verify-tests` checks each named case from committed work: red before the task's change, green after. A name must be unique in its file. If the suite already prints a case by that name (this repo's suites repeat `exit 0`), pick another name or make renaming the existing case part of the task. Criteria that cannot be tests stay prose; S17 warns about a test-like criterion left without an entry.
++
+ 4. **Build dependency edges.** Two sources:
+    - **Logical:** task B requires task A's output (e.g., B uses a function A defined). User-declared.
+    - **File-scope:** any two tasks sharing a `files:` entry MUST have a directed path between them. If the user-declared `depends_on:` doesn't already provide one, inject a serializing edge yourself.
+@@ -211,7 +213,7 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
+ 
+ 7. **Run quality validation** per `plan-quality.md`:
+    - Hard rules H1-H11 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence (`## Contracts` under `implementation: contracts-only`), import resolution, contract-sequencing, missing-producer index, bare-spec-pointer). Any failure → refuse, name the rule + task + fix, exit.
+-   - Soft heuristics S1-S16 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch, review-mode sense-check, unanchored cross-cut contract, **crash-passing absence criterion, tautological criterion, quantifier mismatch, diff-property criterion, rendered-output change with no verification owner**). Collect as warnings.
++   - Soft heuristics S1-S17 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch, review-mode sense-check, unanchored cross-cut contract, **crash-passing absence criterion, tautological criterion, quantifier mismatch, diff-property criterion, rendered-output change with no verification owner, test-like criterion with no named test**). Collect as warnings.
+    - S12-S15 are the acceptance-criteria falsifiability set. H4 only checks that criteria *exist*; these ask whether they can **fail**. They are the cheapest place to catch the defect class that most often survives into rework, so do not skip them on the grounds that a lens will find it later — a rule here runs free, a `verifiability` lens dispatch does not.
+ 
+ 8. **Decomposition-principles audit (LLM-judgment pass).** Re-read the full plan with fresh eyes and check it against the seven principles below. This step is judgment-driven — the mechanical rules in step 7 catch structural violations; this step catches *holistic* decomposition smells across the whole plan. Surface concerns as warnings (not refusals); the user confirms or revises.
+diff --git a/skills/writing-dag-plans/plan-format.md b/skills/writing-dag-plans/plan-format.md
+index 5768969..27eeb89 100644
+--- a/skills/writing-dag-plans/plan-format.md
++++ b/skills/writing-dag-plans/plan-format.md
+@@ -30,6 +30,9 @@ implementation: full                    # OPTIONAL. full | contracts-only. Defau
+ default_model_hint: standard            # OPTIONAL. cheap | standard | opus. Default `standard`. Implementer tier.
+ default_spec_reviewer_hint: standard    # OPTIONAL. cheap | standard | opus. Default `standard`.
+ default_quality_reviewer_hint: standard # OPTIONAL. cheap | standard | opus. Default `standard`.
++test_command: bash {file}       # OPTIONAL. Default: bash {file}. Every {file} becomes the test file, single-quoted; runs as sh -c from the repository root.
++test_pass_prefix: "PASS: "      # OPTIONAL. Default "PASS: ". Quote it to keep the trailing space.
++test_fail_prefix: "FAIL: "      # OPTIONAL. Default "FAIL: ". A fail line may go on with " (" and detail.
+ ---
+ 
+ ```mermaid
+@@ -107,6 +110,9 @@ review_mode: merged    # OPTIONAL. merged | split. Falls back to default_review_
+ single_threaded: false # OPTIONAL. If true, task forces dispatch tick to itself. Use for scope-less/exploratory tasks.
+ is_wiring_task: false  # OPTIONAL. If true, plan-quality.md H3 (single-subsystem in files:) is bypassed. Use only for tasks whose explicit purpose is to wire two subsystems together; should depend_on the tasks producing each side.
+ review_rounds: 0       # OPTIONAL. Whole number 0-3. Fix rounds so far: re-dispatches of the implementer after a reviewer's ISSUES verdict. Absent = 0. Written by `plan-state round`; nothing lowers it.
++tests:                 # OPTIONAL. Block list only. Each entry "<file> :: <case>": the test cases that prove this task. <file> must be in files:. Checked by verify-tests.
++  - tests/plan-state/plan-state.test.sh :: round on "2" counts to 3
++base_sha: 1f3c9e0      # Written by plan-state set ... running, the first time only. Never hand-edited.
+ ```
+ 
+ ### Mixing implementers in a single plan
+@@ -115,6 +121,31 @@ When a plan has tasks for different specialized subagents, set `implementer:` pe
+ 
+ The spec and quality reviewers (`dag-spec-reviewer`, `dag-quality-reviewer`) are persona-agnostic — they review the diff against the task spec and code quality regardless of which implementer wrote it. There's no per-task review override.
+ 
++### Named tests
++
++A task may name the test cases that prove it in `tests:`, a block list (a flow list is refused by rule 16). The plan's `test_command`, `test_pass_prefix` and `test_fail_prefix` say how a test file is run and how its output is read.
++
++**Entry grammar.** The raw entry is taken literally, with no YAML unquoting inside it. It is split at the first ` :: `. `<file>` is trimmed and a leading `./` is removed. `<case>` is trimmed. Two entries are the same entry when their normalised `<file>`, `<case>` pairs are equal. `<file>` must be one of the task's `files:`. A case name must be unique in its file: the matcher cannot tell two cases with one name apart, so such a name reads as ambiguous.
++
++**Matching.** `verify-tests` runs `test_command` with every `{file}` replaced by the single-quoted test file, as `sh -c` from the repository root. A line of the output that is exactly `test_pass_prefix` followed by the case name is a pass line. A line that is `test_fail_prefix` followed by the case name, either alone or followed by ` (` and detail, is a fail line. Each case then comes out as one of:
++
++- passed: one pass line and no fail line.
++- failed: one fail line and no pass line.
++- absent: no pass line and no fail line.
++- ambiguous: any other mix, such as both a pass and a fail line, or the same line twice.
++
++**`base_sha`.** `plan-state set <plan> <id> running` writes `base_sha:` (the commit the working tree was at) the first time the task goes to `running`, and only then. A resume of a `running` task keeps the value, so the baseline stays the commit before the task's first dispatch. Nobody edits it by hand.
++
++**Labels.** `verify-tests` labels each named case, with the run at `base_sha` as the baseline and the run at the task's result as the outcome. A case gets the first label that applies, in this order, so each case has exactly one label:
++
++1. `ambiguous`: the case is ambiguous in either run.
++2. `not-green`: not passed at the result.
++3. `not-red`: passed at the baseline. The case proves nothing new.
++4. `ok-absent`: absent at the baseline, passed at the result. The test file or case is new.
++5. `ok`: failed at the baseline, passed at the result. The test went red, then green.
++
++`ok` and `ok-absent` count as ok. `ambiguous`, `not-green` and `not-red` count as failed, in the total and for the exit code.
++
+ ## Tier resolution
+ 
+ The executor resolves the model tier for each role using the following logic:
+@@ -259,10 +290,18 @@ Test file: `vault-mcp/tests/unit/scope-hash.test.ts`.
+ 13. **`parent:` / `child:` placement** — when either is present, both MUST be present; `parent:` MUST resolve to a readable single file, and `child:` MUST appear in that file's `children:` frontmatter list. Any other case → refuse, naming the field and the offending value.
+ 14. **`implementation:` mode** — `implementation:`, when present in frontmatter, MUST be `full` or `contracts-only`. Under `contracts-only`, every task without `is_wiring_task: true` MUST have a `## Contracts` section and MUST NOT have a `## Implementation` section. Any other case → refuse, naming the field and its value, or the task and the section.
+ 15. **`review_rounds` count** — `review_rounds`, when present on any task, MUST be a whole number from 0 to 3. It counts fix rounds; absent means 0. `plan-state round <plan> <id>` raises it by one on a `running` task and refuses at 3 (exit 1), which is the review cap: the executor then marks the task `failed`. Any other value → refuse naming the task id, the field, and the bad value.
+-
+-Rules #7–#15 use the same refusal-message format as rules 1–6.
+-
+-`plan-state check <plan>` (the script beside this file) enforces rules 1–5 and 7–15 and prints one line per violation; rule 6 needs the previous version of the plan and stays with `updating-dag-plans`. `plan-state round` counts a task's fix rounds against the cap of 3 (rule 15). `plan-state render` draws the mermaid block below and `plan-state tree` prints the ASCII tree, so both follow this spec exactly.
++16. **`tests:` and the test-run fields** — `tests:`, when present on any task, MUST be a block list whose entries are each `<file> :: <case>` (see "Named tests"). `<file>` MUST be in the task's `files:`, and no entry may repeat another after normalising. In frontmatter, `test_command`, when present, MUST contain `{file}`, and `test_pass_prefix` and `test_fail_prefix`, when present, MUST NOT be empty. Refusal lines, one per violation:
++    - `rule 16: <id> tests entry "<entry>" is not "<file> :: <case>"`
++    - `rule 16: <id> test file <file> is not in its files:`
++    - `rule 16: <id> tests entry "<entry>" is repeated`
++    - `rule 16: <id> tests must be a block list`
++    - `rule 16: test_command has no {file}`
++    - `rule 16: test_pass_prefix is empty` (or `rule 16: test_fail_prefix is empty`)
++17. **`base_sha` shape** — `base_sha`, when present on any task, MUST be 7 to 40 lowercase hex characters. Any other value → refuse with `rule 17: <id> base_sha is <value>`.
++
++Rules #7–#17 use the same refusal-message format as rules 1–6.
++
++`plan-state check <plan>` (the script beside this file) enforces rules 1–5 and 7–17 and prints one line per violation; rule 6 needs the previous version of the plan and stays with `updating-dag-plans`. `plan-state round` counts a task's fix rounds against the cap of 3 (rule 15). `plan-state render` draws the mermaid block below and `plan-state tree` prints the ASCII tree, so both follow this spec exactly.
+ 
+ ## Why `files:` is the load-bearing field
+ 
+diff --git a/skills/writing-dag-plans/plan-quality.md b/skills/writing-dag-plans/plan-quality.md
+index 3ccf7cc..a71f562 100644
+--- a/skills/writing-dag-plans/plan-quality.md
++++ b/skills/writing-dag-plans/plan-quality.md
+@@ -109,11 +109,17 @@ A gate no task owns is a gate nobody runs. Per-task gates structurally cannot co
+ |---|---|---|
+ | S16 | **Rendered-output change with no verification owner** | Trigger: some task's `files:` contains a rendered-surface file — by extension `.tsx`, `.jsx`, `.vue`, `.svelte`, `.component.html`, `.html`; style files (`.css`, `.scss`) count only when the same task also carries one of the preceding — AND no task's acceptance criteria name a rendered-surface check. A gate no task owns is a gate nobody runs, and per-task gates structurally cannot cover a cross-task rendered result. **Suppressor:** any task already owns visual verification — judged by whether a criterion checks rendered output at all, *not* by whether it names all three parts of the fix shape. **Fires once per plan**, not once per task — a missing owner is a plan-level gap. Suggested fix: add a task owning visual verification, naming the surface, the entry point, and the actor. |
+ 
++### S17: test-like criterion with no named test
++
++| # | Heuristic | Detection |
++|---|---|---|
++| S17 | **Test-like criterion with no named test** | Trigger: a task's acceptance criteria name a test-like check — a command to run (a code span starting with a command name such as `bash`, `sh`, `rg`, `npm`), an expected output ("prints", "outputs", "stdout is"), or an exit code ("exits 1", "exit 0") — AND the task's YAML block has no `tests:` entries. A named test is checked by `verify-tests` (red before the task's change, green after); prose is checked only by a reviewer reading a report. **Suppressor:** the check cannot be a suite case: a `rg` count over documentation, or a manual step. **Fires once per task.** Suggested fix: add a `tests:` entry `<file> :: <case>` naming the case the task will write, unique in its file. |
++
+ ## Detection algorithm (run on every save)
+ 
+ 1. Run `plan-format.md` structural validation (cycles, undefined deps, required fields, file-disjoint parallel branches). Any failure → refuse, exit.
+ 2. Run hard rules H1-H11. Any failure → refuse, explain which rule and which task, exit. Note: H10 requires a member-level index extension over H9 — extend the definer index built in H9 to include methods/fields/properties within exported classes/objects before running H10's member-access scan.
+-3. Run soft heuristics S1-S16. Collect warnings. S12-S15 read each task's `## Acceptance criteria` bullets and, for S12/S15, cross-check them against that task's own sibling bullets and `files:` list.
++3. Run soft heuristics S1-S17. Collect warnings. S12-S15 read each task's `## Acceptance criteria` bullets and, for S12/S15, cross-check them against that task's own sibling bullets and `files:` list.
+ 4. Run **decomposition-principles audit** (see `SKILL.md` step 8): re-read the plan against DRY / SRP / SoC / repo-convention adherence with fresh eyes. This is judgment-based, LLM-driven, and complements the mechanical rules above. Collect warnings.
+ 5. If warnings exist (from step 3 or step 4): present grouped list, ask "save anyway? (y/N)" (default N).
+ 6. On user confirm OR no warnings: save plan file.
+diff --git a/skills/writing-dag-plans/plan-state b/skills/writing-dag-plans/plan-state
+index 39e1603..580bde7 100755
+--- a/skills/writing-dag-plans/plan-state
++++ b/skills/writing-dag-plans/plan-state
+@@ -1,13 +1,14 @@
+ #!/usr/bin/env sh
+ # plan-state — the mechanical half of DAG-plan bookkeeping (see plan-format.md).
+ # Usage:
+-#   plan-state check  <plan>               validate rules 1-5 and 7-15, status values, mermaid block
++#   plan-state check  <plan>               validate rules 1-5 and 7-17, status values, mermaid block
+ #   plan-state ready  <plan>               print the ids ready to dispatch, one per line
+ #   plan-state set    <plan> <id> <status> change one status; failed cascades skipped; redraws mermaid
+ #   plan-state render <plan>               redraw the mermaid block in place
+ #   plan-state round  <plan> <id>          count one fix round on a running task; exit 1 at the cap
+ #   plan-state tree   <plan>               print the ASCII status tree
+ #   plan-state preflight <plan>            report path defects in unfinished tasks' text
++#   plan-state tests  <plan> <id>          print a task's named tests and test settings
+ #   plan-state charter <charter>           check a superspec charter's children and contracts
+ # Exit: 0 ok, 1 validation failure (check, charter), preflight error, or cap reached (round), 2 usage error or refused change.
+ #
+@@ -19,7 +20,7 @@ set -eu
+ 
+ CAP=3   # review-round cap: round refuses at it, rule 15 bounds review_rounds by it
+ 
+-usage() { sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
++usage() { sed -n '3,/^# Exit:/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+ [ "$#" -ge 2 ] || usage
+ cmd="$1"; plan="$2"; shift 2
+ if [ -d "$plan" ] || [ ! -r "$plan" ]; then echo "plan-state: cannot read $plan" >&2; exit 2; fi
+@@ -47,18 +48,24 @@ function inl(key, v,   n, i, a) {
+   n = split(v, a, ","); for (i = 1; i <= n; i++) addlist(key, a[i])
+ }
+ function yamlline(l,   k, v) {
+-  if (match(l, /^[ \t]+-[ \t]*/)) { if (ylist != "") addlist(ylist, stripc(substr(l, RLENGTH + 1))); return }
++  if (match(l, /^[ \t]+-[ \t]*/)) {
++    # tests entries are literal: no comment, quote or comma handling
++    if (ylist == "tests") { raw = substr(l, RLENGTH + 1); sub(/[ \t\r]+$/, "", raw); nte[cur]++; traw[cur, nte[cur]] = raw; return }
++    if (ylist != "") addlist(ylist, stripc(substr(l, RLENGTH + 1)))
++    return
++  }
+   if (match(l, /^[A-Za-z_][A-Za-z0-9_]*:/)) {
+     k = substr(l, 1, RLENGTH - 1); v = trim(stripc(substr(l, RLENGTH + 1))); ylist = ""
+     has[cur, k] = 1
+     if (k == "depends_on" || k == "files") { if (v == "") ylist = k; else inl(k, v); return }
++    if (k == "tests") { if (v != "") tline[cur] = 1; else ylist = "tests"; return }
+     val[cur, k] = unq(v)
+     if (k == "status") stl[cur] = FNR
+     if (k == "review_rounds") rrl[cur] = FNR
+   }
+ }
+ function err(msg) { print "plan-state: " msg | "cat 1>&2" }
+-function viol(rule, msg) { print "plan-state: rule " rule ": " msg; bad = 1 }
++function viol(rule, msg) { if (VERR) print "plan-state: rule " rule ": " msg | "cat 1>&2"; else print "plan-state: rule " rule ": " msg; bad = 1 }
+ function inset(v, set) { return index(" " set " ", " " v " ") > 0 }
+ function st(t) { return (t in newst) ? newst[t] : val[t, "status"] }
+ 
+@@ -85,6 +92,50 @@ function ancestors(   i, t, j, d, u, a) {
+       for (a = 1; a <= nt; a++) if ((u, a) in anc) anc[t, a] = 1 } }
+ }
+ 
++# Test entries. tsplit sets TF (normalised file) and TC (case); 0 when raw is not "<file> :: <case>".
++function tsplit(raw,   i) {
++  i = index(raw, " :: "); if (!i) return 0
++  TF = trim(substr(raw, 1, i - 1)); while (substr(TF, 1, 2) == "./") TF = substr(TF, 3)
++  TC = trim(substr(raw, i + 4))
++  return TF != "" && TC != ""
++}
++# Rule 16 for task t: returns how many checks fail, and prints them only when say is 1.
++function r16task(t, say,   e, n, k, seen, j, inf) {
++  n = 0; k = val[t, "id"]
++  if (tline[t]) { n++; if (say) viol(16, k " tests must be a block list") }
++  for (e = 1; e <= nte[t]; e++) {
++    if (!tsplit(traw[t, e])) { n++; if (say) viol(16, k " tests entry \"" traw[t, e] "\" is not \"<file> :: <case>\""); continue }
++    inf = 0; for (j = 1; j <= nf[t]; j++) if (fil[t, j] == TF) inf = 1
++    if (!inf) { n++; if (say) viol(16, k " test file " TF " is not in its files:") }
++    if ((TF SUBSEP TC) in seen) { n++; if (say) viol(16, k " tests entry \"" traw[t, e] "\" is repeated") }
++    seen[TF SUBSEP TC] = 1
++  }
++  return n
++}
++# Rule 16 for the plan-level test fields: same contract as r16task.
++function r16plan(say,   n, c) {
++  n = 0; c = ("test_command" in fmset) ? fm["test_command"] : "bash {file}"
++  if (index(c, "{file}") == 0) { n++; if (say) viol(16, "test_command has no {file}") }
++  if (("test_pass_prefix" in fmset) && fm["test_pass_prefix"] == "") { n++; if (say) viol(16, "test_pass_prefix is empty") }
++  if (("test_fail_prefix" in fmset) && fm["test_fail_prefix"] == "") { n++; if (say) viol(16, "test_fail_prefix is empty") }
++  return n
++}
++
++# plan-state tests: the named tests and test settings of one task. Prints nothing until every check has passed.
++function testsout(   n, t, u, e, j, cmdv, pv, fv) {
++  n = 0; for (t = 1; t <= nt; t++) if (val[t, "id"] == TID) { n++; u = t }
++  if (n != 1) { err(n ? "id " TID " is not unique; run: plan-state check" : "no task with id " TID); exit 2 }
++  if (r16plan(0)) { VERR = 1; r16plan(1); exit 2 }
++  if (r16task(u, 0)) { err(TID " has a bad tests entry; run: plan-state check"); exit 2 }
++  cmdv = ("test_command" in fmset) ? fm["test_command"] : "bash {file}"
++  pv = ("test_pass_prefix" in fmset) ? fm["test_pass_prefix"] : "PASS: "
++  fv = ("test_fail_prefix" in fmset) ? fm["test_fail_prefix"] : "FAIL: "
++  print "base " (has[u, "base_sha"] ? val[u, "base_sha"] : "-")
++  print "command " cmdv; print "pass " pv; print "fail " fv
++  for (j = 1; j <= nf[u]; j++) print "file " fil[u, j]
++  for (e = 1; e <= nte[u]; e++) { tsplit(traw[u, e]); print "test " TF "\t" TC }
++}
++
+ function check(   t, k, i, j, f, a, b, v, list, owners, seen, own, hint, n) {
+   if (nt == 0) viol(5, "no \"## Task:\" sections found")
+   if (!ms) print "plan-state: format: no mermaid block (run: plan-state render)"; if (!ms) bad = 1
+@@ -103,6 +154,8 @@ function check(   t, k, i, j, f, a, b, v, list, owners, seen, own, hint, n) {
+     if (has[t, "review_mode"] && !inset(val[t, "review_mode"], "merged split")) viol(9, k " review_mode is " val[t, "review_mode"])
+     v = val[t, "review_rounds"]
+     if (has[t, "review_rounds"] && (v !~ /^[0-9]+$/ || v + 0 > CAP)) viol(15, k " review_rounds is " v)
++    v = val[t, "base_sha"]
++    if (has[t, "base_sha"] && (v !~ /^[0-9a-f]+$/ || length(v) < 7 || length(v) > 40)) viol(17, k " base_sha is " v)
+   }
+   split("default_model_hint default_spec_reviewer_hint default_quality_reviewer_hint", hint, " ")
+   for (i = 1; i <= 3; i++) if ((hint[i] in fmset) && !inset(fm[hint[i]], "cheap standard opus")) viol(8, hint[i] " is " fm[hint[i]])
+@@ -117,6 +170,8 @@ function check(   t, k, i, j, f, a, b, v, list, owners, seen, own, hint, n) {
+       if (t in secimpl) viol(14, k " has an ## Implementation section")
+     }
+   }
++  for (t = 1; t <= nt; t++) r16task(t, 1)
++  r16plan(1)
+   if (cyclic) {
+     list = ""; for (t = 1; t <= nt; t++) if (deg[t] > 0) list = list (list == "" ? "" : ", ") val[t, "id"]
+     viol(2, "cycle among " list)
+@@ -373,7 +428,9 @@ emitting {
+     print l; next }
+   if (RRID != "" && !rrl[ru] && FNR == stl[ru]) { print; ind = $0; sub(/[^ \t].*$/, "", ind)
+     print ind "review_rounds: " RRVAL (($0 ~ /\r$/) ? "\r" : ""); next }
+-  for (t = 1; t <= nt; t++) if (FNR == stl[t] && (t in newst)) { l = $0; sub(/status:[ \t]*[A-Za-z]+/, "status: " newst[t], l); print l; next }
++  for (t = 1; t <= nt; t++) if (FNR == stl[t] && (t in newst)) { l = $0; sub(/status:[ \t]*[A-Za-z]+/, "status: " newst[t], l); print l
++    if (BASESHA != "" && val[t, "id"] == SETID) { ind = $0; sub(/[^ \t].*$/, "", ind); print ind "base_sha: " BASESHA (($0 ~ /\r$/) ? "\r" : "") }
++    next }
+   print
+   if (FNR == fmend && !ms) { print EOL; mermaid() }
+   next
+@@ -383,6 +440,8 @@ END {
+   if (MODE == "emit") { if (rrbad) exit 2; exit }   # bare exit keeps an earlier exit 2 from apply()
+   graph()
+   if (MODE == "check") { check(); exit bad }
++  if (MODE == "tests") { testsout(); exit }
++  if (MODE == "setq") { apply(); u = 0; for (t = 1; t <= nt; t++) if (val[t, "id"] == SETID) u = t; print (has[u, "base_sha"] ? 1 : 0) " " ((nte[u] > 0 || tline[u]) ? 1 : 0); exit }
+   if (MODE == "round") { round(); exit }
+   if (MODE == "pfpaths") { pfpaths(); exit }
+   if (MODE == "preflight") { preflight(); exit }
+@@ -459,7 +518,7 @@ emit() {  # rewrite the plan in place; keep its mode by writing through it
+   tmpf=$(mktemp) || exit 2
+   # BINMODE=3 on this call only: MSYS gawk reads in text mode and drops the CR, BINMODE=3
+   # keeps the bytes, and other awks treat it as an unused variable.
+-  if awk -v BINMODE=3 -v MODE=emit -v CAP="$CAP" -v SETID="${1:-}" -v SETST="${2:-}" -v RRID="${3:-}" -v RRVAL="${4:-}" \
++  if awk -v BINMODE=3 -v MODE=emit -v CAP="$CAP" -v SETID="${1:-}" -v SETST="${2:-}" -v RRID="${3:-}" -v RRVAL="${4:-}" -v BASESHA="${5:-}" \
+        "$PROG" "$plan" "$plan" > "$tmpf"; then
+     if ! { cat "$tmpf" > "$plan"; } 2>/dev/null; then
+       rm -f "$tmpf"; echo "plan-state: cannot write $plan" >&2; exit 2
+@@ -518,6 +577,7 @@ case "$cmd" in
+     rc=0; awk -v MODE=preflight -v PFTAB="$tab" -v CAP="$CAP" "$PROG" "$plan" || rc=$?
+     rm -f "$tab"; exit "$rc" ;;
+   charter) [ "$#" -eq 0 ] || usage; awk -v MODE=check "$CPROG" "$plan" ;;
++  tests) [ "$#" -eq 1 ] || usage; awk -v MODE=tests -v TID="$1" -v CAP="$CAP" "$PROG" "$plan" ;;
+   ready)  awk -v MODE=ready "$PROG" "$plan" ;;
+   tree)   awk -v MODE=tree "$PROG" "$plan" ;;
+   render) [ "$#" -eq 0 ] || usage; emit ;;
+@@ -530,6 +590,20 @@ case "$cmd" in
+   set)
+     [ "$#" -eq 2 ] || usage
+     case "$2" in pending|ready|running|done|failed|skipped) ;; *) echo "plan-state: unknown status $2" >&2; exit 2 ;; esac
+-    emit "$1" "$2" ;;
++    base=""
++    if [ "$2" = running ]; then
++      # Ask awk first, so an illegal move is refused before git is called.
++      # It prints "<has base_sha> <has tests>", e.g. "0 1".
++      q=$(awk -v MODE=setq -v SETID="$1" -v SETST="$2" -v CAP="$CAP" "$PROG" "$plan") || exit "$?"
++      case "$q" in
++        "0 "*)
++          base=$(git -C "$(dirname -- "$plan")" rev-parse HEAD 2>/dev/null) || base=""
++          case "$base" in *[!0-9a-f]*) base="" ;; esac
++          if [ -z "$base" ] && [ "${q#0 }" = 1 ]; then
++            echo "plan-state: refused $1: cannot read HEAD for base_sha" >&2; exit 2
++          fi ;;
++      esac
++    fi
++    emit "$1" "$2" "" "" "$base" ;;
+   *) usage ;;
+ esac
+diff --git a/tests/plan-state/plan-state.test.sh b/tests/plan-state/plan-state.test.sh
+index f417343..21e36fc 100644
+--- a/tests/plan-state/plan-state.test.sh
++++ b/tests/plan-state/plan-state.test.sh
+@@ -540,7 +540,7 @@ ps round "$tmp/r27.md" nope >/dev/null 2>&1; chk "unknown id exits 2" "$?" "2"
+ out="$(sh "$SCRIPT" 2>&1)"; rc=$?
+ chk "no args exits 2" "$rc" "2"
+ has "usage lists round" "$out" "plan-state round"
+-has "usage lists rules 1-5 and 7-15" "$out" "rules 1-5 and 7-15"
++has "usage lists rules 1-5 and 7-17" "$out" "rules 1-5 and 7-17"
+ 
+ 
+ # T28 helpers. pf_head FILE: frontmatter and a mermaid block. pf_task FILE ID STATUS FILES:
+@@ -784,5 +784,164 @@ chk "./lib/greet.sh in files: owns lib/greet.sh" "$rc:$out" "0:"
+ p1_run 'Rename the function `greet` to `say_hello` in `./lib/greet.sh`.' lib/greet.sh
+ chk "./ in the text matches files:" "$rc:$out" "0:"
+ 
++
++echo
++echo "T33: rule 16, tests: entries and test fields"
++# mk16 FILE FRONTMATTER-LINES TESTS-LINES...: one task whose files: holds t/a.sh and t/b.sh
++mk16() {
++  f="$1"; fmx="$2"; shift 2
++  { echo "---"; echo "title: demo"; [ -n "$fmx" ] && printf '%s\n' "$fmx"; echo "---"; echo
++    printf '%s\n' '```mermaid' 'flowchart TD' '    stale["stale"]' '```' '' '## Task: only' '' '```yaml' 'id: task-t' 'depends_on: []' 'files:' '  - t/a.sh' '  - t/b.sh' 'status: pending'
++    [ $# -gt 0 ] && printf '%s\n' "$@"
++    printf '%s\n' '```'; } > "$f"
++}
++t16() { out="$(ps check "$tmp/t16.md" 2>&1)"; rc=$?; }
++
++mk16 "$tmp/t16.md" "" "tests:" "  - t/a.sh :: x" "  - t/b.sh :: y"; t16
++chk "rule 16: valid tests pass check (default fields)" "$rc:$out" "0:"
++mk16 "$tmp/t16.md" 'test_command: sh {file}
++test_pass_prefix: "PASS: "
++test_fail_prefix: "FAIL: "' "tests:" "  - t/a.sh :: x"; t16
++chk "rule 16: valid tests pass check" "$rc:$out" "0:"
++
++mk16 "$tmp/t16.md" "" "tests:" "  - t/a.sh no separator"; t16
++chk "rule 16: entry without :: exits 1" "$rc" "1"
++has "rule 16: entry without :: is named" "$out" 'plan-state: rule 16: task-t tests entry "t/a.sh no separator" is not "<file> :: <case>"'
++
++mk16 "$tmp/t16.md" "" "tests:" "  - a.sh ::   "; t16
++has "rule 16: empty case is refused" "$out" 'rule 16: task-t tests entry "a.sh ::" is not "<file> :: <case>"'
++
++mk16 "$tmp/t16.md" "" "tests:" '  - t/a.sh :: x # "y", z'; t16
++chk "rule 16: raw entry keeps # and quotes" "$rc:$out" "0:"
++mk16 "$tmp/t16.md" "" "tests:" '  - t/a.sh :: x # "y", z' '  - t/a.sh :: x # "y", z'; t16
++has "rule 16: raw entry keeps # and quotes (repeat names it whole)" "$out" 'tests entry "t/a.sh :: x # "y", z" is repeated'
++
++mk16 "$tmp/t16.md" "" "tests:" "  - ./t/a.sh :: x" "  - t/a.sh :: x"; t16
++chk "rule 16: ./ repeat is the same entry" "$(printf '%s\n' "$out" | grep -c 'is repeated')" "1"
++
++mk16 "$tmp/t16.md" "" "tests:" "  - other.sh :: x"; t16
++has "rule 16: test file outside files: is named" "$out" "rule 16: task-t test file other.sh is not in its files:"
++
++mk16 "$tmp/t16.md" "" "tests: [t/a.sh :: x]"; t16
++has "rule 16: inline tests value is refused" "$out" "rule 16: task-t tests must be a block list"
++mk16 "$tmp/t16.md" "" "tests:   # cases" "  - t/a.sh :: x"; t16
++chk "rule 16: comment on tests line is block form" "$rc:$out" "0:"
++
++mk16 "$tmp/t16.md" "test_command: make test" "tests:" "  - t/a.sh :: x"; t16
++has "rule 16: test_command without {file}" "$out" "rule 16: test_command has no {file}"
++mk16 "$tmp/t16.md" 'test_pass_prefix: ""' "tests:" "  - t/a.sh :: x"; t16
++has "rule 16: empty pass prefix" "$out" "rule 16: test_pass_prefix is empty"
++mk16 "$tmp/t16.md" 'test_fail_prefix: ""' "tests:" "  - t/a.sh :: x"; t16
++has "rule 16: empty fail prefix" "$out" "rule 16: test_fail_prefix is empty"
++
++echo
++echo "T34: base_sha on set running, and rule 17"
++# mkbs FILE STATUS [YAML-LINES...]: one task, files t/a.sh
++mkbs() {
++  f="$1"; stt="$2"; shift 2
++  { printf '%s\n' '---' 'title: demo' '---' '' '```mermaid' 'flowchart TD' '    stale["stale"]' '```' '' '## Task: only' '' '```yaml' 'id: task-t' 'depends_on: []' 'files:' '  - t/a.sh' "status: $stt"
++    [ $# -gt 0 ] && printf '%s\n' "$@"
++    printf '%s\n' '```'; } > "$f"
++}
++g="$tmp/gitrepo"; mkdir "$g"; git -C "$g" init -q
++git -C "$g" -c user.email=t@t.test -c user.name=t commit -q --allow-empty -m base
++sha1="$(git -C "$g" rev-parse HEAD)"
++mkbs "$g/plan.md" ready
++out="$(ps set "$g/plan.md" task-t running 2>&1)"; rc=$?
++chk "base_sha: written on first running" "$rc:$(awk '/^base_sha:/ { print $2 }' "$g/plan.md")" "0:$sha1"
++chk "base_sha: line follows status: running" "$(awk '/^status:/ { getline n; print $0 "|" n }' "$g/plan.md")" "status: running|base_sha: $sha1"
++
++git -C "$g" -c user.email=t@t.test -c user.name=t commit -q --allow-empty -m second
++ps set "$g/plan.md" task-t ready >/dev/null 2>&1
++ps set "$g/plan.md" task-t running >/dev/null 2>&1
++chk "base_sha: kept through resume" "$(awk '/^base_sha:/ { print $2 }' "$g/plan.md")|$(grep -c '^base_sha:' "$g/plan.md")" "$sha1|1"
++
++mkdir "$tmp/nogit"
++mkbs "$tmp/nogit/t.md" ready 'tests:' '  - t/a.sh :: x'
++cp "$tmp/nogit/t.md" "$tmp/nogit/t.orig"
++out="$(GIT_CEILING_DIRECTORIES="$tmp" ps set "$tmp/nogit/t.md" task-t running 2>&1)"; rc=$?
++has "base_sha: refused without HEAD for a task with tests" "$rc:$out" "2:plan-state: refused task-t: cannot read HEAD for base_sha"
++cmp -s "$tmp/nogit/t.md" "$tmp/nogit/t.orig" && ok "base_sha: refused plan bytes unchanged" || bad "base_sha: refused plan bytes unchanged"
++
++mkbs "$tmp/nogit/n.md" ready
++out="$(GIT_CEILING_DIRECTORIES="$tmp" ps set "$tmp/nogit/n.md" task-t running 2>&1)"; rc=$?
++chk "base_sha: no repository, no tests, moves as today" "$rc:$out:$(grep -c '^status: running$' "$tmp/nogit/n.md"):$(grep -c '^base_sha:' "$tmp/nogit/n.md")" "0::1:0"
++
++mkbs "$tmp/nogit/d.md" done
++out="$(GIT_CEILING_DIRECTORIES="$tmp" ps set "$tmp/nogit/d.md" task-t running 2>&1)"; rc=$?
++has "base_sha: illegal move refused before git" "$rc:$out" "2:plan-state: refused task-t: done -> running"
++hasnt "base_sha: illegal move is not a HEAD error" "$out" "cannot read HEAD"
++
++mkbs "$g/crlf.md" ready; sed -i 's/$/\r/' "$g/crlf.md"
++ps set "$g/crlf.md" task-t running >/dev/null 2>&1
++chk "base_sha: CRLF plan stays CRLF" "$(rg -c '^base_sha: [0-9a-f]+\r$' "$g/crlf.md")" "1"
++
++b17() { mkbs "$tmp/b17.md" pending "base_sha: $1"; out="$(ps check "$tmp/b17.md" 2>&1)"; rc=$?; }
++b17 XYZ
++has "rule 17: bad base_sha is named" "$rc:$out" "1:plan-state: rule 17: task-t base_sha is XYZ"
++b17 abc12; o1="$rc:$out"; b17 ABCDEF1; o2="$rc:$out"
++chk "rule 17: short and uppercase refused" "$(printf "%s
++%s" "$o1" "$o2" | rg -c "^1:plan-state: rule 17: task-t base_sha is (abc12|ABCDEF1)$")" "2"
++b17 abcdef1; o1="$rc:$out"; b17 "$sha1"; o2="$rc:$out"
++chk "rule 17: 7 and 40 hex pass" "$o1|$o2" "0:|0:"
++
++
++echo
++echo "T35: plan-state tests <plan> <id>"
++# mkt FILE FRONTMATTER-LINES: a plan with four tasks. task-c has base_sha, two files (one written ./x)
++# and two entries; task-d has files but no base_sha and no tests; task-e has a bad entry; task-f is clean.
++mkt() {
++  { echo "---"; echo "title: demo"; [ -n "$2" ] && printf '%s\n' "$2"; echo "---"; echo
++    printf '%s\n' '```mermaid' 'flowchart TD' '```' '' '## Task: c' '' '```yaml' 'id: task-c' 'depends_on: []' 'files:' '  - tests/hook.test.sh' '  - ./x' 'status: running' 'base_sha: abc1234' 'tests:' '  - tests/hook.test.sh :: round one' '  - ./x :: round two' '```' \
++      '' '## Task: d' '' '```yaml' 'id: task-d' 'depends_on: []' 'files: [./p, q]' 'status: pending' '```' \
++      '' '## Task: e' '' '```yaml' 'id: task-e' 'depends_on: []' 'files:' '  - e.sh' 'status: pending' 'tests:' '  - e.sh no separator' '```' \
++      '' '## Task: f' '' '```yaml' 'id: task-f' 'depends_on: []' 'files:' '  - f.sh' 'status: pending' 'tests:' '  - f.sh :: ok' '```'; } > "$1"
++}
++mkt "$tmp/t-ok.md" ""
++out="$(ps tests "$tmp/t-ok.md" task-c 2>/dev/null)"; rc=$?
++chk "tests: prints the whole record" "$rc:$out" "0:base abc1234
++command bash {file}
++pass PASS: 
++fail FAIL: 
++file tests/hook.test.sh
++file x
++test tests/hook.test.sh	round one
++test x	round two"
++out="$(ps tests "$tmp/t-ok.md" task-c 2>/dev/null | sed -n 3p | sed 's/$/|/')"
++mkt "$tmp/t-nf.md" 'test_fail_prefix: "not ok "'
++out="$out;$(ps tests "$tmp/t-nf.md" task-c 2>/dev/null | sed -n 4p | sed 's/$/|/')"
++chk "tests: pass line keeps its trailing space" "$out" "pass PASS: |;fail not ok |"
++out="$(ps tests "$tmp/t-ok.md" task-d 2>/dev/null)"; rc=$?
++chk "tests: no base_sha prints base -" "$(printf '%s\n' "$out" | sed -n 1p)" "base -"
++chk "tests: no tests prints no test lines" "$rc:$(printf '%s\n' "$out" | rg -c '^test ' )|$(printf '%s\n' "$out" | rg '^file ' | tr '\n' ',')" "0:|file p,file q,"
++out="$(ps tests "$tmp/t-ok.md" 2>"$tmp/t-err")"; rc=$?
++chk "tests: missing id is usage" "$rc:$out:$(rg -c 'plan-state tests' "$tmp/t-err")" "2::1"
++out="$(ps tests "$tmp/t-ok.md" task-c task-d 2>"$tmp/t-err")"; rc=$?
++chk "tests: two ids is usage" "$rc:$out:$(rg -c 'plan-state tests' "$tmp/t-err")" "2::1"
++out="$(ps tests nope.md task-a 2>&1)"; rc=$?
++chk "tests: missing plan reports cannot read" "$rc:$out" "2:plan-state: cannot read nope.md"
++out="$(ps tests nope.md 2>&1)"
++chk "tests: missing plan without id reports cannot read" "$out" "plan-state: cannot read nope.md"
++out="$(ps tests "$tmp/t-ok.md" zz 2>"$tmp/t-err")"; rc=$?
++chk "tests: unknown id" "$rc:$out:$(rg -c 'plan-state: no task with id zz' "$tmp/t-err")" "2::1"
++{ cat "$tmp/t-ok.md"; printf '%s\n' '' '## Task: c2' '' '```yaml' 'id: task-f' 'depends_on: []' 'files:' '  - g.sh' 'status: pending' '```'; } > "$tmp/t-dup.md"
++out="$(ps tests "$tmp/t-dup.md" task-f 2>"$tmp/t-err")"; rc=$?
++chk "tests: repeated id" "$rc:$out:$(rg -c 'is not unique; run: plan-state check' "$tmp/t-err")" "2::1"
++mkt "$tmp/t-pl.md" 'test_command: make
++test_pass_prefix: ""'
++out="$(ps tests "$tmp/t-pl.md" task-c 2>"$tmp/t-err")"; rc=$?
++chk "tests: plan-level rule 16 lines on stderr" "$rc:$out:$(cat "$tmp/t-err")" "2::plan-state: rule 16: test_command has no {file}
++plan-state: rule 16: test_pass_prefix is empty"
++out="$(ps tests "$tmp/t-ok.md" task-e 2>"$tmp/t-err")"; rc=$?
++chk "tests: bad entry in this task" "$rc:$out:$(cat "$tmp/t-err")" "2::plan-state: task-e has a bad tests entry; run: plan-state check"
++out="$(ps tests "$tmp/t-ok.md" task-f 2>/dev/null)"; rc=$?
++chk "tests: bad entry in another task is ignored" "$rc:$(printf '%s\n' "$out" | tail -n 1)" "0:test f.sh	ok"
++out="$(sh "$SCRIPT" 2>&1)"
++has "usage lists tests" "$out" "plan-state tests"
++chk "usage ends at Exit" "$(printf '%s\n' "$out" | tail -n 1 | cut -c1-5)" "Exit:"
++out="$($ALTSH "$SCRIPT" tests "$tmp/t-ok.md" task-c 2>/dev/null)"; rc=$?
++chk "tests: same record under $ALTSH" "$rc:$(printf '%s\n' "$out" | wc -l | tr -d ' ')" "0:8"
++
++echo
+ echo "RESULT: $passes passed, $fails failed"
+ [ "$fails" -eq 0 ]
+diff --git a/tests/verify-tests/verify-tests.test.sh b/tests/verify-tests/verify-tests.test.sh
+new file mode 100644
+index 0000000..a780281
+--- /dev/null
++++ b/tests/verify-tests/verify-tests.test.sh
+@@ -0,0 +1,474 @@
++#!/usr/bin/env bash
++# Test suite for skills/executing-dag-plans/verify-tests
++REPO="$(cd "$(dirname "$0")/../.." && pwd)"
++SCRIPT="$REPO/skills/executing-dag-plans/verify-tests"
++[ -f "$SCRIPT" ] || { echo "FAIL: verify-tests not found at $SCRIPT" >&2; exit 1; }
++command -v rg >/dev/null 2>&1 || { echo "tests need rg (ripgrep)" >&2; exit 2; }
++# A second POSIX shell, to catch bashisms. dash if present; otherwise sh.
++if command -v dash >/dev/null 2>&1; then ALTSH=dash; else ALTSH=sh; echo "NOTE: dash not installed - alt-shell cases run under sh"; fi
++fails=0; passes=0
++ok()   { passes=$((passes+1)); echo "  PASS: $1"; }
++bad()  { fails=$((fails+1));  echo "  FAIL: $1"; }
++chk()  { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1 (expected [$3] got [$2])"; fi; }
++has()  { if printf '%s\n' "$2" | rg -qF -- "$3"; then ok "$1"; else bad "$1 (missing [$3] in: $2)"; fi; }
++hasnt(){ if printf '%s\n' "$2" | rg -qF -- "$3"; then bad "$1 (unexpected [$3] in: $2)"; else ok "$1"; fi; }
++
++tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
++
++# A two-task plan. task-a has no tests:. task-b has one tests: entry; $1 is the path,
++# $2 is an optional base_sha line for task-b.
++mkplan() {
++{
++cat <<'EOT'
++---
++title: demo
++created: 2026-11-17
++---
++
++## Context
++
++Demo.
++
++## Tasks
++
++## Task: plain
++
++```yaml
++id: task-a
++depends_on: []
++files:
++  - src/a.txt
++status: running
++```
++
++## Task: named
++
++```yaml
++id: task-b
++depends_on: []
++files:
++  - src/b.txt
++  - t/b.test.sh
++tests:
++  - t/b.test.sh :: case one
++status: running
++EOT
++[ -n "${2:-}" ] && printf '%s\n' "$2"
++printf '%s\n' '```'
++} > "$1"
++}
++
++echo "T1: arguments"
++mkplan "$tmp/p.md"
++for n in 0 1 3; do
++  case $n in
++    0) out="$(sh "$SCRIPT" 2>"$tmp/e")"; rc=$? ;;
++    1) out="$(sh "$SCRIPT" "$tmp/p.md" 2>"$tmp/e")"; rc=$? ;;
++    3) out="$(sh "$SCRIPT" "$tmp/p.md" task-a extra 2>"$tmp/e")"; rc=$? ;;
++  esac
++  err="$(cat "$tmp/e")"
++  if [ "$n" = 0 ]; then
++    chk "args: no arguments is usage" "$rc:$out" "2:"
++    has "args: no arguments is usage (stderr)" "$err" "verify-tests <plan> <id>"
++  else
++    chk "args: $n argument(s) exit 2, stdout empty" "$rc:$out" "2:"
++    has "args: $n argument(s) print usage" "$err" "verify-tests <plan> <id>"
++  fi
++done
++
++echo
++echo "T2: plan-state errors are relayed"
++out="$(sh "$SCRIPT" "$tmp/p.md" zz 2>"$tmp/e")"; rc=$?
++chk "args: plan-state error is relayed" "$rc:$out" "2:"
++has "args: unknown id message" "$(cat "$tmp/e")" "plan-state: no task with id zz"
++out="$(sh "$SCRIPT" "$tmp/missing.md" task-a 2>"$tmp/e")"; rc=$?
++chk "args: unreadable plan is relayed" "$rc:$out" "2:"
++has "args: unreadable plan message" "$(cat "$tmp/e")" "plan-state: cannot read"
++
++echo
++echo "T3: no named tests, plan outside any repository"
++out="$(sh "$SCRIPT" "$tmp/p.md" task-a 2>"$tmp/e")"; rc=$?
++chk "args: no named tests exits 0" "$rc:$out" "0:verify-tests: task-a: no named tests"
++
++echo
++echo "T4: no base_sha"
++out="$(sh "$SCRIPT" "$tmp/p.md" task-b 2>"$tmp/e")"; rc=$?
++chk "args: no base_sha exits 2" "$rc:$out" "2:"
++has "args: no base_sha message" "$(cat "$tmp/e")" "verify-tests: task-b: no base_sha (set the task running first)"
++
++echo
++echo "T5: runs under a second POSIX shell ($ALTSH)"
++out="$($ALTSH "$SCRIPT" 2>/dev/null)"; rc1=$?
++out="$($ALTSH "$SCRIPT" "$tmp/p.md" zz 2>/dev/null)"; rc2=$?
++out="$($ALTSH "$SCRIPT" "$tmp/p.md" task-a 2>/dev/null)"; rc3=$?
++out="$($ALTSH "$SCRIPT" "$tmp/p.md" task-b 2>/dev/null)"; rc4=$?
++chk "args: runs under dash" "$rc1$rc2$rc3$rc4" "2202"
++
++# ---------------------------------------------------------------------------
++# Trees. Each fixture is a git repository under $tmp with an untracked plan.md whose
++# task T1 has a real base_sha. verify-tests runs with TMPDIR=$tt, so a leaked
++# temporary directory shows up there.
++export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
++tt="$tmp/tt"; mkdir -p "$tt"
++: > "$tmp/allout"
++# vt <plan> [shell]: run verify-tests on T1; sets out, err, rc; every stdout is kept in allout.
++vt() {
++  out="$(TMPDIR="$tt" ${2:-sh} "$SCRIPT" "$1" T1 2>"$tmp/e")"; rc=$?
++  err="$(cat "$tmp/e")"; printf '%s\n' "$out" >> "$tmp/allout"
++}
++newrepo() {
++  rm -rf "$1"; mkdir -p "$1/t"
++  git -C "$1" init -q && git -C "$1" config core.autocrlf false
++}
++put()    { mkdir -p "$(dirname "$1/$2")"; printf '%s\n' "$3" > "$1/$2"; }
++commit() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
++# writeplan <dir> <base> <files, one per line> <tests, one per line> [extra front matter lines]
++writeplan() {
++  {
++    printf -- '---\ntitle: demo\ncreated: 2026-11-17\n'
++    [ -n "${5:-}" ] && printf '%s\n' "$5"
++    printf -- '---\n\n## Tasks\n\n## Task: one\n\n```yaml\nid: T1\ndepends_on: []\nfiles:\n'
++    printf '%s\n' "$3" | while IFS= read -r f; do printf '  - %s\n' "$f"; done
++    printf 'tests:\n'
++    printf '%s\n' "$4" | while IFS= read -r f; do printf '  - %s\n' "$f"; done
++    printf 'status: running\nbase_sha: %s\n```\n' "$2"
++  } > "$1/plan.md"
++}
++wtcount() { git -C "$1" worktree list --porcelain | rg -c '^worktree '; }
++# labels <stdout>: only the label and total lines, without the output tails that follow them.
++labels() { printf '%s\n' "$1" | rg -v '^(--- |  \| )'; }
++# block <stdout> <n>: the nth tail block (header and its "  | " lines).
++block() { printf '%s\n' "$1" | awk -v N="$2" '/^--- /{k++} k==N'; }
++
++LIB_BAD='add() { echo 0; }'
++LIB_GOOD='add() { echo $(($1 + $2)); }'
++LIB_GOOD2='add() { echo $(($2 + $1)); }'
++# The suite sleeps only when VT_MARK is set (signal cases): it touches the mark, then sleeps.
++SUITE_ADDS='[ -n "${VT_MARK:-}" ] && { touch "$VT_MARK"; sleep "${VT_SLEEP:-30}"; }
++. ./lib.sh
++if [ "$(add 1 2)" = 3 ]; then echo "PASS: adds"; else echo "FAIL: adds (got $(add 1 2))"; fi'
++# mk <dir> <lib at base> <lib after>: base commit, base_sha, then the task's commit.
++mk() {
++  newrepo "$1"; put "$1" lib.sh "$2"; put "$1" t/demo.test.sh "$SUITE_ADDS"; commit "$1" base
++  b=$(git -C "$1" rev-parse HEAD)
++  put "$1" lib.sh "$3"; commit "$1" task
++  writeplan "$1" "$b" "lib.sh
++t/demo.test.sh" "t/demo.test.sh :: adds"
++}
++
++echo
++echo "T6: labels"
++mk "$tmp/r1" "$LIB_BAD" "$LIB_GOOD"
++vt "$tmp/r1/plan.md"
++chk "trees: red then green is ok" "$rc:$(labels "$out")" "0:ok	t/demo.test.sh	adds
++verify-tests: T1: 1 ok, 0 failed"
++
++# The suite stops at its first line when new.sh, which the task creates, is missing.
++newrepo "$tmp/r2"
++put "$tmp/r2" t/demo.test.sh '[ -f new.sh ] || exit 1
++. ./new.sh
++echo "PASS: fresh"'
++commit "$tmp/r2" base; b=$(git -C "$tmp/r2" rev-parse HEAD)
++put "$tmp/r2" new.sh 'true'; commit "$tmp/r2" task
++writeplan "$tmp/r2" "$b" "new.sh
++t/demo.test.sh" "t/demo.test.sh :: fresh"
++vt "$tmp/r2/plan.md"
++chk "trees: absent before is ok-absent" "$rc:$(labels "$out")" "0:ok-absent	t/demo.test.sh	fresh
++verify-tests: T1: 1 ok, 0 failed"
++
++mk "$tmp/r3" "$LIB_GOOD" "$LIB_GOOD2"
++vt "$tmp/r3/plan.md"
++chk "trees: passing before is not-red" "$rc:$(labels "$out")" "1:not-red	t/demo.test.sh	adds
++verify-tests: T1: 0 ok, 1 failed"
++
++newrepo "$tmp/r4"
++put "$tmp/r4" lib.sh "$LIB_BAD"
++put "$tmp/r4" t/demo.test.sh '. ./lib.sh
++if [ "$(add 1 2)" = 3 ]; then echo "PASS: x"; else echo "FAIL: x"; fi'
++commit "$tmp/r4" base; b=$(git -C "$tmp/r4" rev-parse HEAD)
++put "$tmp/r4" lib.sh "$LIB_GOOD"
++put "$tmp/r4" t/demo.test.sh '. ./lib.sh
++if [ "$(add 1 2)" = 3 ]; then echo "PASS: x"; else echo "FAIL: x"; fi
++echo "PASS: y"'
++commit "$tmp/r4" task
++writeplan "$tmp/r4" "$b" "lib.sh
++t/demo.test.sh" "t/demo.test.sh :: y"
++vt "$tmp/r4/plan.md"
++chk "trees: new case passing on old code is not-red" "$rc:$(labels "$out")" "1:not-red	t/demo.test.sh	y
++verify-tests: T1: 0 ok, 1 failed"
++
++mk "$tmp/r5" "$LIB_BAD" 'add() { echo 4; }'
++vt "$tmp/r5/plan.md"
++chk "trees: failing after is not-green" "$rc:$(labels "$out")" "1:not-green	t/demo.test.sh	adds
++verify-tests: T1: 0 ok, 1 failed"
++mk "$tmp/r6" "$LIB_GOOD" "$LIB_BAD"
++vt "$tmp/r6/plan.md"
++chk "trees: not-green wins over not-red" "$rc:$(labels "$out")" "1:not-green	t/demo.test.sh	adds
++verify-tests: T1: 0 ok, 1 failed"
++
++newrepo "$tmp/r7"
++put "$tmp/r7" lib.sh "$LIB_BAD"
++put "$tmp/r7" t/demo.test.sh '. ./lib.sh
++echo "PASS: adds"; echo "PASS: adds"'
++commit "$tmp/r7" base; b=$(git -C "$tmp/r7" rev-parse HEAD)
++put "$tmp/r7" lib.sh "$LIB_GOOD"; commit "$tmp/r7" task
++writeplan "$tmp/r7" "$b" "lib.sh
++t/demo.test.sh" "t/demo.test.sh :: adds"
++vt "$tmp/r7/plan.md"
++chk "trees: duplicate name is ambiguous" "$rc:$(labels "$out")" "1:ambiguous	t/demo.test.sh	adds
++verify-tests: T1: 0 ok, 1 failed"
++
++# x: red with a ( detail before, green after. x2: never printed. "exit 0": only a longer pass line.
++newrepo "$tmp/r8"
++put "$tmp/r8" lib.sh "$LIB_BAD"
++put "$tmp/r8" t/demo.test.sh '. ./lib.sh
++if [ "$(add 1 2)" = 3 ]; then echo "PASS: x"; else echo "  FAIL: x (expected [1] got [2])"; fi
++echo "PASS: exit 0 with charter"'
++commit "$tmp/r8" base; b=$(git -C "$tmp/r8" rev-parse HEAD)
++put "$tmp/r8" lib.sh "$LIB_GOOD"; commit "$tmp/r8" task
++writeplan "$tmp/r8" "$b" "lib.sh
++t/demo.test.sh" "t/demo.test.sh :: x
++t/demo.test.sh :: x2
++t/demo.test.sh :: exit 0"
++vt "$tmp/r8/plan.md"
++chk "trees: fail line with ( detail matches" "$rc:$(labels "$out")" "1:ok	t/demo.test.sh	x
++not-green	t/demo.test.sh	x2
++not-green	t/demo.test.sh	exit 0
++verify-tests: T1: 1 ok, 2 failed"
++
++newrepo "$tmp/r9"
++put "$tmp/r9" lib.sh "$LIB_BAD"
++put "$tmp/r9" t/demo.test.sh '. ./lib.sh
++if [ "$(add 1 2)" = 3 ]; then echo "ok - adds"; else echo "not ok - adds"; fi
++echo "PASS: adds"'
++commit "$tmp/r9" base; b=$(git -C "$tmp/r9" rev-parse HEAD)
++put "$tmp/r9" lib.sh "$LIB_GOOD"; commit "$tmp/r9" task
++writeplan "$tmp/r9" "$b" "lib.sh
++t/demo.test.sh" "t/demo.test.sh :: adds" 'test_command: sh {file}
++test_pass_prefix: "ok - "
++test_fail_prefix: "not ok - "'
++vt "$tmp/r9/plan.md"
++chk "trees: custom command and prefixes" "$rc:$(labels "$out")" "0:ok	t/demo.test.sh	adds
++verify-tests: T1: 1 ok, 0 failed"
++
++newrepo "$tmp/r10"
++put "$tmp/r10" lib.sh "$LIB_BAD"
++put "$tmp/r10" "t/it's a.test.sh" "$SUITE_ADDS"
++commit "$tmp/r10" base; b=$(git -C "$tmp/r10" rev-parse HEAD)
++put "$tmp/r10" lib.sh "$LIB_GOOD"; commit "$tmp/r10" task
++writeplan "$tmp/r10" "$b" "lib.sh
++t/it's a.test.sh" "t/it's a.test.sh :: adds"
++vt "$tmp/r10/plan.md"
++chk "trees: file with a space and a quote" "$rc:$(labels "$out")" "0:ok	t/it's a.test.sh	adds
++verify-tests: T1: 1 ok, 0 failed"
++
++mk "$tmp/r11" "$LIB_BAD" 'add() { echo 4; }'
++put "$tmp/r11" lib.sh "$LIB_GOOD"
++vt "$tmp/r11/plan.md"
++chk "trees: uncommitted change is ignored" "$rc:$(labels "$out")" "1:not-green	t/demo.test.sh	adds
++verify-tests: T1: 0 ok, 1 failed"
++
++newrepo "$tmp/r12"
++put "$tmp/r12" t/demo.test.sh 'if [ -f new.sh ]; then echo "PASS: has new"; else echo "FAIL: has new (new.sh missing)"; fi'
++commit "$tmp/r12" base; b=$(git -C "$tmp/r12" rev-parse HEAD)
++put "$tmp/r12" new.sh 'true'; commit "$tmp/r12" task
++writeplan "$tmp/r12" "$b" "new.sh
++t/demo.test.sh" "t/demo.test.sh :: has new"
++vt "$tmp/r12/plan.md"
++chk "trees: before tree deletes a path new since base" "$rc:$(labels "$out")" "0:ok	t/demo.test.sh	has new
++verify-tests: T1: 1 ok, 0 failed"
++
++# The suite prints a then b; tests: lists b first.
++newrepo "$tmp/r13"
++put "$tmp/r13" lib.sh "$LIB_BAD"
++put "$tmp/r13" t/demo.test.sh '. ./lib.sh
++if [ "$(add 1 2)" = 3 ]; then echo "PASS: a"; echo "PASS: b"; else echo "FAIL: a"; echo "FAIL: b"; fi'
++commit "$tmp/r13" base; b=$(git -C "$tmp/r13" rev-parse HEAD)
++put "$tmp/r13" lib.sh "$LIB_GOOD"; commit "$tmp/r13" task
++writeplan "$tmp/r13" "$b" "lib.sh
++t/demo.test.sh" "t/demo.test.sh :: b
++t/demo.test.sh :: a"
++vt "$tmp/r13/plan.md"
++chk "trees: two entries keep tests: order" "$rc:$(labels "$out")" "0:ok	t/demo.test.sh	b
++ok	t/demo.test.sh	a
++verify-tests: T1: 2 ok, 0 failed"
++chk "tails: all ok prints no block" "$(printf '%s\n' "$out" | awk '/^---/{n++} END{print n+0}'):$out" "0:ok	t/demo.test.sh	b
++ok	t/demo.test.sh	a
++verify-tests: T1: 2 ok, 0 failed"
++
++writeplan "$tmp/r1" 0000000 "lib.sh
++t/demo.test.sh" "t/demo.test.sh :: adds"
++vt "$tmp/r1/plan.md"
++chk "trees: base_sha not a commit" "$rc:$(labels "$out")" "2:"
++has "trees: base_sha not a commit (stderr)" "$err" "is not a commit"
++
++# An ignored file present only in the shared working tree.
++newrepo "$tmp/r14"
++put "$tmp/r14" .gitignore 'dep.sh'
++put "$tmp/r14" lib.sh "$LIB_BAD"
++put "$tmp/r14" t/demo.test.sh '. ./dep.sh
++. ./lib.sh
++if [ "$(add 1 2)" = 3 ] && [ "$DEP" = 1 ]; then echo "PASS: adds"; else echo "FAIL: adds"; fi'
++commit "$tmp/r14" base; b=$(git -C "$tmp/r14" rev-parse HEAD)
++put "$tmp/r14" lib.sh "$LIB_GOOD"; commit "$tmp/r14" task
++put "$tmp/r14" dep.sh 'DEP=1'
++writeplan "$tmp/r14" "$b" "lib.sh
++t/demo.test.sh" "t/demo.test.sh :: adds"
++vt "$tmp/r14/plan.md"
++chk "trees: ignored dependency is not in the after tree" "$rc:$(labels "$out")" "1:not-green	t/demo.test.sh	adds
++verify-tests: T1: 0 ok, 1 failed"
++
++
++echo
++echo "T6b: output tails"
++s1="$tmp/s1"; newrepo "$s1"; put "$s1" README 'base'
++commit "$s1" base; b=$(git -C "$s1" rev-parse HEAD)
++put "$s1" new.sh 'true'
++put "$s1" a.sh '[ -f new.sh ] && echo "PASS: x"
++echo "a line"'
++put "$s1" b.sh 'echo "b line"
++echo "FAIL: y"'
++commit "$s1" task
++writeplan "$s1" "$b" "new.sh
++a.sh
++b.sh" "a.sh :: x
++b.sh :: y"
++vt "$s1/plan.md"
++chk "tails: spec example order" "$(printf '%s\n' "$out" | rg '^(---|ok|not|verify)')" "ok-absent	a.sh	x
++not-green	b.sh	y
++verify-tests: T1: 1 ok, 1 failed
++--- a.sh (before)
++--- b.sh (after)"
++chk "tails: spec example bodies" "$(printf '%s\n' "$out" | sed -n '/^--- /,$p')" "--- a.sh (before)
++  | a line
++--- b.sh (after)
++  | b line
++  | FAIL: y"
++
++s2="$tmp/s2"; newrepo "$s2"; put "$s2" README 'base'
++commit "$s2" base; b=$(git -C "$s2" rev-parse HEAD)
++put "$s2" z.sh 'i=1
++while [ "$i" -le 30 ]; do echo "n$i"; i=$((i + 1)); done
++echo "FAIL: z"'
++commit "$s2" task
++writeplan "$s2" "$b" "z.sh" "z.sh :: z"
++vt "$s2/plan.md"
++blk="$(block "$out" 1)"
++chk "tails: last 20 lines only" "$(printf '%s\n' "$blk" | rg -c '^  \| '):$(printf '%s\n' "$blk" | tail -n 1):$(printf '%s\n' "$blk" | sed -n 2p)" "20:  | FAIL: z:  | n12"
++
++# r6: passes before, fails after.
++vt "$tmp/r6/plan.md"
++chk "tails: not-red and not-green gives only after" "$(printf '%s\n' "$out" | rg '^---')" "--- t/demo.test.sh (after)"
++
++s4="$tmp/s4"; newrepo "$s4"; put "$s4" README 'base'
++commit "$s4" base; b=$(git -C "$s4" rev-parse HEAD)
++put "$s4" new.sh 'true'
++put "$s4" g.sh 'echo "FAIL: g"
++[ -f new.sh ] && echo "PASS: h"'
++commit "$s4" task
++writeplan "$s4" "$b" "new.sh
++g.sh" "g.sh :: g
++g.sh :: h"
++vt "$s4/plan.md"
++chk "tails: one file gives after then before" "$(printf '%s\n' "$out" | rg '^(---|ok|not)')" "not-green	g.sh	g
++ok-absent	g.sh	h
++--- g.sh (after)
++--- g.sh (before)"
++
++s5="$tmp/s5"; newrepo "$s5"; put "$s5" README 'base'
++commit "$s5" base; b=$(git -C "$s5" rev-parse HEAD)
++put "$s5" a.sh 'echo "FAIL: x"'; put "$s5" b.sh 'echo "FAIL: y"'
++commit "$s5" task
++writeplan "$s5" "$b" "a.sh
++b.sh" "b.sh :: y
++a.sh :: x"
++vt "$s5/plan.md"
++chk "tails: file order follows tests:" "$(printf '%s\n' "$out" | rg '^---')" "--- b.sh (after)
++--- a.sh (after)"
++
++s6="$tmp/s6"; newrepo "$s6"; put "$s6" README 'base'
++commit "$s6" base; b=$(git -C "$s6" rev-parse HEAD)
++put "$s6" other.sh 'true'; commit "$s6" task
++writeplan "$s6" "$b" "other.sh
++gone.sh" "gone.sh :: x"
++vt "$s6/plan.md"
++chk "tails: no output shows placeholder" "$(printf '%s\n' "$out" | sed -n '/^--- /,$p')" "--- gone.sh (after)
++  | (no output)"
++echo
++echo "T7: the shared tree and the temporary directory"
++mk "$tmp/r15" "$LIB_BAD" "$LIB_GOOD"
++put "$tmp/r15" lib.sh "$LIB_BAD"   # an uncommitted edit, to see it survive
++st0="$(git -C "$tmp/r15" status --porcelain)"; h0="$(git -C "$tmp/r15" rev-parse HEAD)"
++p0="$(cksum < "$tmp/r15/plan.md")"
++vt "$tmp/r15/plan.md"; rc1=$rc
++st1="$(git -C "$tmp/r15" status --porcelain)"; h1="$(git -C "$tmp/r15" rev-parse HEAD)"
++p1="$(cksum < "$tmp/r15/plan.md")"
++chk "trees: shared tree untouched" "$rc1|$st1|$h1|$p1" "0|$st0|$h0|$p0"
++vt "$tmp/r3/plan.md"; rc2=$rc
++chk "trees: no worktree or temp dir left" "$rc1$rc2:$(wtcount "$tmp/r15"):$(wtcount "$tmp/r3"):$(ls -A "$tt")" "01:1:1:"
++
++echo
++echo "T8: signals"
++# waitfor <file>: poll until <file> exists, while the process $pid is alive (at most about 60 s).
++waitfor() { n=0; while [ ! -f "$1" ] && kill -0 "$pid" 2>/dev/null && [ "$n" -lt 600 ]; do sleep 0.1; n=$((n+1)); done; }
++started() { [ -f "$tmp/mark" ] && echo started; }
++# go <repo> <shell> [hook]: start verify-tests in the background, in its own process group
++# (so INT is not ignored), and wait for its suite to start; sets pid.
++go() {
++  rm -f "$tmp/mark" "$tmp/mark2"
++  set -m
++  VT_MARK="$tmp/mark" VERIFY_TESTS_CLEANUP_HOOK="${3:-}" TMPDIR="$tt" \
++    $2 "$SCRIPT" "$1/plan.md" T1 >"$tmp/so" 2>"$tmp/se" & pid=$!
++  set +m
++  waitfor "$tmp/mark"
++}
++mk "$tmp/r16" "$LIB_BAD" "$LIB_GOOD"
++# sigcase <signal> <shell> <name>: signal a run mid-suite; it exits 2, says so, and leaves nothing.
++sigcase() {
++  go "$tmp/r16" "$2"
++  kill -"$1" "$pid"; wait "$pid"; rc=$?
++  chk "$3 ($2)" "$(started):$rc:$(cat "$tmp/so"):$(wtcount "$tmp/r16"):$(ls -A "$tt")" "started:2::1:"
++  has "$3 ($2, stderr)" "$(cat "$tmp/se")" "verify-tests: T1: interrupted"
++}
++for shell in sh $ALTSH; do
++  sigcase TERM "$shell" "signals: TERM mid-run cleans up"
++  sigcase INT "$shell" "signals: INT mid-run cleans up"
++  sigcase HUP "$shell" "signals: HUP mid-run cleans up"
++  go "$tmp/r16" "$shell" 'touch "$VT_MARK"2; sleep 2'
++  kill -TERM "$pid"
++  waitfor "$tmp/mark2"
++  kill -TERM "$pid"; wait "$pid"; rc=$?
++  chk "signals: second signal during cleanup still exits 2 ($shell)" \
++    "$([ -f "$tmp/mark2" ] && echo hooked):$rc:$(wtcount "$tmp/r16"):$(ls -A "$tt")" "hooked:2:1:"
++done
++
++# KILL: its own TMPDIR, so the leak stays out of $tt.
++kt="$tmp/kt"; mkdir -p "$kt"
++rm -f "$tmp/mark"
++set -m
++VT_MARK="$tmp/mark" TMPDIR="$kt" sh "$SCRIPT" "$tmp/r16/plan.md" T1 >/dev/null 2>&1 & pid=$!
++set +m
++waitfor "$tmp/mark"
++kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid"; wait "$pid" 2>/dev/null
++leak1="$(wtcount "$tmp/r16")"
++rm -rf "$kt"/*      # the OS temp reaper
++vt "$tmp/r16/plan.md"
++chk "signals: KILL leaves a registration the next run prunes" "$leak1:$rc:$(wtcount "$tmp/r16")" "3:0:1"
++
++echo
++echo "T9: cleanup failure"
++mk "$tmp/r17" "$LIB_BAD" "$LIB_GOOD"
++out="$(VERIFY_TESTS_CLEANUP_HOOK='rm -f "$1/after/.git"' TMPDIR="$tt" sh "$SCRIPT" "$tmp/r17/plan.md" T1 2>"$tmp/e")"; rc=$?
++printf '%s\n' "$out" >> "$tmp/allout"
++git -C "$tmp/r17" worktree prune
++chk "cleanup: failed removal exits 2" "$rc:$(wtcount "$tmp/r17"):$(ls -A "$tt")" "2:1:"
++has "cleanup: failed removal exits 2 (stderr)" "$(cat "$tmp/e")" "verify-tests: T1: cleanup failed"
++
++echo
++echo "T10: stdout"
++stray="$(rg -v '^(--- .+ \((before|after)\)|  \| .*|(ok|ok-absent|not-red|not-green|ambiguous)\t[^\t]+\t.+|verify-tests: T1: [0-9]+ ok, [0-9]+ failed|)$' "$tmp/allout")"
++chk "trees: git stdout never reaches stdout" "$stray" ""
++
++echo
++echo "RESULT: $passes passed, $fails failed"
++[ "$fails" -eq 0 ]

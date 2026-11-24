@@ -1,0 +1,332 @@
+PASS mawk tests/audit-stats/audit-stats.test.sh
+PASS mawk tests/commit-safe/concurrent-commit.test.sh
+PASS mawk tests/commit-safe/stale-lock.test.sh
+PASS mawk tests/plan-state/plan-state.test.sh
+PASS mawk tests/resolve-declared-paths/resolve-declared-paths.test.sh
+PASS mawk tests/verify-tests/verify-tests.test.sh
+PASS mawk hidden/plan-state-base-sha.test.sh
+mawk hidden/plan-state-base-sha.test.sh  PASS: L153: ready -> running exits 0 and writes base_sha: <full HEAD of the plan's repo> on the line after status:
+mawk hidden/plan-state-base-sha.test.sh  PASS: L375: a task without tests: also gets base_sha when it runs
+mawk hidden/plan-state-base-sha.test.sh  PASS: L90: running -> ready -> running after a new commit keeps the first base_sha
+mawk hidden/plan-state-base-sha.test.sh  PASS: L163: running -> done keeps base_sha
+mawk hidden/plan-state-base-sha.test.sh  PASS: L163: running -> failed keeps base_sha
+mawk hidden/plan-state-base-sha.test.sh  PASS: L157: an existing base_sha is left untouched
+mawk hidden/plan-state-base-sha.test.sh  PASS: L163: pending -> ready writes no base_sha
+mawk hidden/plan-state-base-sha.test.sh  PASS: L156: an illegal move (pending -> running) is refused as today, the plan unchanged
+mawk hidden/plan-state-base-sha.test.sh  PASS: L159: no repository, task with tests: exit 2 with the refusal, plan unchanged
+mawk hidden/plan-state-base-sha.test.sh  PASS: L159: a repository with no commit, task with tests: exit 2 with the refusal, plan unchanged
+mawk hidden/plan-state-base-sha.test.sh  PASS: L161: no repository, task without tests: set running, no base_sha, no message
+mawk hidden/plan-state-base-sha.test.sh  PASS: L157: a task that already has base_sha does not call git: set running succeeds outside a repository
+PASS mawk hidden/plan-state-tests.test.sh
+mawk hidden/plan-state-tests.test.sh  PASS: L130: a plan with well-formed tests: entries passes check
+mawk hidden/plan-state-tests.test.sh  PASS: L132: an entry with no " :: " exits 1 with its rule 16 line
+mawk hidden/plan-state-tests.test.sh  PASS: L75: an entry ending in " ::" plus spaces has no case; the raw entry is quoted without trailing whitespace
+mawk hidden/plan-state-tests.test.sh  PASS: L80: a file that is only ./ is empty after normalisation
+mawk hidden/plan-state-tests.test.sh  PASS: L134: a test file not in files: is named, normalised
+mawk hidden/plan-state-tests.test.sh  PASS: L80: leading ./ removed from both the entry and an inline files: list before comparing
+mawk hidden/plan-state-tests.test.sh  PASS: L76: " #" in an entry is literal text, not a comment
+mawk hidden/plan-state-tests.test.sh  PASS: L77: quotes around an entry are not stripped
+mawk hidden/plan-state-tests.test.sh  PASS: L137: an entry the same as an earlier one after normalisation is repeated (raw entry quoted)
+mawk hidden/plan-state-tests.test.sh  PASS: L137: one repeated line per repeat
+mawk hidden/plan-state-tests.test.sh  PASS: L139: an inline list on the tests: line is a rule 16 violation
+mawk hidden/plan-state-tests.test.sh  PASS: L71: a scalar on the tests: line is a rule 16 violation
+mawk hidden/plan-state-tests.test.sh  PASS: L73: a trailing comment on the tests: line is not a value
+mawk hidden/plan-state-tests.test.sh  PASS: L130: a violation in a second task names that task
+mawk hidden/plan-state-tests.test.sh  PASS: L140: test_command with no {file}
+mawk hidden/plan-state-tests.test.sh  PASS: L142: an empty test_pass_prefix
+mawk hidden/plan-state-tests.test.sh  PASS: L142: a test_fail_prefix that is empty after comment-stripping
+mawk hidden/plan-state-tests.test.sh  PASS: L98: well-formed plan-level test fields pass check
+mawk hidden/plan-state-tests.test.sh  PASS: L148: base_sha abc1234 (7 or 40 lowercase hex) passes
+mawk hidden/plan-state-tests.test.sh  PASS: L148: base_sha 0123456789abcdef0123456789abcdef01234567 (7 or 40 lowercase hex) passes
+mawk hidden/plan-state-tests.test.sh  PASS: L148: base_sha abc123 is a rule 17 violation
+mawk hidden/plan-state-tests.test.sh  PASS: L148: base_sha ABCDEF1 is a rule 17 violation
+mawk hidden/plan-state-tests.test.sh  PASS: L148: base_sha abcdefg is a rule 17 violation
+mawk hidden/plan-state-tests.test.sh  PASS: L148: base_sha 0123456789abcdef0123456789abcdef012345678 is a rule 17 violation
+mawk hidden/plan-state-tests.test.sh  PASS: L168: defaults applied, files and entries normalised, exact stdout, exit 0
+mawk hidden/plan-state-tests.test.sh  PASS: L177: plan-level values comment-stripped and unquoted, inline files: split, base_sha shown
+mawk hidden/plan-state-tests.test.sh  PASS: L181: a task with no files and no tests prints only the four header lines
+mawk hidden/plan-state-tests.test.sh  PASS: L75: a CRLF plan gives the same output with no CR
+mawk hidden/plan-state-tests.test.sh  PASS: L199: other tasks' bad entries do not affect this task
+mawk hidden/plan-state-tests.test.sh  PASS: L189: only the subcommand: exit 2, nothing on stdout, usage text on stderr
+mawk hidden/plan-state-tests.test.sh  PASS: L191: an unreadable plan is reported before the missing id
+mawk hidden/plan-state-tests.test.sh  PASS: L191: a directory as the plan: exit 2, nothing on stdout, cannot read
+mawk hidden/plan-state-tests.test.sh  PASS: L192: no id: exit 2, nothing on stdout, usage text on stderr
+mawk hidden/plan-state-tests.test.sh  PASS: L192: two ids: exit 2, nothing on stdout, usage text on stderr
+mawk hidden/plan-state-tests.test.sh  PASS: L193: an unknown id
+mawk hidden/plan-state-tests.test.sh  PASS: L194: a duplicate id
+mawk hidden/plan-state-tests.test.sh  PASS: L188: an unknown id is the only group reported, ahead of plan-level rule 16
+mawk hidden/plan-state-tests.test.sh  PASS: L196: every failing plan-level rule 16 line, in rule 16's order, and no task-level line
+mawk hidden/plan-state-tests.test.sh  PASS: L196: a single plan-level failure is reported exactly as check prints it
+mawk hidden/plan-state-tests.test.sh  PASS: L198: an entry that does not split: exit 2, nothing on stdout, the bad-entry line on stderr
+mawk hidden/plan-state-tests.test.sh  PASS: L198: a test file not in files:: exit 2, nothing on stdout, the bad-entry line on stderr
+mawk hidden/plan-state-tests.test.sh  PASS: L198: a repeated entry: exit 2, nothing on stdout, the bad-entry line on stderr
+mawk hidden/plan-state-tests.test.sh  PASS: L198: a value on the tests: line: exit 2, nothing on stdout, the bad-entry line on stderr
+mawk hidden/plan-state-tests.test.sh  PASS: L200: usage lists the tests subcommand and prints through the Exit: line
+mawk hidden/plan-state-tests.test.sh  PASS: L200: the check line reads rules 1-5 and 7-17
+PASS mawk hidden/verify-tests.test.sh
+mawk hidden/verify-tests.test.sh  PASS: L209: no arguments exits 2 with nothing on stdout
+mawk hidden/verify-tests.test.sh  PASS: L209: only the plan exits 2 with nothing on stdout
+mawk hidden/verify-tests.test.sh  PASS: L216: a plan-state tests error (unknown id) is relayed on stderr with exit 2
+mawk hidden/verify-tests.test.sh  PASS: L216: a plan-state tests error (cannot read) is relayed with exit 2
+mawk hidden/verify-tests.test.sh  PASS: L216: a bad tests entry is relayed with exit 2
+mawk hidden/verify-tests.test.sh  PASS: L218: a task with no tests: prints the no-named-tests line and exits 0
+mawk hidden/verify-tests.test.sh  PASS: L210: no tests, no base_sha, plan outside any repository: still exit 0 with the no-named-tests line
+mawk hidden/verify-tests.test.sh  PASS: L219: no base_sha: exit 2, the message on stderr, nothing on stdout
+mawk hidden/verify-tests.test.sh  PASS: L292: a base_sha that is not a commit exits 2 with nothing on stdout and leaves no worktree
+mawk hidden/verify-tests.test.sh  PASS: L292: named tests in a plan outside any repository exit 2 with nothing on stdout
+mawk hidden/verify-tests.test.sh  PASS: L253: failed before (fail line with " ("), passed after: ok, exit 0, exact stdout
+mawk hidden/verify-tests.test.sh  PASS: L217: an exact fail line counts as failed; a done task can be checked
+mawk hidden/verify-tests.test.sh  PASS: L254: absent before, passed after: ok-absent, exit 0, before block
+mawk hidden/verify-tests.test.sh  PASS: L255: passed before: not-red, exit 1, before block
+mawk hidden/verify-tests.test.sh  PASS: L256: failed after: not-green, exit 1, after block
+mawk hidden/verify-tests.test.sh  PASS: L239: absent after is not-green
+mawk hidden/verify-tests.test.sh  PASS: L271: not-red and not-green prints not-green and only an after block
+mawk hidden/verify-tests.test.sh  PASS: L257: two result lines after: ambiguous, exit 1, after block
+mawk hidden/verify-tests.test.sh  PASS: L238: ambiguous in the before tree only is ambiguous, with an after block (tails follow the label)
+mawk hidden/verify-tests.test.sh  PASS: L238: ambiguous wins over not-green
+mawk hidden/verify-tests.test.sh  PASS: L266: a tail is the last 20 lines of the run's output
+mawk hidden/verify-tests.test.sh  PASS: L275: a run with no output shows (no output)
+mawk hidden/verify-tests.test.sh  PASS: L277: the spec's own example
+mawk hidden/verify-tests.test.sh  PASS: L273: entries in tests: order; tails by first appearance, after block before before block
+mawk hidden/verify-tests.test.sh  PASS: L116: "exit 0" and "exit 0 with charter" are told apart
+mawk hidden/verify-tests.test.sh  PASS: L115: "FAIL: alphabet" and "FAIL: alpha(x)" are not fail lines for alpha
+mawk hidden/verify-tests.test.sh  PASS: L113: a pass line must equal the prefix and the case exactly
+mawk hidden/verify-tests.test.sh  PASS: L111: leading whitespace, trailing whitespace and a trailing CR are removed before matching
+mawk hidden/verify-tests.test.sh  PASS: L232: standard error is captured, and the suite's exit code is ignored
+mawk hidden/verify-tests.test.sh  PASS: L99: custom prefixes replace the defaults
+mawk hidden/verify-tests.test.sh  PASS: L105: every {file} is replaced by the single-quoted <file>
+mawk hidden/verify-tests.test.sh  PASS: L106: the suite's standard input is /dev/null
+mawk hidden/verify-tests.test.sh  PASS: L232: each distinct file runs once per tree
+mawk hidden/verify-tests.test.sh  PASS: L228: before tree: task files back at base_sha, new ones deleted, test file and others' work kept
+mawk hidden/verify-tests.test.sh  PASS: L226: uncommitted changes in the shared working tree are ignored
+mawk hidden/verify-tests.test.sh  PASS: L300: the plan, working tree, index, HEAD and refs are untouched
+mawk hidden/verify-tests.test.sh  PASS: L233: a file missing from a tree counts as a run with no output
+mawk hidden/verify-tests.test.sh  PASS: L148: an abbreviated base_sha (12 hex) is resolved
+mawk hidden/verify-tests.test.sh  PASS: L225: both trees are made under $TMPDIR
+mawk hidden/verify-tests.test.sh  PASS: L246: after exit 0, no worktree is left and stale registrations are pruned
+mawk hidden/verify-tests.test.sh  PASS: L246: the temporary directory is removed
+mawk hidden/verify-tests.test.sh  PASS: L246: after exit 1, no worktree and no temporary directory is left
+mawk hidden/verify-tests.test.sh  PASS: L222: TERM during a run exits 2 with the interrupted line, and cleans up
+mawk hidden/verify-tests.test.sh  PASS: L222: HUP during a run exits 2 with the interrupted line, and cleans up
+PASS gawk tests/audit-stats/audit-stats.test.sh
+PASS gawk tests/commit-safe/concurrent-commit.test.sh
+PASS gawk tests/commit-safe/stale-lock.test.sh
+PASS gawk tests/plan-state/plan-state.test.sh
+PASS gawk tests/resolve-declared-paths/resolve-declared-paths.test.sh
+PASS gawk tests/verify-tests/verify-tests.test.sh
+PASS gawk hidden/plan-state-base-sha.test.sh
+gawk hidden/plan-state-base-sha.test.sh  PASS: L153: ready -> running exits 0 and writes base_sha: <full HEAD of the plan's repo> on the line after status:
+gawk hidden/plan-state-base-sha.test.sh  PASS: L375: a task without tests: also gets base_sha when it runs
+gawk hidden/plan-state-base-sha.test.sh  PASS: L90: running -> ready -> running after a new commit keeps the first base_sha
+gawk hidden/plan-state-base-sha.test.sh  PASS: L163: running -> done keeps base_sha
+gawk hidden/plan-state-base-sha.test.sh  PASS: L163: running -> failed keeps base_sha
+gawk hidden/plan-state-base-sha.test.sh  PASS: L157: an existing base_sha is left untouched
+gawk hidden/plan-state-base-sha.test.sh  PASS: L163: pending -> ready writes no base_sha
+gawk hidden/plan-state-base-sha.test.sh  PASS: L156: an illegal move (pending -> running) is refused as today, the plan unchanged
+gawk hidden/plan-state-base-sha.test.sh  PASS: L159: no repository, task with tests: exit 2 with the refusal, plan unchanged
+gawk hidden/plan-state-base-sha.test.sh  PASS: L159: a repository with no commit, task with tests: exit 2 with the refusal, plan unchanged
+gawk hidden/plan-state-base-sha.test.sh  PASS: L161: no repository, task without tests: set running, no base_sha, no message
+gawk hidden/plan-state-base-sha.test.sh  PASS: L157: a task that already has base_sha does not call git: set running succeeds outside a repository
+PASS gawk hidden/plan-state-tests.test.sh
+gawk hidden/plan-state-tests.test.sh  PASS: L130: a plan with well-formed tests: entries passes check
+gawk hidden/plan-state-tests.test.sh  PASS: L132: an entry with no " :: " exits 1 with its rule 16 line
+gawk hidden/plan-state-tests.test.sh  PASS: L75: an entry ending in " ::" plus spaces has no case; the raw entry is quoted without trailing whitespace
+gawk hidden/plan-state-tests.test.sh  PASS: L80: a file that is only ./ is empty after normalisation
+gawk hidden/plan-state-tests.test.sh  PASS: L134: a test file not in files: is named, normalised
+gawk hidden/plan-state-tests.test.sh  PASS: L80: leading ./ removed from both the entry and an inline files: list before comparing
+gawk hidden/plan-state-tests.test.sh  PASS: L76: " #" in an entry is literal text, not a comment
+gawk hidden/plan-state-tests.test.sh  PASS: L77: quotes around an entry are not stripped
+gawk hidden/plan-state-tests.test.sh  PASS: L137: an entry the same as an earlier one after normalisation is repeated (raw entry quoted)
+gawk hidden/plan-state-tests.test.sh  PASS: L137: one repeated line per repeat
+gawk hidden/plan-state-tests.test.sh  PASS: L139: an inline list on the tests: line is a rule 16 violation
+gawk hidden/plan-state-tests.test.sh  PASS: L71: a scalar on the tests: line is a rule 16 violation
+gawk hidden/plan-state-tests.test.sh  PASS: L73: a trailing comment on the tests: line is not a value
+gawk hidden/plan-state-tests.test.sh  PASS: L130: a violation in a second task names that task
+gawk hidden/plan-state-tests.test.sh  PASS: L140: test_command with no {file}
+gawk hidden/plan-state-tests.test.sh  PASS: L142: an empty test_pass_prefix
+gawk hidden/plan-state-tests.test.sh  PASS: L142: a test_fail_prefix that is empty after comment-stripping
+gawk hidden/plan-state-tests.test.sh  PASS: L98: well-formed plan-level test fields pass check
+gawk hidden/plan-state-tests.test.sh  PASS: L148: base_sha abc1234 (7 or 40 lowercase hex) passes
+gawk hidden/plan-state-tests.test.sh  PASS: L148: base_sha 0123456789abcdef0123456789abcdef01234567 (7 or 40 lowercase hex) passes
+gawk hidden/plan-state-tests.test.sh  PASS: L148: base_sha abc123 is a rule 17 violation
+gawk hidden/plan-state-tests.test.sh  PASS: L148: base_sha ABCDEF1 is a rule 17 violation
+gawk hidden/plan-state-tests.test.sh  PASS: L148: base_sha abcdefg is a rule 17 violation
+gawk hidden/plan-state-tests.test.sh  PASS: L148: base_sha 0123456789abcdef0123456789abcdef012345678 is a rule 17 violation
+gawk hidden/plan-state-tests.test.sh  PASS: L168: defaults applied, files and entries normalised, exact stdout, exit 0
+gawk hidden/plan-state-tests.test.sh  PASS: L177: plan-level values comment-stripped and unquoted, inline files: split, base_sha shown
+gawk hidden/plan-state-tests.test.sh  PASS: L181: a task with no files and no tests prints only the four header lines
+gawk hidden/plan-state-tests.test.sh  PASS: L75: a CRLF plan gives the same output with no CR
+gawk hidden/plan-state-tests.test.sh  PASS: L199: other tasks' bad entries do not affect this task
+gawk hidden/plan-state-tests.test.sh  PASS: L189: only the subcommand: exit 2, nothing on stdout, usage text on stderr
+gawk hidden/plan-state-tests.test.sh  PASS: L191: an unreadable plan is reported before the missing id
+gawk hidden/plan-state-tests.test.sh  PASS: L191: a directory as the plan: exit 2, nothing on stdout, cannot read
+gawk hidden/plan-state-tests.test.sh  PASS: L192: no id: exit 2, nothing on stdout, usage text on stderr
+gawk hidden/plan-state-tests.test.sh  PASS: L192: two ids: exit 2, nothing on stdout, usage text on stderr
+gawk hidden/plan-state-tests.test.sh  PASS: L193: an unknown id
+gawk hidden/plan-state-tests.test.sh  PASS: L194: a duplicate id
+gawk hidden/plan-state-tests.test.sh  PASS: L188: an unknown id is the only group reported, ahead of plan-level rule 16
+gawk hidden/plan-state-tests.test.sh  PASS: L196: every failing plan-level rule 16 line, in rule 16's order, and no task-level line
+gawk hidden/plan-state-tests.test.sh  PASS: L196: a single plan-level failure is reported exactly as check prints it
+gawk hidden/plan-state-tests.test.sh  PASS: L198: an entry that does not split: exit 2, nothing on stdout, the bad-entry line on stderr
+gawk hidden/plan-state-tests.test.sh  PASS: L198: a test file not in files:: exit 2, nothing on stdout, the bad-entry line on stderr
+gawk hidden/plan-state-tests.test.sh  PASS: L198: a repeated entry: exit 2, nothing on stdout, the bad-entry line on stderr
+gawk hidden/plan-state-tests.test.sh  PASS: L198: a value on the tests: line: exit 2, nothing on stdout, the bad-entry line on stderr
+gawk hidden/plan-state-tests.test.sh  PASS: L200: usage lists the tests subcommand and prints through the Exit: line
+gawk hidden/plan-state-tests.test.sh  PASS: L200: the check line reads rules 1-5 and 7-17
+PASS gawk hidden/verify-tests.test.sh
+gawk hidden/verify-tests.test.sh  PASS: L209: no arguments exits 2 with nothing on stdout
+gawk hidden/verify-tests.test.sh  PASS: L209: only the plan exits 2 with nothing on stdout
+gawk hidden/verify-tests.test.sh  PASS: L216: a plan-state tests error (unknown id) is relayed on stderr with exit 2
+gawk hidden/verify-tests.test.sh  PASS: L216: a plan-state tests error (cannot read) is relayed with exit 2
+gawk hidden/verify-tests.test.sh  PASS: L216: a bad tests entry is relayed with exit 2
+gawk hidden/verify-tests.test.sh  PASS: L218: a task with no tests: prints the no-named-tests line and exits 0
+gawk hidden/verify-tests.test.sh  PASS: L210: no tests, no base_sha, plan outside any repository: still exit 0 with the no-named-tests line
+gawk hidden/verify-tests.test.sh  PASS: L219: no base_sha: exit 2, the message on stderr, nothing on stdout
+gawk hidden/verify-tests.test.sh  PASS: L292: a base_sha that is not a commit exits 2 with nothing on stdout and leaves no worktree
+gawk hidden/verify-tests.test.sh  PASS: L292: named tests in a plan outside any repository exit 2 with nothing on stdout
+gawk hidden/verify-tests.test.sh  PASS: L253: failed before (fail line with " ("), passed after: ok, exit 0, exact stdout
+gawk hidden/verify-tests.test.sh  PASS: L217: an exact fail line counts as failed; a done task can be checked
+gawk hidden/verify-tests.test.sh  PASS: L254: absent before, passed after: ok-absent, exit 0, before block
+gawk hidden/verify-tests.test.sh  PASS: L255: passed before: not-red, exit 1, before block
+gawk hidden/verify-tests.test.sh  PASS: L256: failed after: not-green, exit 1, after block
+gawk hidden/verify-tests.test.sh  PASS: L239: absent after is not-green
+gawk hidden/verify-tests.test.sh  PASS: L271: not-red and not-green prints not-green and only an after block
+gawk hidden/verify-tests.test.sh  PASS: L257: two result lines after: ambiguous, exit 1, after block
+gawk hidden/verify-tests.test.sh  PASS: L238: ambiguous in the before tree only is ambiguous, with an after block (tails follow the label)
+gawk hidden/verify-tests.test.sh  PASS: L238: ambiguous wins over not-green
+gawk hidden/verify-tests.test.sh  PASS: L266: a tail is the last 20 lines of the run's output
+gawk hidden/verify-tests.test.sh  PASS: L275: a run with no output shows (no output)
+gawk hidden/verify-tests.test.sh  PASS: L277: the spec's own example
+gawk hidden/verify-tests.test.sh  PASS: L273: entries in tests: order; tails by first appearance, after block before before block
+gawk hidden/verify-tests.test.sh  PASS: L116: "exit 0" and "exit 0 with charter" are told apart
+gawk hidden/verify-tests.test.sh  PASS: L115: "FAIL: alphabet" and "FAIL: alpha(x)" are not fail lines for alpha
+gawk hidden/verify-tests.test.sh  PASS: L113: a pass line must equal the prefix and the case exactly
+gawk hidden/verify-tests.test.sh  PASS: L111: leading whitespace, trailing whitespace and a trailing CR are removed before matching
+gawk hidden/verify-tests.test.sh  PASS: L232: standard error is captured, and the suite's exit code is ignored
+gawk hidden/verify-tests.test.sh  PASS: L99: custom prefixes replace the defaults
+gawk hidden/verify-tests.test.sh  PASS: L105: every {file} is replaced by the single-quoted <file>
+gawk hidden/verify-tests.test.sh  PASS: L106: the suite's standard input is /dev/null
+gawk hidden/verify-tests.test.sh  PASS: L232: each distinct file runs once per tree
+gawk hidden/verify-tests.test.sh  PASS: L228: before tree: task files back at base_sha, new ones deleted, test file and others' work kept
+gawk hidden/verify-tests.test.sh  PASS: L226: uncommitted changes in the shared working tree are ignored
+gawk hidden/verify-tests.test.sh  PASS: L300: the plan, working tree, index, HEAD and refs are untouched
+gawk hidden/verify-tests.test.sh  PASS: L233: a file missing from a tree counts as a run with no output
+gawk hidden/verify-tests.test.sh  PASS: L148: an abbreviated base_sha (12 hex) is resolved
+gawk hidden/verify-tests.test.sh  PASS: L225: both trees are made under $TMPDIR
+gawk hidden/verify-tests.test.sh  PASS: L246: after exit 0, no worktree is left and stale registrations are pruned
+gawk hidden/verify-tests.test.sh  PASS: L246: the temporary directory is removed
+gawk hidden/verify-tests.test.sh  PASS: L246: after exit 1, no worktree and no temporary directory is left
+gawk hidden/verify-tests.test.sh  PASS: L222: TERM during a run exits 2 with the interrupted line, and cleans up
+gawk hidden/verify-tests.test.sh  PASS: L222: HUP during a run exits 2 with the interrupted line, and cleans up
+PASS busybox tests/audit-stats/audit-stats.test.sh
+PASS busybox tests/commit-safe/concurrent-commit.test.sh
+PASS busybox tests/commit-safe/stale-lock.test.sh
+PASS busybox tests/plan-state/plan-state.test.sh
+PASS busybox tests/resolve-declared-paths/resolve-declared-paths.test.sh
+PASS busybox tests/verify-tests/verify-tests.test.sh
+PASS busybox hidden/plan-state-base-sha.test.sh
+busybox hidden/plan-state-base-sha.test.sh  PASS: L153: ready -> running exits 0 and writes base_sha: <full HEAD of the plan's repo> on the line after status:
+busybox hidden/plan-state-base-sha.test.sh  PASS: L375: a task without tests: also gets base_sha when it runs
+busybox hidden/plan-state-base-sha.test.sh  PASS: L90: running -> ready -> running after a new commit keeps the first base_sha
+busybox hidden/plan-state-base-sha.test.sh  PASS: L163: running -> done keeps base_sha
+busybox hidden/plan-state-base-sha.test.sh  PASS: L163: running -> failed keeps base_sha
+busybox hidden/plan-state-base-sha.test.sh  PASS: L157: an existing base_sha is left untouched
+busybox hidden/plan-state-base-sha.test.sh  PASS: L163: pending -> ready writes no base_sha
+busybox hidden/plan-state-base-sha.test.sh  PASS: L156: an illegal move (pending -> running) is refused as today, the plan unchanged
+busybox hidden/plan-state-base-sha.test.sh  PASS: L159: no repository, task with tests: exit 2 with the refusal, plan unchanged
+busybox hidden/plan-state-base-sha.test.sh  PASS: L159: a repository with no commit, task with tests: exit 2 with the refusal, plan unchanged
+busybox hidden/plan-state-base-sha.test.sh  PASS: L161: no repository, task without tests: set running, no base_sha, no message
+busybox hidden/plan-state-base-sha.test.sh  PASS: L157: a task that already has base_sha does not call git: set running succeeds outside a repository
+PASS busybox hidden/plan-state-tests.test.sh
+busybox hidden/plan-state-tests.test.sh  PASS: L130: a plan with well-formed tests: entries passes check
+busybox hidden/plan-state-tests.test.sh  PASS: L132: an entry with no " :: " exits 1 with its rule 16 line
+busybox hidden/plan-state-tests.test.sh  PASS: L75: an entry ending in " ::" plus spaces has no case; the raw entry is quoted without trailing whitespace
+busybox hidden/plan-state-tests.test.sh  PASS: L80: a file that is only ./ is empty after normalisation
+busybox hidden/plan-state-tests.test.sh  PASS: L134: a test file not in files: is named, normalised
+busybox hidden/plan-state-tests.test.sh  PASS: L80: leading ./ removed from both the entry and an inline files: list before comparing
+busybox hidden/plan-state-tests.test.sh  PASS: L76: " #" in an entry is literal text, not a comment
+busybox hidden/plan-state-tests.test.sh  PASS: L77: quotes around an entry are not stripped
+busybox hidden/plan-state-tests.test.sh  PASS: L137: an entry the same as an earlier one after normalisation is repeated (raw entry quoted)
+busybox hidden/plan-state-tests.test.sh  PASS: L137: one repeated line per repeat
+busybox hidden/plan-state-tests.test.sh  PASS: L139: an inline list on the tests: line is a rule 16 violation
+busybox hidden/plan-state-tests.test.sh  PASS: L71: a scalar on the tests: line is a rule 16 violation
+busybox hidden/plan-state-tests.test.sh  PASS: L73: a trailing comment on the tests: line is not a value
+busybox hidden/plan-state-tests.test.sh  PASS: L130: a violation in a second task names that task
+busybox hidden/plan-state-tests.test.sh  PASS: L140: test_command with no {file}
+busybox hidden/plan-state-tests.test.sh  PASS: L142: an empty test_pass_prefix
+busybox hidden/plan-state-tests.test.sh  PASS: L142: a test_fail_prefix that is empty after comment-stripping
+busybox hidden/plan-state-tests.test.sh  PASS: L98: well-formed plan-level test fields pass check
+busybox hidden/plan-state-tests.test.sh  PASS: L148: base_sha abc1234 (7 or 40 lowercase hex) passes
+busybox hidden/plan-state-tests.test.sh  PASS: L148: base_sha 0123456789abcdef0123456789abcdef01234567 (7 or 40 lowercase hex) passes
+busybox hidden/plan-state-tests.test.sh  PASS: L148: base_sha abc123 is a rule 17 violation
+busybox hidden/plan-state-tests.test.sh  PASS: L148: base_sha ABCDEF1 is a rule 17 violation
+busybox hidden/plan-state-tests.test.sh  PASS: L148: base_sha abcdefg is a rule 17 violation
+busybox hidden/plan-state-tests.test.sh  PASS: L148: base_sha 0123456789abcdef0123456789abcdef012345678 is a rule 17 violation
+busybox hidden/plan-state-tests.test.sh  PASS: L168: defaults applied, files and entries normalised, exact stdout, exit 0
+busybox hidden/plan-state-tests.test.sh  PASS: L177: plan-level values comment-stripped and unquoted, inline files: split, base_sha shown
+busybox hidden/plan-state-tests.test.sh  PASS: L181: a task with no files and no tests prints only the four header lines
+busybox hidden/plan-state-tests.test.sh  PASS: L75: a CRLF plan gives the same output with no CR
+busybox hidden/plan-state-tests.test.sh  PASS: L199: other tasks' bad entries do not affect this task
+busybox hidden/plan-state-tests.test.sh  PASS: L189: only the subcommand: exit 2, nothing on stdout, usage text on stderr
+busybox hidden/plan-state-tests.test.sh  PASS: L191: an unreadable plan is reported before the missing id
+busybox hidden/plan-state-tests.test.sh  PASS: L191: a directory as the plan: exit 2, nothing on stdout, cannot read
+busybox hidden/plan-state-tests.test.sh  PASS: L192: no id: exit 2, nothing on stdout, usage text on stderr
+busybox hidden/plan-state-tests.test.sh  PASS: L192: two ids: exit 2, nothing on stdout, usage text on stderr
+busybox hidden/plan-state-tests.test.sh  PASS: L193: an unknown id
+busybox hidden/plan-state-tests.test.sh  PASS: L194: a duplicate id
+busybox hidden/plan-state-tests.test.sh  PASS: L188: an unknown id is the only group reported, ahead of plan-level rule 16
+busybox hidden/plan-state-tests.test.sh  PASS: L196: every failing plan-level rule 16 line, in rule 16's order, and no task-level line
+busybox hidden/plan-state-tests.test.sh  PASS: L196: a single plan-level failure is reported exactly as check prints it
+busybox hidden/plan-state-tests.test.sh  PASS: L198: an entry that does not split: exit 2, nothing on stdout, the bad-entry line on stderr
+busybox hidden/plan-state-tests.test.sh  PASS: L198: a test file not in files:: exit 2, nothing on stdout, the bad-entry line on stderr
+busybox hidden/plan-state-tests.test.sh  PASS: L198: a repeated entry: exit 2, nothing on stdout, the bad-entry line on stderr
+busybox hidden/plan-state-tests.test.sh  PASS: L198: a value on the tests: line: exit 2, nothing on stdout, the bad-entry line on stderr
+busybox hidden/plan-state-tests.test.sh  PASS: L200: usage lists the tests subcommand and prints through the Exit: line
+busybox hidden/plan-state-tests.test.sh  PASS: L200: the check line reads rules 1-5 and 7-17
+PASS busybox hidden/verify-tests.test.sh
+busybox hidden/verify-tests.test.sh  PASS: L209: no arguments exits 2 with nothing on stdout
+busybox hidden/verify-tests.test.sh  PASS: L209: only the plan exits 2 with nothing on stdout
+busybox hidden/verify-tests.test.sh  PASS: L216: a plan-state tests error (unknown id) is relayed on stderr with exit 2
+busybox hidden/verify-tests.test.sh  PASS: L216: a plan-state tests error (cannot read) is relayed with exit 2
+busybox hidden/verify-tests.test.sh  PASS: L216: a bad tests entry is relayed with exit 2
+busybox hidden/verify-tests.test.sh  PASS: L218: a task with no tests: prints the no-named-tests line and exits 0
+busybox hidden/verify-tests.test.sh  PASS: L210: no tests, no base_sha, plan outside any repository: still exit 0 with the no-named-tests line
+busybox hidden/verify-tests.test.sh  PASS: L219: no base_sha: exit 2, the message on stderr, nothing on stdout
+busybox hidden/verify-tests.test.sh  PASS: L292: a base_sha that is not a commit exits 2 with nothing on stdout and leaves no worktree
+busybox hidden/verify-tests.test.sh  PASS: L292: named tests in a plan outside any repository exit 2 with nothing on stdout
+busybox hidden/verify-tests.test.sh  PASS: L253: failed before (fail line with " ("), passed after: ok, exit 0, exact stdout
+busybox hidden/verify-tests.test.sh  PASS: L217: an exact fail line counts as failed; a done task can be checked
+busybox hidden/verify-tests.test.sh  PASS: L254: absent before, passed after: ok-absent, exit 0, before block
+busybox hidden/verify-tests.test.sh  PASS: L255: passed before: not-red, exit 1, before block
+busybox hidden/verify-tests.test.sh  PASS: L256: failed after: not-green, exit 1, after block
+busybox hidden/verify-tests.test.sh  PASS: L239: absent after is not-green
+busybox hidden/verify-tests.test.sh  PASS: L271: not-red and not-green prints not-green and only an after block
+busybox hidden/verify-tests.test.sh  PASS: L257: two result lines after: ambiguous, exit 1, after block
+busybox hidden/verify-tests.test.sh  PASS: L238: ambiguous in the before tree only is ambiguous, with an after block (tails follow the label)
+busybox hidden/verify-tests.test.sh  PASS: L238: ambiguous wins over not-green
+busybox hidden/verify-tests.test.sh  PASS: L266: a tail is the last 20 lines of the run's output
+busybox hidden/verify-tests.test.sh  PASS: L275: a run with no output shows (no output)
+busybox hidden/verify-tests.test.sh  PASS: L277: the spec's own example
+busybox hidden/verify-tests.test.sh  PASS: L273: entries in tests: order; tails by first appearance, after block before before block
+busybox hidden/verify-tests.test.sh  PASS: L116: "exit 0" and "exit 0 with charter" are told apart
+busybox hidden/verify-tests.test.sh  PASS: L115: "FAIL: alphabet" and "FAIL: alpha(x)" are not fail lines for alpha
+busybox hidden/verify-tests.test.sh  PASS: L113: a pass line must equal the prefix and the case exactly
+busybox hidden/verify-tests.test.sh  PASS: L111: leading whitespace, trailing whitespace and a trailing CR are removed before matching
+busybox hidden/verify-tests.test.sh  PASS: L232: standard error is captured, and the suite's exit code is ignored
+busybox hidden/verify-tests.test.sh  PASS: L99: custom prefixes replace the defaults
+busybox hidden/verify-tests.test.sh  PASS: L105: every {file} is replaced by the single-quoted <file>
+busybox hidden/verify-tests.test.sh  PASS: L106: the suite's standard input is /dev/null
+busybox hidden/verify-tests.test.sh  PASS: L232: each distinct file runs once per tree
+busybox hidden/verify-tests.test.sh  PASS: L228: before tree: task files back at base_sha, new ones deleted, test file and others' work kept
+busybox hidden/verify-tests.test.sh  PASS: L226: uncommitted changes in the shared working tree are ignored
+busybox hidden/verify-tests.test.sh  PASS: L300: the plan, working tree, index, HEAD and refs are untouched
+busybox hidden/verify-tests.test.sh  PASS: L233: a file missing from a tree counts as a run with no output
+busybox hidden/verify-tests.test.sh  PASS: L148: an abbreviated base_sha (12 hex) is resolved
+busybox hidden/verify-tests.test.sh  PASS: L225: both trees are made under $TMPDIR
+busybox hidden/verify-tests.test.sh  PASS: L246: after exit 0, no worktree is left and stale registrations are pruned
+busybox hidden/verify-tests.test.sh  PASS: L246: the temporary directory is removed
+busybox hidden/verify-tests.test.sh  PASS: L246: after exit 1, no worktree and no temporary directory is left
+busybox hidden/verify-tests.test.sh  PASS: L222: TERM during a run exits 2 with the interrupted line, and cleans up
+busybox hidden/verify-tests.test.sh  PASS: L222: HUP during a run exits 2 with the interrupted line, and cleans up
+HIDDEN CHECK: 27 passed, 0 failed
+HIDDEN CASES: 303 passed, 0 failed

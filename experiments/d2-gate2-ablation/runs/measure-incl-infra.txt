@@ -1,0 +1,29 @@
+## Shared gate 2
+| stage | sessions | tokens | excl. cache reads | $ | active |
+|---|---|---|---|---|---|
+| plan-writing | 1 | 2.42M | 0.24M | $3.47 | 9m |
+| gate2-r1 | 1 | 17.59M | 1.48M | $16.70 | 28m |
+| fix-r1 | 1 | 0.88M | 0.08M | $1.02 | 1m |
+| gate2-r2 | 1 | 8.82M | 0.81M | $9.46 | 17m |
+| fix-r2 | 1 | 0.58M | 0.07M | $0.84 | 1m |
+| gate2-r3 | 1 | 4.76M | 0.57M | $5.72 | 8m |
+
+## Runs
+| run | arm | $ | tokens | active | interventions | infra stops | preflight halts | BLOCKED | ISSUES | no verdict |
+|---|---|---|---|---|---|---|---|---|---|---|
+| none-1 | none | $22.26 | 34.64M | 180m | 0 | 0 | 0 | 0 | 3 | 0 |
+| round1-1 | round1 | $21.56 | 33.98M | 136m | 0 | 0 | 0 | 0 | 2 | 0 |
+| full-1 | full | $29.21 | 41.17M | 217m | 1 | 0 | 0 | 0 | 4 | 0 |
+| none-2 | none | $20.12 | 27.97M | 185m | 0 | 0 | 0 | 0 | 1 | 2 |
+| round1-2 | round1 | $23.79 | 26.48M | 303m | 1 | 0 | 0 | 0 | 1 | 0 |
+| full-2 | full | $24.21 | 31.89M | 235m | 0 | 0 | 0 | 0 | 0 | 1 |
+
+## Arms (shared charge + mean execution)
+| arm | $ | tokens | active | interventions | infra stops | plan lines |
+|---|---|---|---|---|---|---|
+| none | $24.66 | 33.72M | 191m | 0 | 0 | - |
+| round1 | $43.86 | 51.12M | 258m | 1 | 0 | - |
+| full | $63.92 | 71.58M | 291m | 1 | 0 | - |
+
+none / full: $ 0.39, tokens 0.47, active 0.66
+round1 / full: $ 0.69, tokens 0.71, active 0.89

@@ -1,0 +1,86 @@
+{
+  "projectsDir": "C:/Users/Brett/.claude/projects",
+  "base": "402d20b",
+  "plugin": "C:/Users/Brett/workspace/scratch/pde-pinned-a771ddd",
+  "arms": {
+    "A": {
+      "worktree": "C:/Users/Brett/workspace/scratch/pde-d1-a",
+      "plan": "C:/Users/Brett/workspace/scratch/pde-d1-a/docs/superpowers/plans/2026-11-12-preflight-and-review-cap-dag.md",
+      "stages": {
+        "plan-writing": [
+          "deedb49f-c8ae-4131-a1f1-334f510b42d3@2026-11-12T14:52:31-07:00"
+        ],
+        "gate2-r1a": [
+          "d5131635-9593-4846-9a22-1db374e2e0a9"
+        ],
+        "gate2-r1b": [
+          "a1ea0aec-8483-423b-bc6e-875da04494a0"
+        ],
+        "fix-r1": [
+          "81324e16-f9df-4f67-b72c-35fa9132b6b3"
+        ],
+        "execution": [
+          "71f8e280-5d12-4547-8f81-67cfb0544089",
+          "53b11bcc-197f-4570-b18f-830313d714a1"
+        ],
+        "gate2-r2": [
+          "4663f9ee-be50-48f1-8043-879cd4e0ae97"
+        ],
+        "fix-r2": [
+          "5b3f958a-1296-4c75-a0da-34d7c3c9d82f"
+        ],
+        "gate2-r3": [
+          "b6bb30f3-7be1-48a5-b17e-97ee4083c9e3"
+        ]
+      }
+    },
+    "B": {
+      "worktree": "C:/Users/Brett/workspace/scratch/pde-d1-b",
+      "plan": "C:/Users/Brett/workspace/scratch/pde-d1-b/docs/superpowers/plans/2026-11-12-preflight-and-review-cap-dag.md",
+      "stages": {
+        "plan-writing": [
+          "deedb49f-c8ae-4131-a1f1-334f510b42d3@2026-11-12T14:52:31-07:00"
+        ],
+        "conversion": [
+          "4ab74128-9292-4090-9d52-af7435ea3732"
+        ],
+        "gate2-r1a": [
+          "79856bac-249b-4ea7-9342-8106f9b0679c"
+        ],
+        "gate2-r1b": [
+          "1c70225c-49fc-4994-8555-6b3dbdd994ab"
+        ],
+        "fix-r1": [
+          "010fd496-05df-48eb-9f86-672c506906e0"
+        ],
+        "execution": [
+          "b2485e2b-7762-4625-89db-8c313766a08c"
+        ],
+        "gate2-r2": [
+          "6f898e94-f65a-44d7-a6d6-cecdd9b6f98a"
+        ]
+      }
+    },
+    "B0": {
+      "worktree": "C:/Users/Brett/workspace/scratch/pde-d1-b0",
+      "plan": "C:/Users/Brett/workspace/scratch/pde-d1-b0/docs/superpowers/plans/2026-11-12-preflight-and-review-cap-dag.md",
+      "stages": {
+        "plan-writing": [
+          "deedb49f-c8ae-4131-a1f1-334f510b42d3@2026-11-12T14:52:31-07:00"
+        ],
+        "conversion": [
+          "4ab74128-9292-4090-9d52-af7435ea3732"
+        ],
+        "execution": [
+          "6817bfbf-34cd-4165-b97b-c447c5aa57f1",
+          "e4d2f1c0-3b93-4263-8d25-9c0d5b194fd0",
+          "d122dad6-33f6-4061-90b9-440a76f3d77c",
+          "9bb6c02b-1b5e-4603-89f0-89f29000eb6f"
+        ]
+      },
+      "notes": [
+        "2026-11-16: resume e4d2f1c0 ended on an auth 403; its partial P1 work stashed (d1-b0-resume2-partial-task-preflight-verb). Resume d122dad6 stopped at the 10m bg-wait ceiling. Later B0 resumes run with CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0, unlike A and B."
+      ]
+    }
+  }
+}

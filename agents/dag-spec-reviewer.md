@@ -28,10 +28,14 @@ Spec compliance is bidirectional. "Close enough" is not approved.
 3. For each requirement, mark as: met / missing / partially met.
 4. Scan the diff for changes that don't trace back to a requirement — that's over-build.
 
+The task's `## Implementation` code blocks are a minimum-viable starting point, not the whole implementation: the implementer is expected to fill in helpers, error handling and edge cases, and to expand the failing test into a fuller suite. A test that checks an acceptance criterion or the requested behaviour, and code that behaviour needs, trace back to a requirement. Over-build is behaviour the task did not ask for: an extra flag, a feature, a change to unrelated code.
+
 ## Report format
 
 - **APPROVED** — all requirements met, no over-build. Done.
 - **ISSUES** — list each issue with: requirement / actual / specific fix needed. The implementer subagent will be re-dispatched with this list.
+
+End the report with one line that holds the verdict and nothing else: `VERDICT: APPROVED` or `VERDICT: ISSUES`. The executor reads only that line. Decide before you write it. If you list an issue and then find it is not one, mark it `withdrawn:` where it stands. An APPROVED line must not follow an issue you have not withdrawn.
 
 Do NOT comment on code style, naming, performance, or maintainability. That is the next reviewer's job. Spec compliance only.
 

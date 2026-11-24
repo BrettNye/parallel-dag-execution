@@ -15,8 +15,9 @@ echo base > base.txt && git add base.txt && git commit -qm base
 
 lock="$(git rev-parse --git-dir)/dag-commit.lock"
 mkdir "$lock"
-# Backdate mtime beyond the 60s stale threshold (GNU touch in git-bash).
-touch -d "120 seconds ago" "$lock"
+# Backdate mtime beyond the 60s stale threshold. "@<epoch>" is the one -d form
+# GNU and busybox touch both accept; "120 seconds ago" is GNU-only.
+touch -d "@$(( $(date +%s) - 120 ))" "$lock"
 
 echo x > f.txt
 if ! sh "$HELPER" "after stale" f.txt; then

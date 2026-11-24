@@ -16,13 +16,14 @@ The spec reviewer MUST receive:
 - This task's full body (everything after the YAML block, up to the next `## Task` heading).
 - This task's `files:` list.
 - The git commit SHA that the implementer produced.
+- The `verify-tests` output, or `no named tests` when the task has none.
 
 ## Prompt template
 
 <!-- Section order (cache-friendly: stable content leads, volatile content trails):
      (1) stable preamble; (2) project conventions (if any); (3) output spec (APPROVED/ISSUES);
      (4) task spec (id, files); (5) task body (the binding spec);
-     (6) implementation under review; (7) re-dispatch addenda.
+     (6) implementation under review; (7) named-test check; (8) re-dispatch addenda.
      If the Agent tool later exposes `cache_control`, the breakpoint goes after section 3 — no re-architecture needed. -->
 
 ```
@@ -35,7 +36,26 @@ Your job is bidirectional spec compliance:
 
 Both are equally serious. Acceptance criteria in the task body ARE the spec.
 
+The task's `## Implementation` code blocks are a minimum-viable starting point that the implementer is meant to expand: more tests, helpers, error handling and edge cases. A test that checks an acceptance criterion or the requested behaviour is not over-build. Over-build is behaviour the task did not ask for.
+
 Do NOT comment on code style, naming, performance, or maintainability — that is the quality reviewer's job. Spec compliance only.
+
+## Project conventions
+
+{contents of repo's CLAUDE.md, if any, or "(none found)"}
+
+Charter sections for your role — reviewers: Enforcement map; Hard invariants;
+Recurring bug classes; Verification commands (verbatim, not summarized; matches
+`../auditing-artifacts/audit-charter-template.md` § Who reads what row for row):
+{charter_sections_for_role}
+{if no audit charter file exists in the repo: "(none found — proceed; do not substitute generic best practice)"}
+
+Citation freshness for the entries above:
+{charter_citation_table}
+{if the citation pre-pass (resolve-declared-paths) did not run or failed: "(citation pre-pass did not run — treat the charter entries above as unverified)"}
+An entry marked SUSPECT, MOVED or GONE may be stale — where a charter entry and
+the code disagree, the code wins. This is context for the review you already
+own; it does not widen what you may flag.
 
 ## Output
 
@@ -43,6 +63,8 @@ Report exactly one of:
 
 - **APPROVED** — all requirements met, no over-build.
 - **ISSUES** — list each as: "Requirement: ... | Actual: ... | Fix: ...". Be specific enough that the implementer can act without asking clarifying questions.
+
+End the report with one line that holds the verdict and nothing else: `VERDICT: APPROVED` or `VERDICT: ISSUES`. The executor reads only that line. Decide before you write it. If you list an issue and then find it is not one, mark it `withdrawn:` where it stands. An APPROVED line must not follow an issue you have not withdrawn.
 
 ## Task spec (binding)
 
@@ -59,6 +81,12 @@ Files reviewed (read ONLY these):
 Commit SHA: {commit_sha}
 
 Inspect the diff with: `git show {commit_sha} -- {space-separated task.files}`
+
+## Named-test check
+
+{verify_tests_output}
+
+A script produced the lines above from the implementer's commits: each `ok` entry failed against the code before the task's change, each `ok-absent` entry printed no result there, and both pass after it. Do not re-run or re-derive those results. For each acceptance criterion that has a named test, judge only whether that test really tests the criterion; one that does not is an ISSUES finding. For an `ok-absent` entry, also read the file's `(before)` tail and judge whether the case was red for the right reason (missing because the task had not built it yet). If the suite broke before reaching the case for another reason, such as a missing fixture or a syntax error, that is an ISSUES finding. Review criteria without a named test as before.
 ```
 
 ## Agent invocation example
@@ -76,7 +104,7 @@ Agent({
 
 ## Re-dispatch on implementer fix
 
-After the implementer addresses ISSUES and re-commits, dispatch the spec reviewer again with the new commit SHA. The reviewer should not see prior iteration history — fresh review against the same spec on the new diff.
+When ISSUES are reported, run `plan-state round` first (see Review-round cap in SKILL.md); the implementer is re-dispatched only on exit 0. After the implementer addresses ISSUES and re-commits, dispatch the spec reviewer again with the new commit SHA. The reviewer should not see prior iteration history — fresh review against the same spec on the new diff.
 
 ## Approval criteria
 

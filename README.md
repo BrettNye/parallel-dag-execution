@@ -8,8 +8,8 @@ Where `superpowers:subagent-driven-development` dispatches one implementer subag
 
 ## Skills
 
-- **`writing-dag-plans`** — author a plan with explicit `depends_on` and `files` per task. Enforces file-disjoint parallel branches **and contract coherence** at authoring time via a hard/soft rule set (H1–H11 / S1–S15): refuses compound tasks, missing or absent producers for consumed contracts, and bare spec-pointer acceptance criteria; warns on unanchored cross-cut interfaces and decomposition smells. **S12–S15 ask whether each acceptance criterion can actually fail** — flagging absence assertions that pass on a crash, tautologies, universal claims proved by existential assertions, and criteria that assert a property of the commit rather than of behaviour.
-- **`executing-dag-plans`** — read a DAG plan, topo-sort, dispatch ready tasks in parallel. Per-task review (two-stage spec→quality, or a merged single-pass review for small/mechanical tasks). Auto-retry-once on `BLOCKED` with model upgrade. Halt-downstream on failure; let parallel branches finish.
+- **`writing-dag-plans`** — author a plan with explicit `depends_on` and `files` per task. Enforces file-disjoint parallel branches **and contract coherence** at authoring time via a hard/soft rule set (H1–H11 / S1–S18): refuses compound tasks, missing or absent producers for consumed contracts, and bare spec-pointer acceptance criteria; warns on unanchored cross-cut interfaces and decomposition smells. **S12–S15 ask whether each acceptance criterion can actually fail** — flagging absence assertions that pass on a crash, tautologies, universal claims proved by existential assertions, and criteria that assert a property of the commit rather than of behaviour. **S16 flags a rendered-output change with no task owning its visual verification.** **S17 flags a test-like acceptance criterion with no named test.** **S18 flags a prompt section that reads an input (a field, a list, a placeholder) its reader is never given.** A task can name the test cases that prove it in a `tests:` list.
+- **`executing-dag-plans`** — read a DAG plan, topo-sort, dispatch ready tasks in parallel. Per-task review (two-stage spec→quality, or a merged single-pass review for small/mechanical tasks). Auto-retry-once on `BLOCKED`, one step up: the next model tier, or higher effort for a task already on `opus`. Advances as subagents finish, without waiting for "continue". Before the first dispatch, and on every resume, `plan-state preflight` checks the unfinished tasks' text for path defects (a file the text edits but `files:` omits, a missing file no task creates, a stale line citation); an error halts the run. A task's named tests are checked by `verify-tests` before review: each case must fail on the code as it was when the task started and pass on its last commit, built in throwaway worktrees; a failed check is a fix round. A task whose review still returns ISSUES after 3 fix rounds is marked `failed`. Halt-downstream on failure; let parallel branches finish.
 - **`updating-dag-plans`** — mutate `pending`/`ready` tasks mid-flight. `running`/`done`/`failed`/`skipped` are immutable history.
 - **`auditing-artifacts`** — audit a spec (gate 1) or a plan (gate 2) by fanning out independent single-concern **lenses in parallel**, then reconciling them into one severity-classified verdict. See below.
 
@@ -22,7 +22,9 @@ brainstorm → spec → [gate 1: audit-spec] → writing-dag-plans → [gate 2: 
 A broad "audit this spec" prompt draws **one** sample of which concern the auditor looks hardest at — so a later round finds real material because it is a *new draw*, not a deeper look. Worse, each serial round reads the artifact **as fixed by the previous round**, so the fresh-context independence that makes auditing work decays with every round. Parallel lenses convert that luck into coverage while keeping independence maximal.
 
 - **Spec lenses (6):** `absence` · `ambiguity` · `grounding` · `charter` · `coherence` · `design`
-- **Plan lenses (7):** `coverage` · `dag-integrity` · `grounding` · `charter` · `context-sufficiency` · `verifiability` · `coherence`
+- **Plan lenses (8):** `coverage` · `dag-integrity` · `grounding` · `charter` · `context-sufficiency` · `verifiability` · `coherence` · `ambiguity`
+
+Before dispatch, a path pre-pass (`resolve-declared-paths`) resolves every path the artifact declares once and hands the resulting tables to every lens verbatim, replacing N private resolutions with one shared one; if it cannot run, every lens is told explicitly rather than left to assume.
 
 Three rules do most of the work:
 
@@ -36,10 +38,15 @@ Per-repo knowledge lives in an optional `.claude/audit-charter.md` (enforcement 
 
 ## Multi-plan superspecs (fan-out)
 
-When a spec fans out into ~3+ interlocking pieces with separate review/lifecycles (e.g. a shared library + its first consumer, or a core engine + N adapters), `writing-dag-plans` authors a thin **superspec-charter** first — the connective tissue no single plan owns: the cross-plan contract surface (shared types/schemas), shared invariants every child must uphold, and the build-order gate between children. You then run the skill once per child plan, pulling children one at a time. Single-deliverable specs skip the charter (one spec → one plan). You don't invoke this separately: run `/parallel-dag-execution:plan` as usual and the skill's fan-out checkpoint decides whether to charter first.
+When a spec fans out into ~3+ interlocking pieces with separate review/lifecycles (e.g. a shared library + its first consumer, or a core engine + N adapters), `writing-dag-plans` authors a thin **superspec-charter** first — the connective tissue no single plan owns: the cross-plan contract surface (shared types/schemas), shared invariants every child must uphold, and the build-order gate between children. You then run the skill once per child plan. Children run in parallel where the contracts allow: a child starts when the contracts it consumes have merged. Single-deliverable specs skip the charter (one spec → one plan). You don't invoke this separately: run `/parallel-dag-execution:plan` as usual and the skill's fan-out checkpoint decides whether to charter first.
+
+That is a *delivery* charter, written over one approved spec. A *design* charter is written earlier, when a brainstorm finds several projects before any spec exists: `/parallel-dag-execution:charter` writes one, and each child then gets its own spec and gates. Both kinds use one template (`charter_kind: delivery | design`). Its Children table holds `plan`, `owner`, `depends on` (a child or a single contract, for a partial dependency) and `ships alone`, but no status: status comes from the child plans. Each contract names the one child that owns it. Child plans point back with `parent:` and `child:`. `plan-state charter <file>` checks that every dependency names a child or a contract, that every contract has one owner, and that the children have no cycle.
+
+The field names are this plugin's: `charter_kind`, `children`, and `parent` / `child` on plans. A repo whose status board uses other names maps them there.
 
 ## Slash commands
 
+- `/parallel-dag-execution:charter [brainstorm]` — write a design superspec charter when a brainstorm finds several projects
 - `/parallel-dag-execution:audit-spec <spec>` — gate 1: audit a spec before planning
 - `/parallel-dag-execution:plan <spec>` — author a DAG plan
 - `/parallel-dag-execution:audit-plan <plan>` — gate 2: audit a plan before execution
@@ -56,6 +63,12 @@ Both audit commands accept `--full` to force a whole-artifact re-audit instead o
 - `dag-merged-reviewer` — combined spec + quality review in one pass for small/mechanical tasks (opt-in via `review_mode: merged`).
 - `dag-auditor` — one lens of a parallel pre-execution audit. Dispatched N times concurrently with a different lens each time; the lens arrives in the prompt, so adding a lens is a catalog row, not a new agent.
 - `dag-audit-reconciler` — merges the lens reports into one verdict. Distinct from `dag-spec-reviewer`: the auditors read the **document before any task runs**; the reviewers read **committed code** during execution.
+
+Each agent pins its model and effort in its frontmatter: Sonnet at `medium` for the implementer and reviewers, Opus at `high` for the auditor and reconciler. The plan's tier hints override the model per dispatch.
+
+### Which model runs the controller
+
+The session you run `/parallel-dag-execution:execute` in is the controller. It does bookkeeping and dispatch; the subagents do the work. Opus 5.5 is the recommended controller. Fable 5.2 also works, but it costs twice as much per token and delegates readily. At high effort it tends to start its own subagents to review work that this plugin's review chain already reviews.
 
 ## Install
 
@@ -103,6 +116,21 @@ checking the report against the header's declared severity and substrings. Start
 `should-flag` / `should-defer` / `should-pass` buckets, why the middle one exists, and
 which lenses have no fixture yet. `dag-audit-reconciler` has a separate harness with
 its grading keys held outside the tree it reads.
+
+The four helper scripts have real test suites. Run each with bash:
+
+```sh
+bash tests/plan-state/plan-state.test.sh                    # plan validation, ready set, status changes, rendering
+bash tests/resolve-declared-paths/resolve-declared-paths.test.sh
+bash tests/audit-stats/audit-stats.test.sh                  # per-lens counts over reconciler reports
+bash tests/commit-safe/concurrent-commit.test.sh && bash tests/commit-safe/stale-lock.test.sh
+```
+
+`skills/writing-dag-plans/plan-state` does the plan bookkeeping that has one right
+answer: structural validation, the ready set, status changes with the failure
+cascade, the pre-dispatch path check (`preflight`), the review-round count (`round`),
+the mermaid block and the ASCII tree. The skills call it instead of doing
+that work in the model.
 
 ## Composition with superpowers
 

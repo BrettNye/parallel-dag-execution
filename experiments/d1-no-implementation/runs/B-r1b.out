@@ -1,0 +1,19 @@
+session 1c70225c-49fc-4994-8555-6b3dbdd994ab  result success  cli cost $12.21
+The plan is **NOT READY**, with 3 blocking findings. All 8 lenses ran, and nothing was fixed or committed. No finding reopens the frozen spec, and none is stale: the plan hasn't run and nothing has landed since it was written.
+
+**Blocking**
+
+- **B1: the updater task's refusal rule is never stated** (task-updater). Its acceptance criterion requires "both refusal conditions", but the task body never says what they are. It also never says that other errors and all warnings go to step 6's "save anyway? (y/N)" prompt. The implementer only sees the task body, and both obvious guesses are wrong: one refuses the very update meant to fix an existing error, the other brings back gate-1 finding R2-B1. Three lenses found this independently. Fix (J1): copy spec lines 146–150 into the body and name each condition in the criterion.
+- **B2: no task reports why a task hit the review cap** (task-exec-cap). The spec says that when the cap is reached, the printed cap line becomes the task's failure reason in the final report and is not stored in the plan. No task carries that. A capped task would show up as an unexplained failure, and every criterion would still pass. Fix (J2):
+  - Amend Failure handling item 5 in place rather than adding a new numbered item, so task-exec-preflight's "12 numbered lines" check still holds.
+  - Add that count check to task-exec-cap.
+  - Make the criterion's search phrase match the body's wording ("never reads or compares").
+- **B3: one acceptance criterion can't be met** (task-preflight-declared). It asks for one path that triggers both the P2 and P3 checks, with P2 printed first. By the plan's own definitions those checks can never apply to the same path, so no test can satisfy it. Under today's executor, which has no review cap yet, the review loop could run forever. Fix (J3): replace it with a P3-before-P4 pair on its own test fixture, and reword the ordering rule to match.
+
+**Downgraded:** verifiability rated awk portability as blocking: nothing in the test suites runs mawk or busybox awk. The reconciler logged it instead as an open question to settle by running the suite under each awk (E1). It proposes owning that with a smoke-test criterion on task-round and task-preflight-edit, which prints a `NOTE:` line when that awk isn't installed.
+
+**Lens disagreements:** the reconciler settled B3 by reading the definitions. Verifiability and coverage had passed that criterion; they looked at its shape and its owner, not whether it could be met. The other four disagreements were the lenses asking different questions, and both sides held.
+
+**Fix size:** J1–J3 plus the E1 criterion add about 17 lines and no new tasks, files or dependency edges. The reconciler recommends a scoped check of just those edits rather than a full round 2. Two optional resolutions, J4 and J5, tighten the test blocks of task-round and task-preflight-core (about 35 more lines). There are also 25 deferred items, D1–D25.
+
+**Unverifiable:** the grounding lens couldn't g

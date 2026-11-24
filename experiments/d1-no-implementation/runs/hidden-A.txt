@@ -1,0 +1,58 @@
+PASS mawk tests/commit-safe/concurrent-commit.test.sh
+PASS mawk tests/commit-safe/stale-lock.test.sh
+FAIL mawk tests/plan-state/plan-state.test.sh
+      PASS: verb 'MODIFY' prints P1
+      PASS: verb 'rewrote' prints P1
+      PASS: verb 'appends to' prints P1
+      PASS: verb 'Do not edit the header; update' prints P1
+      PASS: negated 'Do not edit' prints nothing
+      PASS: negated 'Never modify' prints nothing
+      PASS: negated 'Don't change' prints nothing
+      PASS: verb after the path prints nothing
+      PASS: verb on the line above prints nothing
+      PASS: verb in a code block prints P1
+      PASS: declared path prints nothing
+      PASS: 'See the changelog' is no verb
+      PASS: 'Open the editor' is no verb
+      PASS: 'The preupdate hook' is no verb
+    RESULT: 192 passed, 6 failed
+PASS mawk tests/resolve-declared-paths/resolve-declared-paths.test.sh
+PASS gawk tests/commit-safe/concurrent-commit.test.sh
+PASS gawk tests/commit-safe/stale-lock.test.sh
+FAIL gawk tests/plan-state/plan-state.test.sh
+      PASS: verb 'MODIFY' prints P1
+      PASS: verb 'rewrote' prints P1
+      PASS: verb 'appends to' prints P1
+      PASS: verb 'Do not edit the header; update' prints P1
+      PASS: negated 'Do not edit' prints nothing
+      PASS: negated 'Never modify' prints nothing
+      PASS: negated 'Don't change' prints nothing
+      PASS: verb after the path prints nothing
+      PASS: verb on the line above prints nothing
+      PASS: verb in a code block prints P1
+      PASS: declared path prints nothing
+      PASS: 'See the changelog' is no verb
+      PASS: 'Open the editor' is no verb
+      PASS: 'The preupdate hook' is no verb
+    RESULT: 192 passed, 6 failed
+PASS gawk tests/resolve-declared-paths/resolve-declared-paths.test.sh
+PASS busybox tests/commit-safe/concurrent-commit.test.sh
+PASS busybox tests/commit-safe/stale-lock.test.sh
+FAIL busybox tests/plan-state/plan-state.test.sh
+      PASS: verb 'MODIFY' prints P1
+      PASS: verb 'rewrote' prints P1
+      PASS: verb 'appends to' prints P1
+      PASS: verb 'Do not edit the header; update' prints P1
+      PASS: negated 'Do not edit' prints nothing
+      PASS: negated 'Never modify' prints nothing
+      PASS: negated 'Don't change' prints nothing
+      PASS: verb after the path prints nothing
+      PASS: verb on the line above prints nothing
+      PASS: verb in a code block prints P1
+      PASS: declared path prints nothing
+      PASS: 'See the changelog' is no verb
+      PASS: 'Open the editor' is no verb
+      PASS: 'The preupdate hook' is no verb
+    RESULT: 192 passed, 6 failed
+PASS busybox tests/resolve-declared-paths/resolve-declared-paths.test.sh
+HIDDEN CHECK: 9 passed, 3 failed

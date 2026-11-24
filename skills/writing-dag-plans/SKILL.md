@@ -32,26 +32,41 @@ pieces with separable review/lifecycles (e.g. a shared library + its first
 consumer; a core engine + N adapters)?
 
 - **No** → one deliverable → author one DAG plan (continue below).
-- **Yes** → author a **thin charter first**, then a child plan per piece:
-  1. Write the charter from the `./superspec-charter.md` template. It owns ONLY
-     the connective tissue no child plan can: the cross-plan **contract surface**
-     (shared types/enums/tokens), the **shared invariants** every child must
-     uphold, and the **build-order gate** between children.
-  2. Run THIS skill once per child plan, passing the charter as shared context.
-     Each child task's acceptance criteria must **inline the actual requirement**
-     (the invariant text, the concrete contract), citing the charter section as
-     provenance ("per Charter §3 I2: …") — never a bare pointer. The executor's
-     spec/quality reviewers treat the task body AS the binding spec and never see
-     the charter, so a bare "upholds Charter §3 I2" is unverifiable at review time.
-  3. Pull children one at a time; don't start them all at once.
+- **Yes** → author a **thin superspec charter first**, then a child plan per piece:
+  1. Write the superspec charter from the `./superspec-charter.md` template, as a
+     *delivery* charter (`charter_kind: delivery`). It owns ONLY the connective
+     tissue no child plan can: the cross-plan **contract surface** (shared
+     types/enums/tokens, each with one owning child), the **shared invariants**
+     every child must uphold, and the **build-order gate** between children. Run
+     `sh ./plan-state charter <charter>`: it checks that every dependency names a
+     child or a contract, that every contract has one owning child, and that the
+     children have no cycle. Fix anything it prints before writing child plans.
+     (A *design* charter is the other kind: written during design, before any
+     spec, by `/parallel-dag-execution:charter`. If one already exists for this
+     work, use it instead of writing a new one.)
+  2. Run THIS skill once per child plan, passing the superspec charter as shared
+     context. Give each child plan `parent:` (the charter's path) and `child:`
+     (its id in the charter), and fill that child's `plan` cell in the charter. Each child task's acceptance criteria must **inline the actual
+     requirement** (the invariant text, the concrete contract), citing the
+     superspec charter section as provenance ("per superspec charter §3 I2: …") —
+     never a bare pointer. The executor's spec/quality reviewers treat the task
+     body AS the binding spec and never see the superspec charter, so a bare
+     "upholds superspec charter §3 I2" is unverifiable at review time.
+  3. Run children in parallel where the contracts allow: a child starts when the
+     contracts it consumes have merged.
 
 Judgment, not a hard gate — a two-piece spec with no shared invariants may not
-need a charter. But make the call here, instead of defaulting to one plan.
+need a superspec charter. But make the call here, instead of defaulting to one plan.
+
+"Superspec charter" is always written in full. A bare "charter" in this plugin
+means the repo's own rules (`CLAUDE.md`, convention docs, `.claude/audit-charter.md`),
+which the audit lenses and the executor's dispatch prompts read. That is a
+different document.
 
 ## Two reference docs you MUST read first
 
 - **`./plan-format.md`** — canonical *structural* contract: top-of-file layout, per-task frontmatter schema (`id`, `depends_on`, `files`, `status`, `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint`, `single_threaded`, `is_wiring_task`, `review_mode`), plan-level defaults (`default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint`, `default_review_mode`), §Tier resolution, §Review-mode resolution, status semantics, structural validation rules, mermaid block spec, ASCII tree spec.
-- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H11, refuse on violation) and soft heuristics (S1-S15, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, best-practice signals, and — S12-S15 — whether each acceptance criterion can actually **fail**.
+- **`./plan-quality.md`** — canonical *decomposition-quality* contract: hard rules (H1-H11, refuse on violation) and soft heuristics (S1-S18, warn and confirm). Enforces DRY, Single Responsibility per task, Separation of Concerns, best-practice signals, and — S12-S15 — whether each acceptance criterion can actually **fail**.
 
 Every plan you author must pass BOTH structural validation AND quality validation. Structural validation catches "the file is malformed"; quality validation catches "the decomposition is sloppy."
 
@@ -60,7 +75,7 @@ Every plan you author must pass BOTH structural validation AND quality validatio
 ```dot
 digraph writing_dag_plans {
     "Fan-out checkpoint" [shape=diamond];
-    "Author charter, run this skill per child" [shape=box];
+    "Author superspec charter, run this skill per child" [shape=box];
     "Read spec" [shape=box];
     "Decompose into tasks" [shape=box];
     "For each task: elicit files: scope" [shape=box];
@@ -73,7 +88,7 @@ digraph writing_dag_plans {
     "Write plan file" [shape=box];
     "Done — handoff to executing-dag-plans" [shape=doublecircle];
 
-    "Fan-out checkpoint" -> "Author charter, run this skill per child" [label="fans out (~3+ pieces)"];
+    "Fan-out checkpoint" -> "Author superspec charter, run this skill per child" [label="fans out (~3+ pieces)"];
     "Fan-out checkpoint" -> "Read spec" [label="one deliverable"];
     "Read spec" -> "Decompose into tasks";
     "Decompose into tasks" -> "For each task: elicit files: scope";
@@ -97,7 +112,7 @@ digraph writing_dag_plans {
 
 ### Step-by-step
 
-> **Before step 1:** clear the [fan-out checkpoint](#first-the-fan-out-checkpoint-do-this-before-decomposing). If the spec fans out into multiple independently-executed plans, author the charter and run this skill once per child; the steps below then apply to each child plan. Otherwise continue straight through.
+> **Before step 1:** clear the [fan-out checkpoint](#first-the-fan-out-checkpoint-do-this-before-decomposing). If the spec fans out into multiple independently-executed plans, author the superspec charter and run this skill once per child; the steps below then apply to each child plan. Otherwise continue straight through.
 
 1. **Read the spec.** Either invoked from a brainstorming session (spec content is in conversation context) or from a file (read it).
 
@@ -126,6 +141,8 @@ files a cleanup task, the cleanup itself misses more files (Round 2), and
 the cycle repeats. Three rounds isn't uncommon for symbol bumps that
 permeate test fixtures. Pre-DAG grep kills the entire failure mode.
 
+3.6. **Name the tests that prove each task.** For each acceptance criterion a test can check, add a `tests:` entry to the task's YAML block: `<file> :: <case>`, where `<file>` is the suite file (it must be in the task's `files:`) and `<case>` is the name the task's new case will print, exactly. Block form only, one entry per `  - ` line. The executor's `verify-tests` checks each named case from committed work: red before the task's change, green after. "Before" runs the task's final test file against the old code, so name only cases that fail on the old code. A new case that would already pass there (a regression guard, a check that a valid input stays valid) is labelled `not-red` and fails the task: keep it in the suite and out of `tests:` (see `plan-format.md` §Named tests). A name must be unique in its file. If the suite already prints a case by that name (this repo's suites repeat `exit 0`), pick another name or make renaming the existing case part of the task. Criteria that cannot be tests stay prose; S17 warns about a test-like criterion left without an entry.
+
 4. **Build dependency edges.** Two sources:
    - **Logical:** task B requires task A's output (e.g., B uses a function A defined). User-declared.
    - **File-scope:** any two tasks sharing a `files:` entry MUST have a directed path between them. If the user-declared `depends_on:` doesn't already provide one, inject a serializing edge yourself.
@@ -137,7 +154,7 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
      b. Suggest splitting one task's scope so they no longer share files.
    - Loop until the validation passes.
 
-6. **Run structural validation** per `plan-format.md` rules 1-8:
+6. **Run structural validation** per `plan-format.md` rules 1-8, 11-12:
    - Unique ids.
    - No cycles (DFS-based check).
    - All `depends_on:` references resolve to existing task ids.
@@ -146,6 +163,31 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
    - Immutable history (only relevant for updates — N/A for fresh authoring).
    - Per-task hint enum: `model_hint`, `spec_reviewer_hint`, `quality_reviewer_hint` must be `cheap | standard | opus` when present.
    - Plan-level default enum: `default_model_hint`, `default_spec_reviewer_hint`, `default_quality_reviewer_hint` must be `cheap | standard | opus` when present.
+   - Plan-level key resolution: `spec:`, when present, MUST resolve to a readable
+     single file, not a directory — refuse, naming the field and the offending
+     path. `default_implementer`, when present, MUST be a non-empty string; the
+     executor pre-flight resolves it against the agent registry.
+   - `implementation:`, when present, is `full` (rule 14).
+
+   Run these checks with `./plan-state`, not by hand. Write the draft next to its
+   final path as `<plan>.draft.md`, run `sh ./plan-state render <draft>` (it adds the
+   mermaid block), then `sh ./plan-state check <draft>`. It prints one line per
+   violation and covers every rule above except immutable history. If it prints
+   anything, fix the draft or refuse; the final path is written only in step 11.
+
+   Then run `sh ./plan-state preflight <draft>`. It reads every task's text (all are
+   `pending` in a draft) for path defects: P1 a path the text says to edit that is not
+   in the task's `files:`, P2 a missing path another task creates with no dependency
+   path to it, P3 a missing path no task creates or a line citation past the end of its
+   file, P4 a path that a task able to run at the same time changes. An error (exit 1)
+   refuses the draft, as a `check` violation does: fix it and run both again. Lines
+   marked `warning:` join step 7's soft-heuristic warnings under the same "save anyway?
+   (y/N)" prompt.
+
+   Preflight reads every path-like word in a task's code blocks as a citation. When a block
+   is test data, such as a fixture whose made-up paths must not exist, add the word
+   `fixture` to its info string (` ```bash fixture `) and preflight skips the block. Use it
+   only for data: a real path in a fixture block goes unchecked.
 
    Any failure → refuse, explain, exit. Do NOT write the file.
 
@@ -174,7 +216,7 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
 
 7. **Run quality validation** per `plan-quality.md`:
    - Hard rules H1-H11 (compound titles, single acceptance group, single subsystem in `files:`, acceptance criteria present, no anti-pattern phrases, consistent id naming, `## Implementation` subsection presence, import resolution, contract-sequencing, missing-producer index, bare-spec-pointer). Any failure → refuse, name the rule + task + fix, exit.
-   - Soft heuristics S1-S15 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch, review-mode sense-check, unanchored cross-cut contract, **crash-passing absence criterion, tautological criterion, quantifier mismatch, diff-property criterion**). Collect as warnings.
+   - Soft heuristics S1-S18 (DRY across siblings, oversized tasks, undersized stubs, vague criteria, overly linear DAGs, premature abstraction signals, test-helper hoisting, contract co-location, tier-complexity mismatch, review-mode sense-check, unanchored cross-cut contract, **crash-passing absence criterion, tautological criterion, quantifier mismatch, diff-property criterion, rendered-output change with no verification owner, test-like criterion with no named test, prompt reads an input its reader is never given**). Collect as warnings.
    - S12-S15 are the acceptance-criteria falsifiability set. H4 only checks that criteria *exist*; these ask whether they can **fail**. They are the cheapest place to catch the defect class that most often survives into rework, so do not skip them on the grounds that a lens will find it later — a rule here runs free, a `verifiability` lens dispatch does not.
 
 8. **Decomposition-principles audit (LLM-judgment pass).** Re-read the full plan with fresh eyes and check it against the seven principles below. This step is judgment-driven — the mechanical rules in step 7 catch structural violations; this step catches *holistic* decomposition smells across the whole plan. Surface concerns as warnings (not refusals); the user confirms or revises.
@@ -202,11 +244,11 @@ permeate test fixtures. Pre-DAG grep kills the entire failure mode.
 
    Output format: same as soft heuristics — list with principle, affected task ids, specific concern, suggested fix. After the list (combined with step 7's soft warnings if any): "save anyway? (y/N)" — default N.
 
-9. **Render the mermaid block.** Per `plan-format.md`. Status defaults to `pending` for newly authored plans (no class applied). Status-driven coloring kicks in on update or during execution.
+9. **Render the mermaid block.** Per `plan-format.md`. Status defaults to `pending` for newly authored plans (no class applied). Status-driven coloring kicks in on update or during execution. `plan-state render <draft>` draws it; run it again if the draft changed after step 6.
 
-10. **Render the ASCII tree to terminal.** Print before writing the file so the user can sanity-check shape.
+10. **Render the ASCII tree to terminal** with `plan-state tree <draft>`. Print before writing the file so the user can sanity-check shape.
 
-11. **Write the plan file** to `docs/superpowers/plans/YYYY-MM-DD-<topic>-dag.md` (override per project preference). The mermaid block goes at the top, followed by `## Context`, `## Tasks`, then the task blocks.
+11. **Write the plan file** to `docs/superpowers/plans/YYYY-MM-DD-<topic>-dag.md` (override per project preference) by moving the checked draft there. The mermaid block goes at the top, followed by `## Context`, `## Tasks`, then the task blocks. Emit `spec:` in the frontmatter automatically, set to the path of the spec this skill was invoked from (step 1) — the author does not opt in explicitly. If the skill was invoked from conversational context with no file path (no spec file to point at), omit `spec:` entirely: its absence is not an error for a plan authored without one, and existing plans without the key keep working unchanged.
 
 12. **Hand off** to `executing-dag-plans` (don't invoke it automatically — the user should review the plan first).
 

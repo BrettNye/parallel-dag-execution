@@ -47,7 +47,12 @@ expensive failure mode of a two-gate pipeline.
 
 - **`./lenses-spec.md`** — the 6 spec lenses, each with its concern, prompt
   fragment, and default tier.
-- **`./lenses-plan.md`** — the 7 plan lenses, same.
+- **`./lenses-plan.md`** — the 8 plan lenses, same.
+- **`./resolve-declared-paths`** — path pre-pass helper; run once in step 2.6, its
+  tables passed verbatim to every lens and to the reconciler.
+- **`./audit-stats`** — counts, per lens, the blocking findings it reported and those
+  it caught alone, across every `reconciliation.md` under a path. Not part of an
+  audit; run it to decide which lenses earn their cost.
 - **`./auditor-prompt.md`** — dispatch template for `dag-auditor`.
 - **`./reconciler-prompt.md`** — dispatch template for `dag-audit-reconciler`.
 - **`./audit-charter-template.md`** — optional per-repo charter file.
@@ -106,7 +111,10 @@ digraph auditing_artifacts {
 2. **Locate charter material.** Root and nested `CLAUDE.md`/`AGENTS.md`, the
    convention/boundary docs they point to, and `.claude/audit-charter.md` if
    present. Pass the list of paths to every lens; do not summarize it for them —
-   they read it themselves.
+   they read it themselves. ("Charter" in this skill always means this repo
+   material. The superspec charter from `writing-dag-plans` is a different
+   document; when it matters to an audit it is passed as a downstream or parent
+   artifact, by its full name.)
 
 2.5. **Locate downstream artifacts, and pass them to every lens.** An artifact is
    rarely audited in isolation — work may already be planned or landed. Find:
@@ -129,6 +137,17 @@ digraph auditing_artifacts {
    The rule the lenses apply: **a spec-text defect that a downstream artifact
    already states correctly is STALE or DEFERRED, never BLOCKING** — nothing will
    be built wrong. It is still worth reporting as a provenance correction.
+
+2.6. **Resolve declared paths before dispatching.** Run
+   `./resolve-declared-paths <artifact> <repo-root> <charter-paths...>` once and
+   pass its tables verbatim to every lens. This replaces N private resolutions
+   with one shared one, before any lens runs — today every lens independently
+   globs, greps and stats the same handful of paths, roughly 20–40 redundant
+   tool calls per audit and N private inferences where one shared resolution
+   would do.
+
+   If the helper cannot run, say so explicitly to every lens — "path pre-pass did
+   not run" — rather than omitting the block. A lens told nothing assumes nothing.
 
 3. **Check for a prior audit.** Look for an `## Audit record` section in the
    artifact. **It is an append-only log — one entry per audit, newest last — and an
@@ -169,10 +188,12 @@ digraph auditing_artifacts {
    narrows what a lens reads; this narrows *which lenses run at all*. For each lens ask:
    **could this diff have changed anything my concern covers?** If not, it does not run —
    carry its prior verdict forward in the audit record instead, marked `carried`.
+   A diff matching several rows re-runs the **union** of their lenses.
 
    | Diff touched | Lenses that must re-run |
    |---|---|
    | acceptance criteria only | `verifiability`, `coherence` |
+   | a requirement's wording or an AC's precision | `ambiguity`, `verifiability`, `coherence` |
    | task bodies / added tasks | `coverage`, `context-sufficiency`, `grounding`, `coherence` |
    | `depends_on`, `files:`, task ids | `dag-integrity`, `coherence` |
    | a `file:line` citation or a named symbol | `grounding` |
@@ -180,9 +201,9 @@ digraph auditing_artifacts {
 
    `coherence` re-runs on almost any edit — that is correct, it is the lens that catches
    a fix contradicting an untouched section, which is the failure mode re-audits exist
-   for. A typical round 2 is **2–3 lenses, not 6.** Running all six on a two-section diff
-   is the cost the two-gate design was supposed to remove, and it is what the omission of
-   this step was producing.
+   for. A typical round 2 is **2–3 lenses, not the whole set (8 at gate 2, 6 at gate
+   1).** Running the whole set on a two-section diff is the cost the two-gate design
+   was supposed to remove, and it is what the omission of this step was producing.
 
    **Convergence — stop drawing.** A re-audit round whose findings are all DEFERRED, or
    all outside the diff, means the artifact has converged: record READY and stop. Do
@@ -199,19 +220,20 @@ digraph auditing_artifacts {
 
    ### What a gate-2 lens adds over `writing-dag-plans`' own validation
 
-   A plan authored by `writing-dag-plans` has already passed H1–H11, S1–S15, structural
+   A plan authored by `writing-dag-plans` has already passed H1–H11, S1–S18, structural
    validation, and its step-8 decomposition audit. Those overlap the plan lenses
    unevenly, so an author narrowing the set should know which lenses are genuinely
    additive:
 
    | Lens | Already covered by plan-quality? | Additive? |
    |---|---|---|
-   | `coverage` | **Nothing.** No rule maps spec requirements to tasks. | **Fully** |
-   | `verifiability` | H4 (an AC *exists*), S4 (vague), and **S12–S15** — the falsifiability set: crash-passing absence, tautology, quantifier mismatch, diff-property. Those are the four *recurring* shapes. | Partly — for **novel** unfalsifiability the rules do not pattern-match: a spy blind to the real mechanism, an assertion a normalizing library defeats, a DOM binding left unpinned, a gate that reports success after its checker died |
+   | `coverage` | **S16 only**, and only for rendered-surface verification ownership. Nothing maps spec requirements to tasks in general. | **Largely additive** |
    | `coherence` | **Nothing.** No rule compares a task's `## Implementation` sketch against its own ACs. | **Fully** |
+   | `ambiguity` | **Nothing at gate 2.** S12–S15 grade an AC's falsifiability, not a requirement's. | **Fully** |
    | `grounding` | Step 3.5's symbol-consumer grep; "do not fabricate file paths". | **Mostly** |
+   | `verifiability` | H4 (an AC *exists*), S4 (vague), and **S12–S15** — the falsifiability set: crash-passing absence, tautology, quantifier mismatch, diff-property. Those are the four *recurring* shapes. | Partly — for **novel** unfalsifiability the rules do not pattern-match: a spy blind to the real mechanism, an assertion a normalizing library defeats, a DOM binding left unpinned, a gate that reports success after its checker died |
    | `charter` | Step 8's repo-convention pass, incl. the named per-layer reference implementation. | Partly |
-   | `context-sufficiency` | H11 **is** the bare-spec-pointer rule; plus H2, S2/S3 sizing, step 8's elided-sibling completeness. | Largely covered |
+   | `context-sufficiency` | H11 **is** the bare-spec-pointer rule; plus H2, S2/S3 sizing, step 8's elided-sibling completeness, and S18 for a prompt section whose input its reader never gets. | Largely covered |
    | `dag-integrity` | Structural validation (cycles, file-disjoint parallel branches) + H8 import resolution + H9 contract sequencing + H10 missing-producer index + step 5's file-scope conflict loop. | Largely covered |
 
    So if cost forces a subset, the top rows are where the un-checked risk lives — and
@@ -269,10 +291,12 @@ digraph auditing_artifacts {
    finding gets quietly lost before the downgrade log can record it.
 
 7. **Dispatch the reconciler** with the lens-report **paths** (not their text), the
-   artifact, and the repo root. One call. Do not pre-merge, pre-filter, or drop
-   anything first — merging is its job, and quietly discarding a finding on the
-   way in defeats the downgrade log. See `./reconciler-prompt.md` for the
-   paths-vs-inline rule.
+   artifact, the repo root, and **the ground-truth tables from step 2.6**. Without
+   the tables, the reconciler's downgrade rule — a lens claim that contradicts a
+   resolved `EXISTS` is downgraded — references an input its reader was never
+   given. One call. Do not pre-merge, pre-filter, or drop anything first —
+   merging is its job, and quietly discarding a finding on the way in defeats the
+   downgrade log. See `./reconciler-prompt.md` for the paths-vs-inline rule.
 
 8. **Present the verdict** to the user: the one-line verdict, blocking findings,
    joint resolutions, contradictions, then the rest. Lead with the count.
@@ -291,13 +315,13 @@ digraph auditing_artifacts {
      - Deferred, accepted: <one line each>
      - Empirical unknowns opened: <list, each with its probe task>
    - **2026-07-30** · rev `<normalized-hash>` · lenses: verifiability, coherence (2/2 ran;
-     carried: coverage, dag-integrity, grounding, charter, context-sufficiency — diff
-     touched acceptance criteria only) · **READY**
+     carried: coverage, dag-integrity, grounding, charter, context-sufficiency,
+     ambiguity — diff touched acceptance criteria only) · **READY**
    ```
 
    A diff-scoped round records **both** the lenses that ran and the ones `carried`, with
    the one-line reason. A carried lens is a live prior verdict, not a gap — but only if
-   the record says which and why, otherwise "2/2 ran" is indistinguishable from four
+   the record says which and why, otherwise "2/2 ran" is indistinguishable from six
    lenses silently skipped.
 
    State how many lenses ran out of how many dispatched — a run with an unrun lens is

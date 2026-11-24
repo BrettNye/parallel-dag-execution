@@ -1,0 +1,4 @@
+A-r1b rc=0
+A-r1a rc=0
+B-r1b rc=0
+B-r1a rc=0

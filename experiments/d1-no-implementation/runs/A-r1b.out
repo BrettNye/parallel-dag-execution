@@ -1,0 +1,16 @@
+session a1ea0aec-8483-423b-bc6e-875da04494a0  result success  cli cost $12.73
+The plan is **NOT READY**. The eight lenses and the reconciler found 4 blocking defects, all in the code and test fixtures the plan gives its four `plan-state` tasks. The six documentation tasks have none. Each fix is one to three lines of plan text, with no new tasks, files or edges.
+
+## Blocking findings
+
+1. **B1 · task-preflight-core: `note()` reuses a variable name `plan-state` already uses for a number.** The plan stores messages in an array called `ms`, but `plan-state` already uses `ms` for the mermaid block's start line (`skills/writing-dag-plans/plan-state:84`, `:223`, `:241`, `:243`, `:247`). I checked this in the code myself. Under gawk, any preflight run that finds something crashes on the first `note()` call. All four checks (P1–P4) report through `note()`, so the core, declared and edit tasks' preflight tests cannot pass. Three lenses reproduced the gawk error independently. **Fix:** rename it to `pmsg`.
+2. **B2 · task-preflight-declared: one acceptance criterion cannot be met.** It asks for one path that draws both a P2 and a P3 line, with P2 printed first. P2 needs an absent path that some task declares; P3 needs an absent path that no task declares, or a path that exists. No path can be both, so the test-first implementer can't write the case. **Fix:** replace it with a pair that can occur (P3 before P4), in its own fixture, and reword the ordering sentence to "order within a path is by check id."
+3. **B3 · task-preflight-edit: the `editverb` code fails the task's own negation criterion.** The loop moves forward one character (`substr(rest, RSTART + 1)`), so after a negated verb is skipped, that verb is matched again with no "not" before it. `Do not edit`, `Never modify` and `Don't change` all still trigger P1. Two lenses and the reconciler ran the sketch and confirmed it. **Fix:** advance with `substr(rest, RSTART + RLENGTH - 1)`. The reconciler tested this against every input in the task's criteria.
+4. **B4 · task-round: a quoted `review_rounds: "1"` gets around the cap without any error.** The value is read with its quotes stripped, but the write pattern needs a digit right after the colon, so the line is never rewritten. `round` keeps printing 2 and exiting 0, so the cap never trips. That is the endless review loop the cap exists to prevent. **Fix (recommended):** let the write pattern accept an optional quote, write the value back bare, and add an acceptance criterion for the quoted case.
+
+## Other results
+
+- **Grouped fixes:** the reconciler grouped these into four joint fixes, J1–J4, one per `plan-state` task, each with related smaller items folded in. Apply each as one edit. Together they add about 12 to 35 lines.
+- **Lens disagreements:** there were eight. Two that matter:
+  - Charter and coherence said the `ms` clash breaks every `plan-state` command. Under gawk it only breaks preflight. Whether mawk rejects it outright was not tested, because mawk isn't installed.
+  - Verifiability's blocking finding on the unwritable-

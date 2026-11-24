@@ -1,0 +1,70 @@
+#!/usr/bin/env sh
+# audit-stats — which audit lenses catch the blocking findings (backlog E1).
+# Usage: audit-stats [path...]            (default: .)
+# Reads every reconciliation.md under each directory, or a report given as a file.
+# For each finding under "### Blocking findings" it takes the lens names on the
+# finding's first lens line (Lenses:, Contributing lenses: or Found by:), and prints,
+# per lens, the blocking findings it was part of and the ones it caught alone.
+# Exit: 0 ok, 2 usage error, unreadable path, or a directory with no reports.
+#
+# Why: to decide which lenses earn their cost, count what each catches that no
+# other lens does. A finding whose report names no lens is counted, never guessed.
+set -eu
+
+[ "$#" -gt 0 ] || set -- .
+list=$(mktemp) || exit 2
+trap 'rm -f "$list"' EXIT
+for p in "$@"; do
+  if [ -f "$p" ]; then printf '%s\n' "$p" >> "$list"
+  elif [ -d "$p" ]; then
+    n=$(find "$p" -type f -name reconciliation.md | sort | tee -a "$list" | wc -l)
+    [ "$n" -gt 0 ] || { echo "audit-stats: no reconciliation.md under $p" >&2; exit 2; }
+  else echo "audit-stats: cannot read $p" >&2; exit 2; fi
+done
+
+# One line of totals, then "lens blocking alone" per lens that was part of any finding.
+res=$(awk -v LIST="$list" '
+BEGIN {
+  nl = split("absence ambiguity grounding charter coherence design coverage dag-integrity context-sufficiency verifiability", lens, " ")
+  while ((getline f < LIST) > 0) ARGV[ARGC++] = f
+  close(LIST)
+}
+function done_finding(   i, n, last) {
+  if (!open) return
+  n = 0; for (i = 1; i <= nl; i++) if (hit[i]) { n++; last = i; blk[i]++ }
+  if (n == 1) alone[last]++
+  if (n == 0) nolens++
+  for (i = 1; i <= nl; i++) hit[i] = 0
+  open = 0
+}
+# The lens list ends at the first full stop outside parentheses: reports go on in prose
+# ("Found by: coherence. My probe ...") and that prose may name other lenses.
+function names(s,   i, c, d) {
+  d = 0
+  for (i = 1; i <= length(s); i++) { c = substr(s, i, 1)
+    if (c == "(") d++; else if (c == ")" && d > 0) d--
+    else if (c == "." && d == 0 && (i == length(s) || substr(s, i + 1, 1) ~ /[ \t]/)) return substr(s, 1, i - 1) }
+  return s
+}
+FNR == 1 { done_finding(); nrep++; inb = 0 }
+{ sub(/\r$/, "") }
+/^#+ / { done_finding(); inb = ($0 ~ /^### Blocking findings?[ \t]*$/); next }
+!inb { next }
+{ low = tolower($0) }
+open && !got && match(low, /^[ \t]*(-[ \t]*)?(\*\*)?(lenses|contributing lenses|found by)(:\*\*|\*\*:|:)/) {
+  got = 1; rest = names(substr(low, RLENGTH + 1))
+  for (i = 1; i <= nl; i++) if (rest ~ ("(^|[^a-z-])" lens[i] "([^a-z-]|$)")) hit[i] = 1
+  next
+}
+# A finding opens with its bold id (B1., R2-B1.); a bold body label such as **Resolution:** does not.
+/^\*\*([A-Za-z0-9]+-)*[A-Za-z]+[0-9]+\./ { done_finding(); open = 1; got = 0; nfind++ }
+END {
+  done_finding()
+  print nrep + 0, nfind + 0, nolens + 0
+  for (i = 1; i <= nl; i++) if (blk[i]) print lens[i], blk[i], alone[i] + 0
+}' /dev/null)
+
+set -- $(printf '%s\n' "$res" | sed -n 1p)
+echo "audit-stats: $1 reports, $2 blocking findings, $3 with no lens line"
+printf '%-22s%s  %s\n' lens blocking alone
+printf '%s\n' "$res" | sed 1d | sort -k2,2nr -k1,1 | awk 'NF { printf "%-21s%9d%7d\n", $1, $2, $3 }'

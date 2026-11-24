@@ -1,0 +1,41 @@
+session 81324e16-f9df-4f67-b72c-35fa9132b6b3  result success  cli cost $0.92
+I applied all three blocking fixes to the plan. `render` left the plan unchanged beyond my edits, and `check` printed nothing (exit 0). Nothing is committed.
+
+The changes stay inside the three existing tasks, plus one test case and the EU-A criterion. No tasks, files or dependency edges were added, and the `## Audit record` section is as it was.
+
+## Blocking findings
+
+**B1: `ms` already holds a single value, but `note()` used it as an array (task-preflight-core).** This is resolution A.1.
+- Renamed the message array in `note()` from `ms[t, p, c]` to `pfmsg[t, p, c]`. `pfmsg` does not appear anywhere in `plan-state`.
+- Added a short **Names** paragraph to the task text. It lists the names the shared `PROG` already uses (`ms`, `me`, `l`, `k`, `line`, `info`, `cur`, `nt`, `fence`, and the functions `st`, `inset`, `err`, `viol`, `graph`, `ancestors`, `check`, `ready`, `tree`), explains why the array is not called `ms`, and tells later tasks to check their new names against the list.
+- Added one sentence to task-preflight-declared and one to task-preflight-edit. Each says new global names must not clash with names already in `PROG`, and gives the `rg -nw` command to confirm.
+
+**B2: `cands()` read `RSTART`/`RLENGTH` after `addc()` had overwritten them, so the loop never ended.** This is resolutions A.2–A.4, which the reconciliation says must land together.
+- **A.2, core:** `cands` now gets two locals, `s` and `n`. Both branches save `RSTART`/`RLENGTH` into them right after `match()` and use only `s`/`n` to take the substring and to move forward. I also added a **Match positions** paragraph explaining why.
+- **A.3, edit:** replaced `off += RSTART + RLENGTH - 1` with a version that computes the prefix and offset from the saved `s` and `n`. The task's context text now says to do that and why.
+- **A.4, edit:** `addc` now takes the prefix as a parameter, `function addc(t, raw, pre,   p)`, and stores it in `cpre[t, nc[t]] = pre`. Before, the prefix landed in the local `p` and was overwritten.
+
+I checked the fixed loop with gawk 5.4.1 in a temp directory outside the repo:
+- On `sed -n 4p lib/a.sh … cat lib/b.sh:4 next` and on a prose line, it stopped (exit 0) and found the correct paths, line numbers and prefixes.
+- `note()` with `pfmsg` ran fine while `ms` held a plain value.
+
+**B3: the acceptance criterion "P2 prints before P3 on one path" can never be met (task-preflight-declared).** This is resolution B.1.
+- Deleted that criterion.
+- Rewrote the ordering paragraph. It now says P2 never shares a path with P3 or P4 and gives the reason. It also says P3 and P4 can share a path that exists, with P3 printed first.
+- Added a case that can actually happen. The two-line `lib/two.sh` exists and is declared by root task `task-w` (`pending`). Root task `task-x` cites `lib/two.sh:5`. Expected: exit 1, with the P3 "past the end of the file (2 lines)" error printed before the P4 warning.
+
+## Deferred item applied
+
+- **EU-A, an acceptance criterion for task-preflight-edit:** when `mawk` or `busybox` is on PATH, the suite's `$ALTSH` cases also run with it as `awk` and must pass. When neither is installed, the suite prints one `NOTE:` line, as it already does for dash (`tests/plan-state/plan-state.test.sh:7`).
+
+## Not applied
+
+The reconciliation lists other fixes as recommended rather than blocking, so I left them out to keep to "no other changes":
+- A.5–A.7: the negated-verb resume, `run_check` returning instead of exiting, and `-v CAP` on the `check` call.
+- B.2–B.3: the Mixed fixture's dependency edge, and asserting exit 0 on the "prints no line" cases.
+- Joints C, D and E.
+
+## plan-state result
+
+- `render`: exit 0. The plan shows no changes other than mine.
+- `check`: exit 0 and printed nothing.
