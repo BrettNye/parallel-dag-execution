@@ -56,7 +56,8 @@ open && !got && match(low, /^[ \t]*(-[ \t]*)?(\*\*)?(lenses|contributing lenses|
   for (i = 1; i <= nl; i++) if (rest ~ ("(^|[^a-z-])" lens[i] "([^a-z-]|$)")) hit[i] = 1
   next
 }
-/^\*\*/ { done_finding(); open = 1; got = 0; nfind++ }
+# A finding opens with its bold id (B1., R2-B1.); a bold body label such as **Resolution:** does not.
+/^\*\*([A-Za-z0-9]+-)*[A-Za-z]+[0-9]+\./ { done_finding(); open = 1; got = 0; nfind++ }
 END {
   done_finding()
   print nrep + 0, nfind + 0, nolens + 0

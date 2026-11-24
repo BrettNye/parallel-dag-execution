@@ -102,5 +102,14 @@ printf '%s\n' '### Blocking finding' '' '**R2-B1. One.** Prose with no lens line
 out="$(sh "$SCRIPT" "$tmp/d" 2>&1)"; rc=$?
 chk "singular heading counts, no lens line" "$rc:$(printf '%s\n' "$out" | head -n 1)" "0:audit-stats: 1 reports, 1 blocking findings, 1 with no lens line"
 
+echo
+echo "T6: a bold label inside a finding does not start a new one"
+mkdir -p "$tmp/f"
+printf '%s
+' '### Blocking findings' '' '**B1. One.**' '- Lenses: coherence' '**Resolution:** change the sketch.' '' '**R2-B3. Two.**' '- Lenses: grounding' > "$tmp/f/reconciliation.md"
+out="$(sh "$SCRIPT" "$tmp/f" 2>&1)"; rc=$?
+chk "bold label is not a finding" "$rc:$(printf '%s
+' "$out" | head -n 1)" "0:audit-stats: 1 reports, 2 blocking findings, 0 with no lens line"
+
 echo "RESULT: $passes passed, $fails failed"
 [ "$fails" -eq 0 ]
