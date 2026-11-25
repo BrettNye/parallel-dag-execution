@@ -374,6 +374,30 @@ happens. Every scenario below was checked against that rule:
   G1 until the other plan merges, and the plan says why in an `x-after:` field. A first-class
   `depends_on: [other-plan#task]` can wait until the G1 form has been used.
 
+### G7. Check a task's real change against its `files:`
+- **Evidence:** file claims (G1) and rule 4 trust each task's `files:`. A review of nine executed
+  plans in another repository compared each plan's declared files with what its merge changed.
+  In eight of them the declarations covered 80–95% of the change. The rest followed patterns:
+  - specs of neighbouring modules;
+  - shared services;
+  - migrations and generated files;
+  - edits that fan out to every module (a config or style file in each app), none of them
+    declared.
+
+  In the ninth, one branch carried two plans' work, so more than half its change was declared by
+  neither. Changes between plans overlapped more than their declarations said.
+- **Proposal:** `set ... running` already records `base_sha:`. After an implementer reports DONE,
+  a `plan-state scope <plan> <id>` command prints the files changed since `base_sha` that aren't
+  in the task's `files:`, leaving out the plan file itself.
+  - The executor passes that list to the spec reviewer, which decides whether each file belongs
+    to the task.
+  - A file that doesn't belong is a fix round.
+  - A file that does belong is added to `files:` through `updating-dag-plans`, and through G1,
+    before any claim is released.
+- **Two rules for the coordinating layer, not the plugin:** an edit that fans out to every module
+  is its own plan, and one branch carries one plan. Otherwise neither claims nor the order of
+  merges can be trusted.
+
 **Order:** G3 and G5 first, because they're small and inside `plan-state`. Then G1 and G2,
 which change the executor's tick. Then G4. G6 needs nothing until G1 exists.
 
