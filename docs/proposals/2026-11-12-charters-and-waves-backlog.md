@@ -251,6 +251,156 @@ is finished.
   blocking findings. Lenses can then be merged down to the ones that need judgment, starting
   with the two that rarely catch anything alone.
 
+## F. Places a run can stall unseen (added 2026-11-24)
+
+Found while drawing the plan, audit and execute flows as diagrams for the desk. Each item is a
+point where the run stops or loses information and nothing outside the controller's own session
+says so. The review-round cap and advance-on-completion (C3) were on this list until a check
+showed master already has them; F1 is why they still looked missing.
+
+### F1. The installed plugin is months behind master
+- **Evidence:** `~/.claude/plugins/installed_plugins.json` pins this plugin at version 0.6.0,
+  commit `e1d1be1`, installed 2026-09-17. `.claude-plugin/plugin.json` on master still says
+  0.6.0: the last bump was `0506228` on 2026-08-28. So the installed copy has no `plan-state`,
+  no `verify-tests`, no review-round cap, and still ends every tick waiting for "continue".
+  Every session that runs `/execute` gets the old executor, and nothing warns about it.
+- **Proposal:** bump the version in `plugin.json` on every merge that changes `skills/`,
+  `agents/` or `commands/`, then update the installed plugin. A test could check the
+  version: it fails when those folders changed since the last version tag and `plugin.json`
+  has the same version.
+
+### F2. A `running` task after the controller dies looks live
+- **Evidence:** a killed session leaves its tasks `running` in the plan file. Resume resets
+  them to `ready`, but only once someone runs `/execute` again. Until then, `plan-state tree`
+  and anyone reading the plan see work in progress that is not happening.
+- **Proposal:** `plan-state set ... running` also writes a start time to the task. `tree` marks
+  a `running` task older than a limit as possibly stale. Low cost for one person. It matters
+  once something else reads plans, such as the desk's plan-collision check (desk backlog items
+  25 and 49).
+
+### F3. DONE_WITH_CONCERNS observations have nowhere to go
+- **Evidence:** the status table says "If observations only, log and proceed", but nothing says
+  where the log goes. The concerns live only in the controller's context and are lost when the
+  session ends.
+- **Proposal:** the final report lists every task's observations. Once the desk has a tracker
+  seam (desk backlog item 12), the observations become follow-ups filed through that seam.
+
+### F4. A failed task's reason is not in the plan
+- **Evidence:** the review-round cap says "Do not write the reason into the plan"; the reason
+  goes only into the final report. A reader of the plan after the session sees `failed` with no
+  why: a review cap, a second BLOCKED, or a reviewer with no verdict.
+- **Open:** why the reason was kept out of the plan. If the reason was parsing (`set` rewrites
+  only the status line), a `failed_reason:` field written by `plan-state` would fix it.
+
+## G. Seams for a layer that coordinates several plans (added 2026-11-25)
+
+The pods desk (`personal/repos/pods`) runs several plans at once, across people and pods, and
+puts a lifecycle around each plan (spec, gates, execute, MR, land). A spike there ran this
+plugin's own `plan-state` under a simulated controller:
+`pods` branch `spike/drift-mcg`, `spikes/drift-mcg/test/dag.test.ts`.
+
+- **Within one plan, scheduling is already as parallel as the dependencies allow** (P1). In the
+  shape where C needs A and B and D needs only B, D starts when B finishes, and the run takes
+  exactly the critical path. A failure skips only what depends on it (P2). Nothing here needs
+  to change.
+- **Across plans nothing coordinates.** Two plans that edit the same file both pass `check` and
+  run at the same time (P4). Rule 4 covers one plan only.
+- **Once plans share code, merge time is the limit** (P8, P9). An edit lives on its plan's
+  branch until merge, so a second plan must wait for the first to merge, not just for its task
+  to finish. Three plans that each edit one shared file merge at 13, 26 and 39: each added plan
+  waits one more full review-to-land cycle. With the shared change as its own contract plan,
+  merged first, all three merge at 24, and adding plans doesn't push that out.
+
+**Design rule: the coordinating layer depends on this plugin, never the reverse.** The plugin
+learns no roles, routing or workflow engine. It runs commands it's given and reports what
+happens. Every scenario below was checked against that rule:
+
+| Scenario at team scale | Does the plugin need pod concepts? | Seam |
+|---|---|---|
+| Two plans or pods edit one file | No: "may this task start?" | G1 admit command |
+| A queue is full or the runners are busy (decisions limit, token budget) | No: the same question | G1 admit command |
+| A task blocks on a person's answer (`/ask --blocking`) | No: only "waiting, not running" | G3 `waiting` status |
+| A task is done by a person (a DNS change, an owner sign-off) | No: started and finished outside | G3 plus `executor: external` |
+| Who answers or does that task | **Yes, if built in. Keep it out:** the layer routes | G2 events, G5 passthrough |
+| Escalate a stale run, a review cap or a failure | Only "something happened" | G2 events |
+| The layer's own lifecycle step (spec → gates → execute → MR) | No: execute is one step to it | G2 events |
+| Review strength by area (a trust ladder) | No, if the layer writes tier hints into the plan before execute | existing `*_hint` fields |
+| Policy on what a plan may touch (schema, permissions, generated files) | No: a check before the first dispatch | G4 preflight command |
+| A task needs another plan's change merged first | Only "this dependency isn't done yet" | G6 dependencies outside the plan |
+| Two controllers on one plan | No: one writer per plan file | G1 or a plan lock |
+
+### G1. An admit command before a task starts
+- **Proposal:** a plan-level `admit_command:` (or one set where the plugin is installed). Before
+  `set ... running`, the controller runs it with the plan path, task id and the task's `files:`.
+  Exit 0 starts the task. Exit 1 keeps it `ready`, the printed reason goes into `tree`, and the
+  next tick asks again. Exit 2 halts.
+- **Releasing is not the plugin's job.** The layer decides when a claim ends, because across
+  branches that's at merge (P8), which the plugin never sees.
+- Spike reference: `src/claims.ts` is one directory per file, made with `mkdir`, so two
+  controllers racing for a file can't both win, and it's all or nothing per task (P5, P6).
+
+### G2. A status-event command
+- **Proposal:** an `on_status_command:`, run after every `plan-state set` with the plan, task
+  id, old and new status, and the reason when there is one. It's fire and forget: a failing
+  command is logged and never stops the run.
+- It covers escalation, a lifecycle engine above the plugin, and claim bookkeeping, without the
+  plugin knowing any of them. It also gives F2, F3 and F4 a destination outside the session.
+
+### G3. A `waiting` status, and tasks finished outside the run
+- **Evidence:** `plan-state set <plan> <id> waiting` is refused (spike P7). A task blocked on a
+  person can only be `running`, which reads as work in progress.
+- **Proposal:** add `waiting`: not ready, not running, not terminal. Its dependents wait, and
+  everything else carries on. `plan-state set ... done` or `failed` from outside the controller
+  ends it, and the next tick picks that up, as with `/update` today. An optional
+  `executor: external` on a task makes the controller set it `waiting` instead of dispatching an
+  implementer.
+
+### G4. A preflight check command
+- **Proposal:** a `preflight_command:`, run beside `plan-state preflight` before the first
+  dispatch and on resume. A non-zero exit halts the run with its output. The layer puts its
+  policy and its check across plans (a plan registry) there.
+
+### G5. Pass through fields the plugin doesn't own
+- **Proposal:** a task may carry `x-` fields (`x-assignee:`, `x-area:`, `x-contract:`).
+  `plan-state check` leaves them alone, `updating-dag-plans` keeps them, and G1 and G2 pass them
+  to their commands.
+- This is the escape hatch that keeps role and routing out of the plugin: the layer reads its
+  own fields, and the plugin never interprets them.
+
+### G6. Dependencies outside the plan
+- **Evidence:** contract-first (P9) needs "this task waits until that plan's change merges".
+  `depends_on:` names only tasks in the same plan.
+- **Proposal:** the smallest form is to need nothing new. The layer holds such a task through
+  G1 until the other plan merges, and the plan says why in an `x-after:` field. A first-class
+  `depends_on: [other-plan#task]` can wait until the G1 form has been used.
+
+### G7. Check a task's real change against its `files:`
+- **Evidence:** file claims (G1) and rule 4 trust each task's `files:`. A review of nine executed
+  plans in another repository compared each plan's declared files with what its merge changed.
+  In eight of them the declarations covered 80–95% of the change. The rest followed patterns:
+  - specs of neighbouring modules;
+  - shared services;
+  - migrations and generated files;
+  - edits that fan out to every module (a config or style file in each app), none of them
+    declared.
+
+  In the ninth, one branch carried two plans' work, so more than half its change was declared by
+  neither. Changes between plans overlapped more than their declarations said.
+- **Proposal:** `set ... running` already records `base_sha:`. After an implementer reports DONE,
+  a `plan-state scope <plan> <id>` command prints the files changed since `base_sha` that aren't
+  in the task's `files:`, leaving out the plan file itself.
+  - The executor passes that list to the spec reviewer, which decides whether each file belongs
+    to the task.
+  - A file that doesn't belong is a fix round.
+  - A file that does belong is added to `files:` through `updating-dag-plans`, and through G1,
+    before any claim is released.
+- **Two rules for the coordinating layer, not the plugin:** an edit that fans out to every module
+  is its own plan, and one branch carries one plan. Otherwise neither claims nor the order of
+  merges can be trusted.
+
+**Order:** G3 and G5 first, because they're small and inside `plan-state`. Then G1 and G2,
+which change the executor's tick. Then G4. G6 needs nothing until G1 exists.
+
 ## v0.6.0 (merged 2026-11-12)
 
 `docs/superpowers/plans/2026-08-27-seams-and-ground-truth-dag.md` was executed (15/15) on
